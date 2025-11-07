@@ -36,7 +36,7 @@ def kuru_client(mock_blockchain):
     return KuruClient(
         blockchain=mock_blockchain,
         api_url="https://api.kuru.io",
-        contract_address="0xKuruContractAddress00000000000000000000",
+        contract_address="0x4444444444444444444444444444444444444444",
     )
 
 
@@ -48,13 +48,13 @@ class TestKuruClientInitialization:
         client = KuruClient(
             blockchain=mock_blockchain,
             api_url="https://api.kuru.io",
-            contract_address="0xKuruContractAddress00000000000000000000",
+            contract_address="0x4444444444444444444444444444444444444444",
         )
 
         assert client is not None
         assert client.blockchain == mock_blockchain
         assert client.api_url == "https://api.kuru.io"
-        assert client.contract_address == "0xKuruContractAddress00000000000000000000"
+        assert client.contract_address == "0x4444444444444444444444444444444444444444"
 
     def test_kuru_client_validates_contract_address(self, mock_blockchain):
         """KuruClient should validate contract address format."""

@@ -1,0 +1,515 @@
+"""Kuru Exchange Python SDK wrapper."""
+
+import requests
+from decimal import Decimal
+from typing import Any, Dict, List, Optional
+from web3 import Web3
+
+from src.kuru_copytr_bot.core.interfaces import BlockchainConnector
+from src.kuru_copytr_bot.core.enums import OrderSide, OrderType
+from src.kuru_copytr_bot.core.exceptions import (
+    InsufficientBalanceError,
+    InvalidMarketError,
+    OrderExecutionError,
+    TransactionFailedError,
+    BlockchainConnectionError,
+)
+
+
+class KuruClient:
+    """Python wrapper for Kuru Exchange SDK."""
+
+    # Standard ERC20 ABI for approve
+    ERC20_APPROVE_ABI = [
+        {
+            "constant": False,
+            "inputs": [
+                {"name": "spender", "type": "address"},
+                {"name": "value", "type": "uint256"},
+            ],
+            "name": "approve",
+            "outputs": [{"name": "", "type": "bool"}],
+            "type": "function",
+        }
+    ]
+
+    def __init__(
+        self,
+        blockchain: BlockchainConnector,
+        api_url: str,
+        contract_address: str,
+    ):
+        """Initialize Kuru client.
+
+        Args:
+            blockchain: Blockchain connector instance
+            api_url: Kuru API base URL
+            contract_address: Kuru contract address
+
+        Raises:
+            ValueError: If contract address is invalid
+        """
+        self.blockchain = blockchain
+        self.api_url = api_url.rstrip("/")
+        self.contract_address = contract_address
+
+        # Validate contract address
+        if not self._is_valid_address(contract_address):
+            raise ValueError(f"Invalid contract address: {contract_address}")
+
+        # Cache for market parameters
+        self._market_cache: Dict[str, Dict[str, Any]] = {}
+
+    def deposit_margin(self, token: str, amount: Decimal) -> str:
+        """Deposit tokens to Kuru margin account.
+
+        Args:
+            token: Token contract address (0x0...0 for native token)
+            amount: Amount to deposit
+
+        Returns:
+            str: Transaction hash
+
+        Raises:
+            InsufficientBalanceError: If insufficient balance
+            TransactionFailedError: If transaction fails
+        """
+        # Check balance
+        if token == "0x" + "0" * 40:  # Native token
+            balance = self.blockchain.get_balance(self.blockchain.wallet_address)
+            if balance < amount:
+                raise InsufficientBalanceError(
+                    f"Insufficient balance: {balance} < {amount}"
+                )
+
+            # Send native token
+            value_wei = int(amount * Decimal(10**18))
+            try:
+                tx_hash = self.blockchain.send_transaction(
+                    to=self.contract_address,
+                    data="0x",  # Deposit function data would go here
+                    value=value_wei,
+                )
+                return tx_hash
+            except Exception as e:
+                raise OrderExecutionError(f"Margin deposit failed: {e}")
+        else:
+            # ERC20 token
+            balance = self.blockchain.get_token_balance(
+                self.blockchain.wallet_address, token
+            )
+            if balance < amount:
+                raise InsufficientBalanceError(
+                    f"Insufficient {token} balance: {balance} < {amount}"
+                )
+
+            # Approve token
+            try:
+                self._approve_token(token, amount)
+            except Exception as e:
+                raise OrderExecutionError(f"Token approval failed: {e}")
+
+            # Deposit
+            try:
+                tx_hash = self.blockchain.send_transaction(
+                    to=self.contract_address,
+                    data="0x",  # Deposit function data would go here
+                )
+                return tx_hash
+            except Exception as e:
+                raise OrderExecutionError(f"Margin deposit failed: {e}")
+
+    def place_limit_order(
+        self,
+        market: str,
+        side: OrderSide,
+        price: Decimal,
+        size: Decimal,
+        post_only: bool = False,
+    ) -> str:
+        """Place a GTC limit order.
+
+        Args:
+            market: Market identifier (e.g., "ETH-USDC")
+            side: Order side (BUY or SELL)
+            price: Limit price
+            size: Order size
+            post_only: Post-only flag (maker-only)
+
+        Returns:
+            str: Order ID
+
+        Raises:
+            ValueError: If validation fails
+            InvalidMarketError: If market is invalid
+            InsufficientBalanceError: If insufficient balance
+            OrderExecutionError: If order fails
+        """
+        # Validate parameters
+        if price <= 0:
+            raise ValueError("Price must be positive")
+        if size <= 0:
+            raise ValueError("Size must be positive")
+
+        # Get and validate market parameters
+        try:
+            params = self.get_market_params(market)
+        except Exception as e:
+            raise InvalidMarketError(f"Failed to get market params: {e}")
+
+        if not params.get("is_active", False):
+            raise InvalidMarketError(f"Market {market} is not active")
+
+        # Validate order size
+        min_size = params.get("min_order_size", Decimal("0"))
+        max_size = params.get("max_order_size", Decimal("1000000"))
+        if size < min_size:
+            raise ValueError(f"Order size {size} below minimum {min_size}")
+        if size > max_size:
+            raise ValueError(f"Order size {size} above maximum {max_size}")
+
+        # Place order via blockchain
+        try:
+            tx_hash = self.blockchain.send_transaction(
+                to=self.contract_address,
+                data="0x",  # Encoded order data would go here
+            )
+
+            # Return order ID (in real implementation, parse from tx receipt)
+            # For now, use tx_hash as order_id
+            return f"order_{tx_hash[2:10]}"
+
+        except TransactionFailedError as e:
+            raise OrderExecutionError(f"Failed to place limit order: {e}")
+        except Exception as e:
+            raise OrderExecutionError(f"Unexpected error placing order: {e}")
+
+    def place_market_order(
+        self,
+        market: str,
+        side: OrderSide,
+        size: Decimal,
+        slippage: Optional[Decimal] = None,
+    ) -> str:
+        """Place an IOC market order.
+
+        Args:
+            market: Market identifier
+            side: Order side (BUY or SELL)
+            size: Order size
+            slippage: Maximum acceptable slippage
+
+        Returns:
+            str: Order ID
+
+        Raises:
+            ValueError: If validation fails
+            InsufficientBalanceError: If insufficient balance
+            OrderExecutionError: If order fails
+        """
+        # Validate parameters
+        if size <= 0:
+            raise ValueError("Size must be positive")
+
+        # Get market parameters
+        try:
+            params = self.get_market_params(market)
+        except Exception as e:
+            raise InvalidMarketError(f"Failed to get market params: {e}")
+
+        # Estimate cost and check balance
+        estimated_cost = self.estimate_cost(market, side, size)
+        # Simplified balance check for USDC (quote token)
+        # In real implementation, determine quote/base based on side
+        balance = self.blockchain.get_token_balance(
+            self.blockchain.wallet_address,
+            "0xUSDCAddress00000000000000000000000000000",  # Placeholder
+        )
+        if balance < estimated_cost:
+            raise InsufficientBalanceError(
+                f"Insufficient balance for market order: {balance} < {estimated_cost}"
+            )
+
+        # Place order
+        try:
+            tx_hash = self.blockchain.send_transaction(
+                to=self.contract_address,
+                data="0x",  # Encoded market order data
+            )
+            return f"order_{tx_hash[2:10]}"
+        except Exception as e:
+            raise OrderExecutionError(f"Failed to place market order: {e}")
+
+    def cancel_order(self, order_id: str) -> str:
+        """Cancel an order.
+
+        Args:
+            order_id: Order ID to cancel
+
+        Returns:
+            str: Transaction hash
+
+        Raises:
+            ValueError: If order_id is invalid
+            OrderExecutionError: If cancellation fails
+        """
+        if not order_id:
+            raise ValueError("Order ID cannot be empty")
+
+        try:
+            tx_hash = self.blockchain.send_transaction(
+                to=self.contract_address,
+                data="0x",  # Encoded cancel order data
+            )
+            return tx_hash
+        except Exception as e:
+            raise OrderExecutionError(f"Failed to cancel order: {e}")
+
+    def cancel_orders(self, order_ids: List[str]) -> str:
+        """Cancel multiple orders in batch.
+
+        Args:
+            order_ids: List of order IDs to cancel
+
+        Returns:
+            str: Transaction hash
+
+        Raises:
+            OrderExecutionError: If batch cancellation fails
+        """
+        try:
+            tx_hash = self.blockchain.send_transaction(
+                to=self.contract_address,
+                data="0x",  # Encoded batch cancel data
+            )
+            return tx_hash
+        except Exception as e:
+            raise OrderExecutionError(f"Failed to cancel orders: {e}")
+
+    def get_market_params(self, market: str) -> Dict[str, Any]:
+        """Get market parameters from API.
+
+        Args:
+            market: Market identifier
+
+        Returns:
+            Dict with market parameters
+
+        Raises:
+            InvalidMarketError: If market not found
+            BlockchainConnectionError: If API request fails
+        """
+        # Check cache first
+        if market in self._market_cache:
+            return self._market_cache[market]
+
+        try:
+            response = requests.get(f"{self.api_url}/markets/{market}")
+            if response.status_code == 404:
+                raise InvalidMarketError(f"Market {market} not found")
+
+            response.raise_for_status()
+            data = response.json()
+
+            # Convert numeric strings to Decimal
+            params = {
+                "market_id": data.get("market_id", market),
+                "base_token": data.get("base_token"),
+                "quote_token": data.get("quote_token"),
+                "min_order_size": Decimal(str(data.get("min_order_size", "0"))),
+                "max_order_size": Decimal(str(data.get("max_order_size", "1000000"))),
+                "tick_size": Decimal(str(data.get("tick_size", "0.01"))),
+                "step_size": Decimal(str(data.get("step_size", "0.001"))),
+                "maker_fee": Decimal(str(data.get("maker_fee", "0.0002"))),
+                "taker_fee": Decimal(str(data.get("taker_fee", "0.0005"))),
+                "is_active": data.get("is_active", True),
+            }
+
+            # Cache the result
+            self._market_cache[market] = params
+            return params
+
+        except requests.exceptions.RequestException as e:
+            raise BlockchainConnectionError(f"Failed to fetch market params: {e}")
+
+    def estimate_cost(
+        self,
+        market: str,
+        side: OrderSide,
+        size: Decimal,
+        price: Optional[Decimal] = None,
+    ) -> Decimal:
+        """Estimate trade cost including fees.
+
+        Args:
+            market: Market identifier
+            side: Order side
+            size: Order size
+            price: Price (if None, uses estimated market price)
+
+        Returns:
+            Decimal: Estimated cost
+        """
+        params = self.get_market_params(market)
+
+        # Use provided price or estimate from market
+        if price is None:
+            price = Decimal("2000.0")  # Placeholder - would fetch from orderbook
+
+        # Calculate base cost
+        cost = size * price
+
+        # Add taker fee (assuming market order)
+        taker_fee = params.get("taker_fee", Decimal("0.0005"))
+        fee = cost * taker_fee
+
+        return cost + fee
+
+    def estimate_market_order_cost(
+        self,
+        market: str,
+        side: OrderSide,
+        size: Decimal,
+        expected_price: Decimal,
+        slippage: Optional[Decimal] = None,
+    ) -> Decimal:
+        """Estimate market order cost with slippage.
+
+        Args:
+            market: Market identifier
+            side: Order side
+            size: Order size
+            expected_price: Expected execution price
+            slippage: Maximum slippage (e.g., 0.01 for 1%)
+
+        Returns:
+            Decimal: Estimated cost with slippage
+        """
+        params = self.get_market_params(market)
+
+        # Calculate base cost
+        cost = size * expected_price
+
+        # Apply slippage if provided
+        if slippage:
+            cost = cost * (Decimal("1") + slippage)
+
+        # Add taker fee
+        taker_fee = params.get("taker_fee", Decimal("0.0005"))
+        fee = cost * taker_fee
+
+        return cost + fee
+
+    def get_order_status(self, order_id: str) -> Optional[Dict[str, Any]]:
+        """Get order status from API.
+
+        Args:
+            order_id: Order ID
+
+        Returns:
+            Dict with order status or None if not found
+        """
+        try:
+            response = requests.get(f"{self.api_url}/orders/{order_id}")
+            if response.status_code == 404:
+                return None
+
+            response.raise_for_status()
+            data = response.json()
+
+            # Convert numeric fields to Decimal
+            return {
+                "order_id": data.get("order_id"),
+                "status": data.get("status"),
+                "filled_size": Decimal(str(data.get("filled_size", "0"))),
+                "remaining_size": Decimal(str(data.get("remaining_size", "0"))),
+            }
+        except requests.exceptions.RequestException:
+            return None
+
+    def get_open_orders(self, market: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get all open orders.
+
+        Args:
+            market: Optional market filter
+
+        Returns:
+            List of open orders
+        """
+        try:
+            params = {"market": market} if market else {}
+            response = requests.get(f"{self.api_url}/orders", params=params)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException:
+            return []
+
+    def get_positions(self, market: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get current positions.
+
+        Args:
+            market: Optional market filter
+
+        Returns:
+            List of positions
+        """
+        try:
+            params = {"market": market} if market else {}
+            response = requests.get(f"{self.api_url}/positions", params=params)
+            response.raise_for_status()
+
+            positions = response.json()
+            # Convert numeric fields to Decimal
+            for pos in positions:
+                if "size" in pos:
+                    pos["size"] = Decimal(str(pos["size"]))
+                if "entry_price" in pos:
+                    pos["entry_price"] = Decimal(str(pos["entry_price"]))
+                if "unrealized_pnl" in pos:
+                    pos["unrealized_pnl"] = Decimal(str(pos["unrealized_pnl"]))
+
+            return positions
+        except requests.exceptions.RequestException:
+            return []
+
+    def _approve_token(self, token: str, amount: Decimal) -> str:
+        """Approve ERC20 token for spending.
+
+        Args:
+            token: Token contract address
+            amount: Amount to approve
+
+        Returns:
+            str: Transaction hash
+        """
+        # Convert amount to wei
+        amount_wei = int(amount * Decimal(10**18))
+
+        # Encode approve function call
+        # In real implementation, use web3.py contract encoding
+        tx_hash = self.blockchain.send_transaction(
+            to=token,
+            data="0x",  # Encoded approve(spender, amount) call
+        )
+        return tx_hash
+
+    def _is_valid_address(self, address: str) -> bool:
+        """Validate Ethereum address format.
+
+        Args:
+            address: Address to validate
+
+        Returns:
+            bool: True if valid
+        """
+        if not isinstance(address, str):
+            return False
+        if not address.startswith("0x"):
+            return False
+        if len(address) != 42:
+            return False
+        try:
+            int(address, 16)
+            return True
+        except ValueError:
+            return False
