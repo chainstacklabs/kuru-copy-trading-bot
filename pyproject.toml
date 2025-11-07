@@ -4,7 +4,17 @@ version = "0.1.0"
 description = "Telegram bot with copywriting capabilities"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "web3>=7.0.0",
+    "eth-account>=0.13.0",
+    "aiohttp>=3.9.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "structlog>=24.0.0",
+    "tenacity>=9.0.0",
+    "websockets>=13.0",
+    "click>=8.0.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/chainstacklabs/kuru-copy-trading-bot"
