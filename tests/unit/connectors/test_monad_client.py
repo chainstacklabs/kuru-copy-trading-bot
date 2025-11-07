@@ -126,30 +126,34 @@ class TestMonadClientBalanceQueries:
             rpc_url="https://testnet.monad.xyz",
             private_key="0x" + "a" * 64,
         )
-        balance = client.get_balance("0xabc123")
+        test_address = "0xabcdef1234567890abcdef1234567890abcdef12"
+        balance = client.get_balance(test_address)
 
         assert balance == Decimal("1.5")
-        mock_web3.eth.get_balance.assert_called_with("0xabc123")
+        mock_web3.eth.get_balance.assert_called_with(test_address)
 
     def test_monad_client_gets_token_balance(self, mock_web3):
         """Client should query ERC20 token balance."""
         # Mock ERC20 contract call returning balance in wei
         mock_contract = MagicMock()
         mock_contract.functions.balanceOf.return_value.call.return_value = 1000000000000000000000  # 1000 tokens (18 decimals)
+        mock_contract.functions.decimals.return_value.call.return_value = 18  # Standard ERC20 decimals
         mock_web3.eth.contract.return_value = mock_contract
 
         client = MonadClient(
             rpc_url="https://testnet.monad.xyz",
             private_key="0x" + "a" * 64,
         )
+        test_wallet = "0x1234567890123456789012345678901234567890"
+        test_token = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
         balance = client.get_token_balance(
-            address="0xwallet",
-            token_address="0xtoken",
+            address=test_wallet,
+            token_address=test_token,
         )
 
         assert balance == Decimal("1000")
         mock_web3.eth.contract.assert_called_with(
-            address="0xtoken",
+            address=test_token,
             abi=client.ERC20_ABI,
         )
 
@@ -161,7 +165,8 @@ class TestMonadClientBalanceQueries:
             rpc_url="https://testnet.monad.xyz",
             private_key="0x" + "a" * 64,
         )
-        balance = client.get_balance("0xabc123")
+        test_address = "0xabcdef1234567890abcdef1234567890abcdef12"
+        balance = client.get_balance(test_address)
 
         assert balance == Decimal("0")
 
@@ -178,7 +183,7 @@ class TestMonadClientTransactions:
 
         # Send transaction
         tx_hash = client.send_transaction(
-            to="0xrecipient",
+            to="0x2222222222222222222222222222222222222222",
             data="0xdeadbeef",
             value=1000000000000000000,  # 1 ETH in wei
             gas=300000,
@@ -204,7 +209,7 @@ class TestMonadClientTransactions:
         )
 
         client.send_transaction(
-            to="0xrecipient",
+            to="0x2222222222222222222222222222222222222222",
             data="0x",
             value=0,
         )
@@ -220,7 +225,7 @@ class TestMonadClientTransactions:
         )
 
         tx_hash = client.send_transaction(
-            to="0xrecipient",
+            to="0x2222222222222222222222222222222222222222",
             data="0x",
         )
 
@@ -237,7 +242,7 @@ class TestMonadClientTransactions:
         )
 
         client.send_transaction(
-            to="0xrecipient",
+            to="0x2222222222222222222222222222222222222222",
             data="0xfunction",
         )
 
@@ -252,7 +257,7 @@ class TestMonadClientTransactions:
         )
 
         client.send_transaction(
-            to="0xrecipient",
+            to="0x2222222222222222222222222222222222222222",
             data="0x",
             gas=500000,
         )
@@ -270,7 +275,7 @@ class TestMonadClientTransactions:
         )
 
         with pytest.raises(TransactionFailedError):
-            client.send_transaction(to="0xrecipient", data="0x")
+            client.send_transaction(to="0x2222222222222222222222222222222222222222", data="0x")
 
 
 class TestMonadClientReceipts:
@@ -412,10 +417,10 @@ class TestMonadClientNonceManagement:
             private_key="0x" + "a" * 64,
         )
 
-        nonce = client.get_nonce("0xwallet")
+        nonce = client.get_nonce("0x3333333333333333333333333333333333333333")
 
         assert nonce == 42
-        mock_web3.eth.get_transaction_count.assert_called_with("0xwallet", "pending")
+        mock_web3.eth.get_transaction_count.assert_called_with("0x3333333333333333333333333333333333333333", "pending")
 
     def test_monad_client_increments_nonce_for_multiple_transactions(self, mock_web3):
         """Client should manage nonce correctly for multiple transactions."""
@@ -427,8 +432,8 @@ class TestMonadClientNonceManagement:
         )
 
         # Send multiple transactions
-        client.send_transaction(to="0xrecipient1", data="0x")
-        client.send_transaction(to="0xrecipient2", data="0x")
+        client.send_transaction(to="0x2222222222222222222222222222222222222221", data="0x")
+        client.send_transaction(to="0x2222222222222222222222222222222222222223", data="0x")
 
         # Should fetch nonce for each transaction
         assert mock_web3.eth.get_transaction_count.call_count >= 2
@@ -447,7 +452,7 @@ class TestMonadClientErrorHandling:
         )
 
         with pytest.raises(BlockchainConnectionError):
-            client.get_balance("0xwallet")
+            client.get_balance("0x3333333333333333333333333333333333333333")
 
     def test_monad_client_handles_insufficient_gas_error(self, mock_web3):
         """Client should raise InsufficientGasError when gas estimation fails."""
@@ -459,7 +464,7 @@ class TestMonadClientErrorHandling:
         )
 
         with pytest.raises(InsufficientGasError):
-            client.send_transaction(to="0xrecipient", data="0x")
+            client.send_transaction(to="0x2222222222222222222222222222222222222222", data="0x")
 
     def test_monad_client_handles_invalid_address(self, mock_web3):
         """Client should validate Ethereum addresses."""
@@ -489,7 +494,7 @@ class TestMonadClientRetryLogic:
             private_key="0x" + "a" * 64,
         )
 
-        tx_hash = client.send_transaction(to="0xrecipient", data="0x")
+        tx_hash = client.send_transaction(to="0x2222222222222222222222222222222222222222", data="0x")
 
         assert tx_hash.startswith("0x")
         assert mock_web3.eth.send_raw_transaction.call_count == 3
@@ -507,7 +512,7 @@ class TestMonadClientRetryLogic:
                 private_key="0x" + "a" * 64,
             )
 
-            balance = client.get_balance("0xwallet")
+            balance = client.get_balance("0x3333333333333333333333333333333333333333")
 
             assert balance == Decimal("1.0")
             # Should have slept for backoff
@@ -524,7 +529,7 @@ class TestMonadClientRetryLogic:
         )
 
         with pytest.raises(BlockchainConnectionError):
-            client.send_transaction(to="0xrecipient", data="0x")
+            client.send_transaction(to="0x2222222222222222222222222222222222222222", data="0x")
 
         # Should have retried max_retries times (default: 3)
         assert mock_web3.eth.send_raw_transaction.call_count == 3
@@ -539,7 +544,7 @@ class TestMonadClientRetryLogic:
         )
 
         with pytest.raises(TransactionFailedError):
-            client.send_transaction(to="0xrecipient", data="0x")
+            client.send_transaction(to="0x2222222222222222222222222222222222222222", data="0x")
 
         # Should not retry on validation errors
         assert mock_web3.eth.send_raw_transaction.call_count == 1
