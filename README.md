@@ -3,9 +3,22 @@
 ## Structure
 
 ```
-src/kuru_copytr_bot/    # Core bot package
-examples/               # Learning scripts
-tests/                  # Test suite
+src/kuru_copytr_bot/
+├── main.py              # Entry point
+├── bot.py               # Main orchestrator
+├── models/              # Data structures (Trade, Order, Position, Wallet)
+├── core/                # Interfaces and exceptions
+├── monitoring/          # Watch source trader activity
+├── trading/             # Copy and execute trades
+├── risk/                # Validate trades and calculate position sizes
+├── connectors/          # Platform and blockchain integrations
+│   ├── blockchain/      # Blockchain clients (Ethereum, etc.)
+│   └── platforms/       # Trading platforms (Uniswap, etc.)
+├── utils/               # Logging, decorators, helpers
+└── config/              # Settings and constants
+
+examples/                # Learning scripts
+tests/                   # Test suite (unit, integration, fixtures)
 ```
 
 ## Setup
