@@ -10,6 +10,7 @@ from src.kuru_copytr_bot.core.exceptions import (
     InsufficientBalanceError,
     InvalidMarketError,
     OrderExecutionError,
+    BlockchainConnectionError,
 )
 
 
@@ -546,3 +547,40 @@ class TestKuruClientPositions:
             f"{kuru_client.api_url}/positions",
             params={"market": "ETH-USDC"}
         )
+
+
+class TestKuruClientBalance:
+    """Tests for balance queries."""
+
+    def test_kuru_client_gets_native_balance(self, kuru_client, mock_blockchain):
+        """Client should get native token balance."""
+        mock_blockchain.get_balance.return_value = Decimal("100.5")
+        mock_blockchain.wallet_address = "0x1234567890123456789012345678901234567890"
+
+        balance = kuru_client.get_balance()
+
+        assert balance == Decimal("100.5")
+        mock_blockchain.get_balance.assert_called_once_with(
+            "0x1234567890123456789012345678901234567890"
+        )
+
+    def test_kuru_client_gets_token_balance(self, kuru_client, mock_blockchain):
+        """Client should get ERC20 token balance."""
+        token_address = "0xUSDC000000000000000000000000000000000000"
+        mock_blockchain.get_token_balance.return_value = Decimal("500.25")
+        mock_blockchain.wallet_address = "0x1234567890123456789012345678901234567890"
+
+        balance = kuru_client.get_balance(token=token_address)
+
+        assert balance == Decimal("500.25")
+        mock_blockchain.get_token_balance.assert_called_once_with(
+            token_address=token_address,
+            wallet_address="0x1234567890123456789012345678901234567890"
+        )
+
+    def test_kuru_client_handles_balance_check_failure(self, kuru_client, mock_blockchain):
+        """Client should handle balance check failures."""
+        mock_blockchain.get_balance.side_effect = Exception("Connection error")
+
+        with pytest.raises(BlockchainConnectionError, match="Failed to get balance"):
+            kuru_client.get_balance()

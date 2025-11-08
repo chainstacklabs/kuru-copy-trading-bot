@@ -286,6 +286,31 @@ class KuruClient:
         except Exception as e:
             raise OrderExecutionError(f"Failed to cancel orders: {e}")
 
+    def get_balance(self, token: Optional[str] = None) -> Decimal:
+        """Get balance from blockchain.
+
+        Args:
+            token: Token address to check (None for native token)
+
+        Returns:
+            Balance as Decimal
+
+        Raises:
+            BlockchainConnectionError: If balance check fails
+        """
+        try:
+            if token is None:
+                # Get native token balance
+                return self.blockchain.get_balance(self.blockchain.wallet_address)
+            else:
+                # Get ERC20 token balance
+                return self.blockchain.get_token_balance(
+                    token_address=token,
+                    wallet_address=self.blockchain.wallet_address,
+                )
+        except Exception as e:
+            raise BlockchainConnectionError(f"Failed to get balance: {e}")
+
     def get_market_params(self, market: str) -> Dict[str, Any]:
         """Get market parameters from API.
 

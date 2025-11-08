@@ -84,7 +84,7 @@ def integrated_bot(mock_blockchain, mock_kuru_api):
     validator = TradeValidator(
         min_balance=Decimal("10.0"),
         max_position_size=Decimal("100.0"),
-        max_exposure_usd=Decimal("1000.0"),
+        max_exposure_usd=Decimal("100000.0"),  # High limit for integration tests
         market_whitelist=None,
         market_blacklist=None,
     )
@@ -237,7 +237,17 @@ class TestEndToEndWorkflow:
             "logs": [{"topics": ["0x" + "d" * 64], "data": "0x" + "0" * 512}],
         }
 
-        with patch.object(bot.detector, 'parse_trade_executed') as mock_parse:
+        with patch.object(bot.detector, 'parse_trade_executed') as mock_parse, \
+             patch.object(bot.copier.kuru_client, 'get_market_params') as mock_market_params:
+
+            # Mock market params for both markets
+            mock_market_params.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
+
             trade1 = Trade(
                 id="trade_1",
                 trader_address="0x1111111111111111111111111111111111111111",
