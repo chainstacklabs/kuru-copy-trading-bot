@@ -18,13 +18,13 @@ def mock_blockchain():
     """Create a mock blockchain client."""
     blockchain = MagicMock()
     blockchain.wallet_address = "0x1234567890123456789012345678901234567890"
-    blockchain.send_transaction.return_value = "0xmocktxhash1234567890abcdef"
+    blockchain.send_transaction.return_value = "0x" + "a" * 64  # 66 chars total
     blockchain.get_balance.return_value = Decimal("100.0")
     blockchain.get_token_balance.return_value = Decimal("10000.0")  # USDC balance
     blockchain.wait_for_transaction_receipt.return_value = {
         "status": 1,
         "blockNumber": 1000000,
-        "transactionHash": "0xmocktxhash",
+        "transactionHash": "0x" + "b" * 64,  # 66 chars total
         "logs": [],
     }
     return blockchain
@@ -78,7 +78,8 @@ class TestKuruClientMarginDeposit:
 
         assert tx_hash.startswith("0x")
         assert len(tx_hash) == 66
-        mock_blockchain.send_transaction.assert_called_once()
+        # ERC20 deposits require 2 transactions: approve + deposit
+        assert mock_blockchain.send_transaction.call_count == 2
 
     def test_kuru_client_deposits_native_token(self, kuru_client, mock_blockchain):
         """Client should deposit native token (ETH/MON) to margin."""
@@ -118,30 +119,46 @@ class TestKuruClientLimitOrders:
 
     def test_kuru_client_places_limit_order(self, kuru_client, mock_blockchain):
         """Client should place GTC limit order."""
-        order_id = kuru_client.place_limit_order(
-            market="ETH-USDC",
-            side=OrderSide.BUY,
-            price=Decimal("2000.0"),
-            size=Decimal("1.0"),
-            post_only=True,
-        )
+        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+            mock_get_market.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
 
-        assert order_id is not None
-        assert isinstance(order_id, str)
-        mock_blockchain.send_transaction.assert_called_once()
+            order_id = kuru_client.place_limit_order(
+                market="ETH-USDC",
+                side=OrderSide.BUY,
+                price=Decimal("2000.0"),
+                size=Decimal("1.0"),
+                post_only=True,
+            )
+
+            assert order_id is not None
+            assert isinstance(order_id, str)
+            mock_blockchain.send_transaction.assert_called_once()
 
     def test_kuru_client_places_sell_limit_order(self, kuru_client, mock_blockchain):
         """Client should place sell limit order."""
-        order_id = kuru_client.place_limit_order(
-            market="ETH-USDC",
-            side=OrderSide.SELL,
-            price=Decimal("2100.0"),
-            size=Decimal("0.5"),
-            post_only=False,
-        )
+        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+            mock_get_market.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
 
-        assert order_id is not None
-        mock_blockchain.send_transaction.assert_called_once()
+            order_id = kuru_client.place_limit_order(
+                market="ETH-USDC",
+                side=OrderSide.SELL,
+                price=Decimal("2100.0"),
+                size=Decimal("0.5"),
+                post_only=False,
+            )
+
+            assert order_id is not None
+            mock_blockchain.send_transaction.assert_called_once()
 
     def test_kuru_client_validates_limit_order_price(self, kuru_client, mock_blockchain):
         """Client should validate limit order price is positive."""
@@ -182,27 +199,43 @@ class TestKuruClientMarketOrders:
 
     def test_kuru_client_places_market_order(self, kuru_client, mock_blockchain):
         """Client should place IOC market order."""
-        order_id = kuru_client.place_market_order(
-            market="ETH-USDC",
-            side=OrderSide.BUY,
-            size=Decimal("1.0"),
-        )
+        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+            mock_get_market.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
 
-        assert order_id is not None
-        assert isinstance(order_id, str)
-        mock_blockchain.send_transaction.assert_called_once()
+            order_id = kuru_client.place_market_order(
+                market="ETH-USDC",
+                side=OrderSide.BUY,
+                size=Decimal("1.0"),
+            )
+
+            assert order_id is not None
+            assert isinstance(order_id, str)
+            mock_blockchain.send_transaction.assert_called_once()
 
     def test_kuru_client_places_market_sell_order(self, kuru_client, mock_blockchain):
         """Client should place market sell order."""
-        order_id = kuru_client.place_market_order(
-            market="ETH-USDC",
-            side=OrderSide.SELL,
-            size=Decimal("0.5"),
-            slippage=Decimal("0.01"),  # 1% slippage
-        )
+        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+            mock_get_market.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
 
-        assert order_id is not None
-        mock_blockchain.send_transaction.assert_called_once()
+            order_id = kuru_client.place_market_order(
+                market="ETH-USDC",
+                side=OrderSide.SELL,
+                size=Decimal("0.5"),
+                slippage=Decimal("0.01"),  # 1% slippage
+            )
+
+            assert order_id is not None
+            mock_blockchain.send_transaction.assert_called_once()
 
     def test_kuru_client_validates_market_order_size(self, kuru_client, mock_blockchain):
         """Client should validate market order size is positive."""
@@ -217,12 +250,20 @@ class TestKuruClientMarketOrders:
         """Client should check sufficient balance for market order."""
         mock_blockchain.get_token_balance.return_value = Decimal("0")
 
-        with pytest.raises(InsufficientBalanceError):
-            kuru_client.place_market_order(
-                market="ETH-USDC",
-                side=OrderSide.BUY,
-                size=Decimal("1000.0"),
-            )
+        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+            mock_get_market.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
+
+            with pytest.raises(InsufficientBalanceError):
+                kuru_client.place_market_order(
+                    market="ETH-USDC",
+                    side=OrderSide.BUY,
+                    size=Decimal("1000.0"),
+                )
 
 
 class TestKuruClientOrderCancellation:
@@ -358,13 +399,21 @@ class TestKuruClientErrorHandling:
         from src.kuru_copytr_bot.core.exceptions import TransactionFailedError
         mock_blockchain.send_transaction.side_effect = TransactionFailedError("Transaction failed")
 
-        with pytest.raises(OrderExecutionError):
-            kuru_client.place_limit_order(
-                market="ETH-USDC",
-                side=OrderSide.BUY,
-                price=Decimal("2000.0"),
-                size=Decimal("1.0"),
-            )
+        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+            mock_get_market.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
+
+            with pytest.raises(OrderExecutionError):
+                kuru_client.place_limit_order(
+                    market="ETH-USDC",
+                    side=OrderSide.BUY,
+                    price=Decimal("2000.0"),
+                    size=Decimal("1.0"),
+                )
 
     def test_kuru_client_handles_network_error(self, kuru_client):
         """Client should handle network errors gracefully."""
