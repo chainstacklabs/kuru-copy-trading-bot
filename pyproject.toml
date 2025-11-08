@@ -27,6 +27,7 @@ Issues = "https://github.com/chainstacklabs/kuru-copy-trading-bot/issues"
 dev = [
     "pytest>=8.3.0",
     "pytest-cov>=6.0.0",
+    "pytest-asyncio>=0.23.0",
     "pre-commit>=4.0.0",
 ]
 
@@ -78,6 +79,11 @@ addopts = [
     "--cov=src/kuru_copytr_bot",
     "--cov-report=term-missing",
     "--cov-report=html",
+]
+asyncio_mode = "auto"
+markers = [
+    "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
 
 # Coverage configuration
