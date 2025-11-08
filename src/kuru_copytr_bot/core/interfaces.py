@@ -169,6 +169,21 @@ class BlockchainConnector(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_latest_transactions(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get latest transactions from the blockchain.
+
+        Args:
+            limit: Maximum number of transactions to return
+
+        Returns:
+            List[Dict[str, Any]]: List of transaction dictionaries
+
+        Raises:
+            BlockchainConnectionError: If connection fails
+        """
+        pass
+
 
 class PlatformConnector(ABC):
     """Interface for platform-specific connectors (e.g., Kuru Exchange)."""

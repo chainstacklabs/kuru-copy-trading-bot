@@ -29,9 +29,12 @@ class TestKuruEventDetectorTradeExecuted:
                 "0x" + "1" * 64,  # TradeExecuted event signature
                 "0x000000000000000000000000" + "1111111111111111111111111111111111111111",  # trader
             ],
-            "data": "0x" + "0" * 64 + "1" * 64 + "2" * 64,  # price, size, side
+            "data": "0x" +
+                    "00000000000000000000000000000000000000000000006c6b935b8bbd400000" +  # price=2000 * 10^18
+                    "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +  # size=1.0 * 10^18
+                    "0000000000000000000000000000000000000000000000000000000000000000",  # side=0 (BUY)
             "blockNumber": 1000,
-            "transactionHash": "0xabc123def456",
+            "transactionHash": "0xabc123def4567890123456789012345678901234567890123456789012345678",
         }
 
         detector = KuruEventDetector()
@@ -39,7 +42,7 @@ class TestKuruEventDetectorTradeExecuted:
 
         assert isinstance(trade, Trade)
         assert trade.trader_address == "0x1111111111111111111111111111111111111111"
-        assert trade.tx_hash == "0xabc123def456"
+        assert trade.tx_hash == "0xabc123def4567890123456789012345678901234567890123456789012345678"
 
     def test_detector_parses_buy_trade(self):
         """Detector should correctly identify buy trades."""
@@ -54,7 +57,7 @@ class TestKuruEventDetectorTradeExecuted:
                     "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +  # size=1.0
                     "0000000000000000000000000000000000000000000000000000000000000000",  # side=0 (BUY)
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -75,7 +78,7 @@ class TestKuruEventDetectorTradeExecuted:
                     "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +  # size
                     "0000000000000000000000000000000000000000000000000000000000000001",  # side=1 (SELL)
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -96,7 +99,7 @@ class TestKuruEventDetectorTradeExecuted:
                     "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +
                     "0000000000000000000000000000000000000000000000000000000000000000",
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -118,7 +121,7 @@ class TestKuruEventDetectorTradeExecuted:
                     "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +  # 1.0 * 10^18
                     "0000000000000000000000000000000000000000000000000000000000000000",
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -141,7 +144,7 @@ class TestKuruEventDetectorOrderPlaced:
             ],
             "data": "0x" + "a" * 128,  # order data
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -163,7 +166,7 @@ class TestKuruEventDetectorOrderPlaced:
                     "00000000000000000000000000000000000000000000000000000000000007d0" +  # price
                     "0000000000000000000000000000000000000000000000000de0b6b3a7640000",  # size
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -185,7 +188,7 @@ class TestKuruEventDetectorOrderCancelled:
             ],
             "data": "0x" + "0" * 63 + "1",  # order_id=1
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -204,7 +207,7 @@ class TestKuruEventDetectorOrderCancelled:
             ],
             "data": "0x" + "0" * 63 + "5",  # order_id=5
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -235,7 +238,7 @@ class TestKuruEventDetectorErrorHandling:
             # Missing topics field
             "data": "0x" + "a" * 128,
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -250,7 +253,7 @@ class TestKuruEventDetectorErrorHandling:
             "topics": ["0x" + "1" * 64],
             # Missing data field
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -265,7 +268,7 @@ class TestKuruEventDetectorErrorHandling:
             "topics": ["0x" + "1" * 64],
             "data": "0xaa",  # Too short
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -280,7 +283,7 @@ class TestKuruEventDetectorErrorHandling:
             "topics": ["0x" + "1" * 64],
             "data": "0xZZZZZZZZ",  # Invalid hex
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -307,7 +310,7 @@ class TestKuruEventDetectorMarketParsing:
                     # Market string: "ETH-USDC" encoded
                     "4554482d55534443" + "0" * 48,  # "ETH-USDC" in hex
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
@@ -332,7 +335,7 @@ class TestKuruEventDetectorTimestamp:
                     "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +
                     "0000000000000000000000000000000000000000000000000000000000000000",
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
             "timestamp": 1234567890,
         }
 
@@ -380,10 +383,10 @@ class TestKuruEventDetectorDecimalPrecision:
             ],
             "data": "0x" +
                     "00000000000000000000000000000000000000000000006c6b935b8bbd400000" +  # 2000 * 10^18
-                    "0000000000000000000000000000000000000000000000001bc16d674ec80000" +  # 0.5 * 10^18
+                    "00000000000000000000000000000000000000000000000006f05b59d3b20000" +  # 0.5 * 10^18
                     "0000000000000000000000000000000000000000000000000000000000000000",
             "blockNumber": 1000,
-            "transactionHash": "0xabc123",
+            "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
 
         detector = KuruEventDetector()
