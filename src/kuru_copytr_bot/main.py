@@ -22,6 +22,9 @@ from src.kuru_copytr_bot.risk.validator import TradeValidator
 from src.kuru_copytr_bot.trading.copier import TradeCopier
 from src.kuru_copytr_bot.bot import CopyTradingBot
 from src.kuru_copytr_bot.core.enums import OrderType
+from src.kuru_copytr_bot.utils.logger import configure_logging, get_logger
+
+logger = get_logger(__name__)
 
 
 class BotRunner:
@@ -43,19 +46,27 @@ class BotRunner:
         Returns:
             Configured CopyTradingBot instance
         """
+        logger.info("Initializing bot components")
+
         # Initialize blockchain connector
+        logger.debug("Creating Monad blockchain client", rpc_url=self.settings.monad_rpc_url)
         monad_client = MonadClient(
             rpc_url=self.settings.monad_rpc_url,
             private_key=self.settings.wallet_private_key,
         )
 
         # Initialize Kuru Exchange client
+        logger.debug("Creating Kuru Exchange client")
         kuru_client = KuruClient(
             blockchain=monad_client,
             contract_address=KURU_CONTRACT_ADDRESS_TESTNET,
         )
 
         # Initialize wallet monitor
+        logger.debug(
+            "Creating wallet monitor",
+            wallet_count=len(self.settings.source_wallets),
+        )
         monitor = WalletMonitor(
             blockchain=monad_client,
             target_wallets=self.settings.source_wallets,
@@ -63,9 +74,16 @@ class BotRunner:
         )
 
         # Initialize event detector
+        logger.debug("Creating event detector")
         detector = KuruEventDetector()
 
         # Initialize position size calculator
+        logger.debug(
+            "Creating position size calculator",
+            copy_ratio=float(self.settings.copy_ratio),
+            max_position_size=float(self.settings.max_position_size),
+            min_order_size=float(self.settings.min_order_size),
+        )
         calculator = PositionSizeCalculator(
             copy_ratio=self.settings.copy_ratio,
             max_position_size=self.settings.max_position_size,
@@ -74,6 +92,11 @@ class BotRunner:
         )
 
         # Initialize trade validator
+        logger.debug(
+            "Creating trade validator",
+            min_balance=float(self.settings.min_balance_threshold),
+            max_total_exposure=float(self.settings.max_total_exposure),
+        )
         validator = TradeValidator(
             min_balance=self.settings.min_balance_threshold,
             max_position_size=self.settings.max_position_size,
@@ -83,6 +106,7 @@ class BotRunner:
         )
 
         # Initialize trade copier
+        logger.debug("Creating trade copier")
         copier = TradeCopier(
             kuru_client=kuru_client,
             calculator=calculator,
@@ -91,6 +115,7 @@ class BotRunner:
         )
 
         # Initialize bot orchestrator
+        logger.debug("Creating bot orchestrator")
         bot = CopyTradingBot(
             monitor=monitor,
             detector=detector,
@@ -98,6 +123,7 @@ class BotRunner:
             poll_interval=self.settings.poll_interval_seconds,
         )
 
+        logger.info("All bot components initialized successfully")
         return bot
 
     def run(self) -> None:
@@ -175,7 +201,18 @@ class BotRunner:
     default=".env",
     help="Path to .env file (default: .env)",
 )
-def main(env_file: str) -> None:
+@click.option(
+    "--log-level",
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False),
+    default="INFO",
+    help="Logging level (default: INFO)",
+)
+@click.option(
+    "--json-logs",
+    is_flag=True,
+    help="Output logs in JSON format instead of human-readable format",
+)
+def main(env_file: str, log_level: str, json_logs: bool) -> None:
     """Kuru Copy Trading Bot - Mirror trades from expert wallets on Monad testnet.
 
     This bot monitors specified source wallets and automatically mirrors their
@@ -186,6 +223,16 @@ def main(env_file: str) -> None:
     # Load environment variables
     load_dotenv(env_file)
 
+    # Configure logging first
+    configure_logging(log_level=log_level, json_logs=json_logs)
+
+    logger.info(
+        "Starting Kuru Copy Trading Bot",
+        log_level=log_level,
+        json_logs=json_logs,
+        env_file=env_file,
+    )
+
     try:
         # Load settings
         settings = Settings()
@@ -195,6 +242,7 @@ def main(env_file: str) -> None:
         runner.run()
 
     except Exception as e:
+        logger.error("Fatal error", error=str(e), exc_info=True)
         click.echo(f"Fatal error: {e}", err=True)
         sys.exit(1)
 

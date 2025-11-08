@@ -13,6 +13,9 @@ from src.kuru_copytr_bot.core.exceptions import (
 from src.kuru_copytr_bot.risk.calculator import PositionSizeCalculator
 from src.kuru_copytr_bot.risk.validator import TradeValidator
 from src.kuru_copytr_bot.connectors.platforms.kuru import KuruClient
+from src.kuru_copytr_bot.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class TradeCopier:
@@ -52,9 +55,19 @@ class TradeCopier:
         Returns:
             Order ID if successful, None otherwise
         """
+        logger.info(
+            "Processing trade for copying",
+            trade_id=trade.id,
+            market=trade.market,
+            side=trade.side.value,
+            size=str(trade.size),
+            price=str(trade.price),
+        )
+
         try:
             # Step 1: Get current balance
             balance = self.kuru_client.get_balance()
+            logger.debug("Retrieved balance", balance=str(balance))
 
             # Step 2: Calculate position size
             calculated_size = self.calculator.calculate(
@@ -63,8 +76,15 @@ class TradeCopier:
                 price=trade.price,
             )
 
+            logger.debug(
+                "Calculated position size",
+                source_size=str(trade.size),
+                calculated_size=str(calculated_size),
+            )
+
             # Skip if calculated size is zero
             if calculated_size == 0:
+                logger.info("Calculated size is zero, skipping trade", trade_id=trade.id)
                 return None
 
             # Step 3: Create mirror trade with calculated size
@@ -88,7 +108,21 @@ class TradeCopier:
 
             if not validation_result.is_valid:
                 self._rejected_trades += 1
+                logger.warning(
+                    "Trade validation failed, rejecting",
+                    trade_id=trade.id,
+                    reason=validation_result.reason,
+                )
                 return None
+
+            logger.info(
+                "Executing mirror trade",
+                market=mirror_trade.market,
+                side=mirror_trade.side.value,
+                size=str(mirror_trade.size),
+                price=str(mirror_trade.price),
+                order_type=self.default_order_type.value,
+            )
 
             # Step 5: Execute order
             if self.default_order_type == OrderType.LIMIT:
@@ -106,15 +140,45 @@ class TradeCopier:
                 )
 
             self._successful_trades += 1
+            logger.info(
+                "Successfully executed mirror trade",
+                trade_id=trade.id,
+                order_id=order_id,
+            )
             return order_id
 
-        except (InsufficientBalanceError, InvalidOrderError, OrderPlacementError):
-            # Known trading errors
+        except InsufficientBalanceError as e:
             self._failed_trades += 1
+            logger.error(
+                "Insufficient balance for trade",
+                trade_id=trade.id,
+                error=str(e),
+            )
             return None
-        except Exception:
-            # Unexpected errors (e.g., balance check failure)
+        except InvalidOrderError as e:
             self._failed_trades += 1
+            logger.error(
+                "Invalid order parameters",
+                trade_id=trade.id,
+                error=str(e),
+            )
+            return None
+        except OrderPlacementError as e:
+            self._failed_trades += 1
+            logger.error(
+                "Order placement failed",
+                trade_id=trade.id,
+                error=str(e),
+            )
+            return None
+        except Exception as e:
+            self._failed_trades += 1
+            logger.error(
+                "Unexpected error processing trade",
+                trade_id=trade.id,
+                error=str(e),
+                exc_info=True,
+            )
             return None
 
     def process_trades(self, trades: List[Trade]) -> List[str]:

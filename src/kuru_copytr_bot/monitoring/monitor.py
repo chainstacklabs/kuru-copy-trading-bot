@@ -4,6 +4,9 @@ from typing import List, Dict, Any, Set, Optional
 
 from src.kuru_copytr_bot.core.interfaces import BlockchainConnector
 from src.kuru_copytr_bot.core.exceptions import BlockchainConnectionError
+from src.kuru_copytr_bot.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class WalletMonitor:
@@ -49,6 +52,7 @@ class WalletMonitor:
         try:
             # Get latest transactions from blockchain
             all_transactions = self.blockchain.get_latest_transactions()
+            logger.debug("Retrieved transactions from blockchain", count=len(all_transactions))
 
             # Filter for target wallets and Kuru contract
             new_transactions = []
@@ -56,6 +60,7 @@ class WalletMonitor:
             for tx in all_transactions:
                 # Validate transaction structure
                 if not self._is_valid_transaction(tx):
+                    logger.debug("Invalid transaction structure, skipping", tx_hash=tx.get("hash"))
                     continue
 
                 tx_hash = tx["hash"]
@@ -71,19 +76,35 @@ class WalletMonitor:
                     new_transactions.append(tx)
                     self._processed_transactions.add(tx_hash)
 
+                    logger.info(
+                        "New transaction detected",
+                        tx_hash=tx_hash,
+                        from_wallet=from_addr,
+                        block_number=tx.get("blockNumber"),
+                    )
+
                     # Update last processed block
                     if "blockNumber" in tx:
                         block_num = tx["blockNumber"]
                         if self._last_block is None or block_num > self._last_block:
                             self._last_block = block_num
 
+            if new_transactions:
+                logger.info(
+                    "Found new transactions",
+                    count=len(new_transactions),
+                    last_block=self._last_block,
+                )
+
             return new_transactions
 
-        except BlockchainConnectionError:
+        except BlockchainConnectionError as e:
             # Handle blockchain connection errors gracefully
+            logger.warning("Blockchain connection error", error=str(e))
             return []
         except Exception as e:
             # Wrap other errors
+            logger.error("Failed to get transactions", error=str(e), exc_info=True)
             raise BlockchainConnectionError(f"Failed to get transactions: {e}")
 
     def _is_valid_transaction(self, tx: Dict[str, Any]) -> bool:
@@ -117,10 +138,21 @@ class WalletMonitor:
 
     def start(self):
         """Start monitoring wallets."""
+        logger.info(
+            "Starting wallet monitor",
+            target_wallets=self.target_wallets,
+            kuru_contract=self.kuru_contract_address,
+            from_block=self._last_block,
+        )
         self.is_running = True
 
     def stop(self):
         """Stop monitoring wallets."""
+        logger.info(
+            "Stopping wallet monitor",
+            transactions_processed=len(self._processed_transactions),
+            last_block=self._last_block,
+        )
         self.is_running = False
 
     def reset(self):

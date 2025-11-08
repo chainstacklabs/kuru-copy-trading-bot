@@ -72,7 +72,30 @@ Or with a custom .env file:
 uv run python -m src.kuru_copytr_bot.main --env-file .env.production
 ```
 
-### 4. Monitor Performance
+### 4. Configure Logging
+
+Control logging output with command-line options:
+
+```bash
+# Set log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+uv run python -m src.kuru_copytr_bot.main --log-level DEBUG
+
+# Output logs in JSON format (for log aggregation systems)
+uv run python -m src.kuru_copytr_bot.main --json-logs
+
+# Combine options
+uv run python -m src.kuru_copytr_bot.main --log-level INFO --json-logs
+```
+
+Default log output is human-readable with structured fields:
+
+```
+2025-11-08T10:30:45.123456Z [info     ] Starting copy trading bot   poll_interval=5
+2025-11-08T10:30:46.789012Z [info     ] Trade detected              market=ETH-USDC side=buy size=5.0 price=2000.0
+2025-11-08T10:30:47.345678Z [info     ] Successfully executed mirror trade order_id=0x1234...
+```
+
+### 5. Monitor Performance
 
 The bot displays real-time statistics:
 
@@ -168,12 +191,36 @@ uv run pytest --cov
 
 - **MonadClient** - Web3.py-based blockchain connector with retry logic
 - **KuruClient** - Python wrapper for Kuru Exchange API
-- **WalletMonitor** - Detects transactions from target wallets
+- **WalletMonitor** - Detects transactions from target wallets with structured logging
 - **KuruEventDetector** - Parses blockchain events (TradeExecuted, OrderPlaced, etc.)
 - **PositionSizeCalculator** - Calculates position sizes with copy ratio and limits
 - **TradeValidator** - Validates trades against risk management rules
-- **TradeCopier** - Executes mirror trades with error handling
-- **CopyTradingBot** - Orchestrates the entire workflow
+- **TradeCopier** - Executes mirror trades with comprehensive error logging
+- **CopyTradingBot** - Orchestrates the entire workflow with structured logging
+
+## Logging
+
+The bot uses **structlog** for structured logging with the following features:
+
+- **Structured Fields** - All log entries include contextual data (trade IDs, markets, sizes, etc.)
+- **Multiple Log Levels** - DEBUG, INFO, WARNING, ERROR, CRITICAL
+- **JSON Output** - Optional JSON format for log aggregation systems (Elasticsearch, Datadog, etc.)
+- **Human-Readable** - Default colored console output for development
+- **Error Tracking** - Full exception traces with `exc_info=True` for debugging
+
+### Log Examples
+
+**Human-Readable Format** (default):
+```
+2025-11-08T10:30:45.123Z [info     ] Starting wallet monitor  target_wallets=['0x1234...']
+2025-11-08T10:30:46.789Z [info     ] Trade detected           trade_id=abc123 market=ETH-USDC side=buy
+2025-11-08T10:30:47.345Z [warning  ] Trade validation failed  reason="Insufficient balance"
+```
+
+**JSON Format** (`--json-logs`):
+```json
+{"event": "Trade detected", "timestamp": "2025-11-08T10:30:46.789Z", "level": "info", "trade_id": "abc123", "market": "ETH-USDC", "side": "buy", "app": "kuru-copy-trading-bot"}
+```
 
 ## Testing
 
