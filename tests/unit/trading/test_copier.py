@@ -144,7 +144,7 @@ class TestTradeCopierProcessing:
         mock_validator.validate.assert_called_once()
         call_args = mock_validator.validate.call_args
         # Should create a new trade with calculated size
-        trade_arg = call_args[0][0]
+        trade_arg = call_args.kwargs["trade"]
         assert trade_arg.market == "ETH-USDC"
         assert trade_arg.side == OrderSide.BUY
 

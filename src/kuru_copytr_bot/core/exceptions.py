@@ -59,3 +59,15 @@ class ConfigurationError(KuruCopyTradingBotException):
     """Raised when configuration is invalid."""
 
     pass
+
+
+class InvalidOrderError(KuruCopyTradingBotException):
+    """Raised when order parameters are invalid."""
+
+    pass
+
+
+class OrderPlacementError(KuruCopyTradingBotException):
+    """Raised when order placement fails."""
+
+    pass
