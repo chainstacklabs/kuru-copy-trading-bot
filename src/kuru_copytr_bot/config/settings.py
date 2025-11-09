@@ -1,12 +1,11 @@
 """Settings configuration for the Kuru copy trading bot."""
 
-import os
 from decimal import Decimal
-from typing import List, Optional, Union
-from pydantic import BaseModel, Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from eth_account import Account
+
 from dotenv import load_dotenv
+from eth_account import Account
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,30 +19,69 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        populate_by_name=True,  # Allow both alias and field name
     )
 
     # Wallet Configuration
-    private_key: str = Field(..., description="Private key for signing transactions")
-    wallet_address: Optional[str] = Field(None, description="Wallet address (derived from private key)")
+    wallet_private_key: str = Field(
+        ...,
+        alias="private_key",  # Backward compatibility
+        description="Private key for signing transactions (64 hex chars, with or without 0x prefix)",
+    )
+    wallet_address: str | None = Field(
+        None, description="Wallet address (derived from private key)"
+    )
 
     # Blockchain Configuration
     monad_rpc_url: str = Field(..., description="Monad blockchain RPC URL")
     kuru_api_url: str = Field(..., description="Kuru Exchange API URL")
 
     # Trading Configuration
-    source_wallets: Union[str, List[str]] = Field(..., description="List of source trader wallet addresses to copy")
+    source_wallets: str | list[str] = Field(
+        ..., description="List of source trader wallet addresses to copy"
+    )
     copy_ratio: Decimal = Field(default=Decimal("1.0"), description="Copy ratio (1.0 = 100%)", gt=0)
-    max_position_size_usd: Decimal = Field(..., description="Maximum position size in USD", gt=0)
+
+    # Risk Management
+    max_position_size: Decimal = Field(
+        default=Decimal("1000.0"),
+        alias="max_position_size_usd",  # Backward compatibility
+        gt=0,
+        description="Maximum position size per market (in quote currency, e.g., USDC)",
+    )
+    min_order_size: Decimal = Field(
+        default=Decimal("10.0"), gt=0, description="Minimum order size (in quote currency)"
+    )
+    min_balance_threshold: Decimal = Field(
+        default=Decimal("100.0"),
+        ge=0,
+        description="Minimum balance threshold - bot stops trading if balance falls below this",
+    )
+    max_total_exposure: Decimal = Field(
+        default=Decimal("5000.0"),
+        gt=0,
+        description="Maximum total exposure across all markets (in quote currency)",
+    )
 
     # Optional Market Filters
-    market_whitelist: Optional[Union[str, List[str]]] = Field(None, description="Only copy trades in these markets")
-    market_blacklist: Optional[Union[str, List[str]]] = Field(None, description="Never copy trades in these markets")
+    market_whitelist: str | list[str] | None = Field(
+        None, description="Only copy trades in these markets"
+    )
+    market_blacklist: str | list[str] | None = Field(
+        None, description="Never copy trades in these markets"
+    )
 
     # Operational Settings
+    poll_interval_seconds: int = Field(
+        default=5,
+        gt=0,
+        le=3600,
+        description="Polling interval in seconds (how often to check for new transactions)",
+    )
     dry_run: bool = Field(default=False, description="Run in dry-run mode (no actual trades)")
     log_level: str = Field(default="INFO", description="Logging level")
 
-    @field_validator("private_key")
+    @field_validator("wallet_private_key")
     @classmethod
     def validate_private_key(cls, v: str) -> str:
         """Validate private key format."""
@@ -51,13 +89,13 @@ class Settings(BaseSettings):
             raise ValueError("Private key must be a 66-character hex string starting with 0x")
         try:
             int(v, 16)
-        except ValueError:
-            raise ValueError("Private key must be a valid hexadecimal string")
+        except ValueError as e:
+            raise ValueError("Private key must be a valid hexadecimal string") from e
         return v
 
     @field_validator("source_wallets", mode="before")
     @classmethod
-    def parse_source_wallets(cls, v: Union[str, List[str]]) -> List[str]:
+    def parse_source_wallets(cls, v: str | list[str]) -> list[str]:
         """Parse source wallets from string or list."""
         if isinstance(v, str):
             # Split comma-separated string and strip whitespace
@@ -66,7 +104,7 @@ class Settings(BaseSettings):
 
     @field_validator("source_wallets")
     @classmethod
-    def validate_source_wallets(cls, v: List[str]) -> List[str]:
+    def validate_source_wallets(cls, v: list[str]) -> list[str]:
         """Validate source wallet addresses."""
         if not v:
             raise ValueError("At least one source wallet is required")
@@ -95,13 +133,20 @@ class Settings(BaseSettings):
             raise ValueError(f"Log level must be one of {valid_levels}")
         return v_upper
 
-    @field_validator("copy_ratio", "max_position_size_usd", mode="before")
+    @field_validator(
+        "copy_ratio",
+        "max_position_size",
+        "min_order_size",
+        "min_balance_threshold",
+        "max_total_exposure",
+        mode="before",
+    )
     @classmethod
     def parse_decimal(cls, v) -> Decimal:
         """Parse string or number to Decimal."""
         if isinstance(v, str):
             return Decimal(v)
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             return Decimal(str(v))
         return v
 
@@ -115,7 +160,7 @@ class Settings(BaseSettings):
 
     @field_validator("market_whitelist", "market_blacklist", mode="before")
     @classmethod
-    def parse_market_list(cls, v: Optional[Union[str, List[str]]]) -> Optional[List[str]]:
+    def parse_market_list(cls, v: str | list[str] | None) -> list[str] | None:
         """Parse market list from string or list."""
         if v is None or v == "":
             return None
@@ -124,12 +169,27 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode="after")
-    def derive_wallet_address(self) -> "Settings":
-        """Derive wallet address from private key."""
+    def validate_constraints(self) -> "Settings":
+        """Validate cross-field constraints and derive wallet address."""
+        # Derive wallet address from private key
         if not self.wallet_address:
             try:
-                account = Account.from_key(self.private_key)
+                account = Account.from_key(self.wallet_private_key)
                 self.wallet_address = account.address
             except Exception as e:
-                raise ValueError(f"Failed to derive wallet address from private key: {e}")
+                raise ValueError(f"Failed to derive wallet address from private key: {e}") from e
+
+        # Validate risk management constraints
+        if self.min_order_size >= self.max_position_size:
+            raise ValueError(
+                f"min_order_size ({self.min_order_size}) must be less than "
+                f"max_position_size ({self.max_position_size})"
+            )
+
+        if self.max_position_size > self.max_total_exposure:
+            raise ValueError(
+                f"max_position_size ({self.max_position_size}) cannot exceed "
+                f"max_total_exposure ({self.max_total_exposure})"
+            )
+
         return self

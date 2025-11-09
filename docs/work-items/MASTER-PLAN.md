@@ -16,9 +16,9 @@ This document tracks the implementation progress for all placeholder and incompl
 | WI-001 | Implement MonadClient.get_latest_transactions() | Medium | Medium | Not Started | - |
 | WI-002 | Implement Kuru Transaction Data Encoding | Critical | High | Not Started | - |
 | WI-003 | Implement Real Orderbook Price Fetching | High | Medium | Not Started | - |
-| WI-004 | Update Kuru Contract Address Constant | Critical | Low | Not Started | - |
+| WI-004 | Update Kuru Contract Address Constant | Critical | Low | ✅ Completed | Claude |
 | WI-005 | Implement Real Position Tracking | High | Medium | Not Started | - |
-| WI-006 | Add Missing Configuration Fields | Critical | Low | Not Started | - |
+| WI-006 | Add Missing Configuration Fields | Critical | Low | 🔄 In Progress | Claude |
 | WI-007 | Resolve Empty Files | Low | Medium | Not Started | - |
 
 ## Implementation Order (Recommended)
@@ -26,17 +26,17 @@ This document tracks the implementation progress for all placeholder and incompl
 ### Phase 1: Critical Foundations (Must be completed first)
 These items are critical and/or block other work items.
 
-1. **WI-004: Update Kuru Contract Address** ⚠️ BLOCKS WI-002
+1. **WI-004: Update Kuru Contract Address** ✅ COMPLETED
    - Priority: Critical
    - Estimated: 1-2 hours
    - Blocking: WI-002 cannot be completed without real contract address
-   - Status: ⬜ Not Started
+   - Status: ✅ Completed (2025-01-09)
 
-2. **WI-006: Add Missing Configuration Fields** ⚠️ CRITICAL
+2. **WI-006: Add Missing Configuration Fields** 🔄 IN PROGRESS
    - Priority: Critical
    - Estimated: 2-3 hours
    - Blocking: Prevents main.py from running correctly
-   - Status: ⬜ Not Started
+   - Status: 🔄 In Progress (Started 2025-01-09)
 
 ### Phase 2: Core Trading Functionality
 These items implement core trading features.
@@ -89,7 +89,7 @@ These items add additional functionality and cleanup.
 ## Completion Checklist
 
 ### Phase 1: Critical Foundations
-- [ ] WI-004: Contract address updated and verified
+- [x] WI-004: Contract address updated and verified
 - [ ] WI-006: All configuration fields added and tested
 
 ### Phase 2: Core Trading Functionality
@@ -140,17 +140,20 @@ Each work item must meet these criteria before being marked complete:
 ## Progress Tracking
 
 ### Completed Items
-_None yet_
+- ✅ **WI-004**: Update Kuru Contract Address Constant (Completed 2025-01-09)
+  - Updated all Kuru contract addresses with verified testnet addresses
+  - Added comprehensive tests for address validation
+  - Commit: 4ab1603
 
 ### In Progress
-_None yet_
+- 🔄 **WI-006**: Add Missing Configuration Fields (Started 2025-01-09)
 
 ### Blocked
 _None yet_
 
 ### Next Up
-1. WI-004 (Update contract address)
-2. WI-006 (Add configuration fields)
+1. WI-002 (Implement Kuru Transaction Encoding) - After WI-006
+2. WI-005 (Implement Real Position Tracking)
 
 ## Notes
 

@@ -1,6 +1,6 @@
 # Kuru Copy Trading Bot
 
-A production-ready copy trading bot for Kuru Exchange on Monad testnet. Automatically mirrors trades from expert wallets with configurable position sizing and comprehensive risk management.
+A copy trading bot for Kuru Exchange on Monad testnet. Automatically mirrors trades from tracked wallets with configurable position sizing and comprehensive risk management.
 
 ## Features
 
@@ -119,8 +119,8 @@ src/kuru_copytr_bot/
 ├── trading/             # Copy and execute trades
 ├── risk/                # Validate trades and calculate position sizes
 ├── connectors/          # Platform and blockchain integrations
-│   ├── blockchain/      # Blockchain clients (Ethereum, etc.)
-│   └── platforms/       # Trading platforms (Uniswap, etc.)
+│   ├── blockchain/      # Blockchain clients (Monad, etc.)
+│   └── platforms/       # Trading platforms (Kuru, etc.)
 ├── utils/               # Logging, decorators, helpers
 └── config/              # Settings and constants
 
@@ -239,8 +239,6 @@ uv run pytest tests/unit/test_bot.py -v
 # Integration tests only
 uv run pytest -m integration
 ```
-
-Current test coverage: **87%** (286/294 tests passing)
 
 ## Requirements
 
