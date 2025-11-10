@@ -1,12 +1,40 @@
 """Unit tests for Kuru event detector."""
 
-import pytest
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, timezone
 
-from src.kuru_copytr_bot.monitoring.detector import KuruEventDetector
-from src.kuru_copytr_bot.models.trade import Trade
 from src.kuru_copytr_bot.core.enums import OrderSide
+from src.kuru_copytr_bot.models.trade import Trade
+from src.kuru_copytr_bot.monitoring.detector import KuruEventDetector, calculate_event_topic
+
+
+class TestEventTopicCalculation:
+    """Test event topic calculation."""
+
+    def test_calculate_event_topic_for_order_created(self):
+        """Should calculate correct Keccak256 hash for OrderCreated event."""
+        signature = "OrderCreated(uint40,address,uint96,uint32,bool)"
+        topic = calculate_event_topic(signature)
+
+        # Should return a valid 32-byte hex hash with 0x prefix
+        assert topic.startswith("0x")
+        assert len(topic) == 66  # 0x + 64 hex chars
+        assert all(c in "0123456789abcdef" for c in topic[2:])
+
+    def test_calculate_event_topic_returns_consistent_hash(self):
+        """Should return same hash for same signature."""
+        signature = "OrderCreated(uint40,address,uint96,uint32,bool)"
+        topic1 = calculate_event_topic(signature)
+        topic2 = calculate_event_topic(signature)
+
+        assert topic1 == topic2
+
+    def test_calculate_event_topic_different_for_different_signatures(self):
+        """Should return different hashes for different signatures."""
+        topic1 = calculate_event_topic("OrderCreated(uint40,address,uint96,uint32,bool)")
+        topic2 = calculate_event_topic("Trade(uint40,address,address,bool,uint256,uint256)")
+
+        assert topic1 != topic2
 
 
 class TestKuruEventDetectorInitialization:
@@ -29,10 +57,10 @@ class TestKuruEventDetectorTradeExecuted:
                 "0x" + "1" * 64,  # TradeExecuted event signature
                 "0x000000000000000000000000" + "1111111111111111111111111111111111111111",  # trader
             ],
-            "data": "0x" +
-                    "00000000000000000000000000000000000000000000006c6b935b8bbd400000" +  # price=2000 * 10^18
-                    "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +  # size=1.0 * 10^18
-                    "0000000000000000000000000000000000000000000000000000000000000000",  # side=0 (BUY)
+            "data": "0x"
+            + "00000000000000000000000000000000000000000000006c6b935b8bbd400000"  # price=2000 * 10^18
+            + "0000000000000000000000000000000000000000000000000de0b6b3a7640000"  # size=1.0 * 10^18
+            + "0000000000000000000000000000000000000000000000000000000000000000",  # side=0 (BUY)
             "blockNumber": 1000,
             "transactionHash": "0xabc123def4567890123456789012345678901234567890123456789012345678",
         }
@@ -52,10 +80,10 @@ class TestKuruEventDetectorTradeExecuted:
                 "0x" + "1" * 64,
                 "0x000000000000000000000000" + "1111111111111111111111111111111111111111",
             ],
-            "data": "0x" +
-                    "00000000000000000000000000000000000000000000000000000000000007d0" +  # price=2000
-                    "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +  # size=1.0
-                    "0000000000000000000000000000000000000000000000000000000000000000",  # side=0 (BUY)
+            "data": "0x"
+            + "00000000000000000000000000000000000000000000000000000000000007d0"  # price=2000
+            + "0000000000000000000000000000000000000000000000000de0b6b3a7640000"  # size=1.0
+            + "0000000000000000000000000000000000000000000000000000000000000000",  # side=0 (BUY)
             "blockNumber": 1000,
             "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
@@ -73,10 +101,10 @@ class TestKuruEventDetectorTradeExecuted:
                 "0x" + "1" * 64,
                 "0x000000000000000000000000" + "1111111111111111111111111111111111111111",
             ],
-            "data": "0x" +
-                    "00000000000000000000000000000000000000000000000000000000000007d0" +  # price
-                    "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +  # size
-                    "0000000000000000000000000000000000000000000000000000000000000001",  # side=1 (SELL)
+            "data": "0x"
+            + "00000000000000000000000000000000000000000000000000000000000007d0"  # price
+            + "0000000000000000000000000000000000000000000000000de0b6b3a7640000"  # size
+            + "0000000000000000000000000000000000000000000000000000000000000001",  # side=1 (SELL)
             "blockNumber": 1000,
             "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
@@ -94,10 +122,10 @@ class TestKuruEventDetectorTradeExecuted:
                 "0x" + "1" * 64,
                 "0x000000000000000000000000" + "1111111111111111111111111111111111111111",
             ],
-            "data": "0x" +
-                    "00000000000000000000000000000000000000000000006c6b935b8bbd400000" +  # 2000 * 10^18
-                    "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +
-                    "0000000000000000000000000000000000000000000000000000000000000000",
+            "data": "0x"
+            + "00000000000000000000000000000000000000000000006c6b935b8bbd400000"  # 2000 * 10^18
+            + "0000000000000000000000000000000000000000000000000de0b6b3a7640000"
+            + "0000000000000000000000000000000000000000000000000000000000000000",
             "blockNumber": 1000,
             "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
@@ -116,10 +144,10 @@ class TestKuruEventDetectorTradeExecuted:
                 "0x" + "1" * 64,
                 "0x000000000000000000000000" + "1111111111111111111111111111111111111111",
             ],
-            "data": "0x" +
-                    "00000000000000000000000000000000000000000000000000000000000007d0" +
-                    "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +  # 1.0 * 10^18
-                    "0000000000000000000000000000000000000000000000000000000000000000",
+            "data": "0x"
+            + "00000000000000000000000000000000000000000000000000000000000007d0"
+            + "0000000000000000000000000000000000000000000000000de0b6b3a7640000"  # 1.0 * 10^18
+            + "0000000000000000000000000000000000000000000000000000000000000000",
             "blockNumber": 1000,
             "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
@@ -161,10 +189,10 @@ class TestKuruEventDetectorOrderPlaced:
                 "0x" + "0" * 64,
                 "0x000000000000000000000000" + "1111111111111111111111111111111111111111",
             ],
-            "data": "0x" +
-                    "0000000000000000000000000000000000000000000000000000000000000001" +  # order_id=1
-                    "00000000000000000000000000000000000000000000000000000000000007d0" +  # price
-                    "0000000000000000000000000000000000000000000000000de0b6b3a7640000",  # size
+            "data": "0x"
+            + "0000000000000000000000000000000000000000000000000000000000000001"  # order_id=1
+            + "00000000000000000000000000000000000000000000000000000000000007d0"  # price
+            + "0000000000000000000000000000000000000000000000000de0b6b3a7640000",  # size
             "blockNumber": 1000,
             "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
@@ -303,12 +331,14 @@ class TestKuruEventDetectorMarketParsing:
                 "0x" + "1" * 64,
                 "0x000000000000000000000000" + "1111111111111111111111111111111111111111",
             ],
-            "data": "0x" +
-                    "00000000000000000000000000000000000000000000000000000000000007d0" +
-                    "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +
-                    "0000000000000000000000000000000000000000000000000000000000000000" +
-                    # Market string: "ETH-USDC" encoded
-                    "4554482d55534443" + "0" * 48,  # "ETH-USDC" in hex
+            "data": "0x"
+            + "00000000000000000000000000000000000000000000000000000000000007d0"
+            + "0000000000000000000000000000000000000000000000000de0b6b3a7640000"
+            + "0000000000000000000000000000000000000000000000000000000000000000"
+            +
+            # Market string: "ETH-USDC" encoded
+            "4554482d55534443"
+            + "0" * 48,  # "ETH-USDC" in hex
             "blockNumber": 1000,
             "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }
@@ -330,10 +360,10 @@ class TestKuruEventDetectorTimestamp:
                 "0x" + "1" * 64,
                 "0x000000000000000000000000" + "1111111111111111111111111111111111111111",
             ],
-            "data": "0x" +
-                    "00000000000000000000000000000000000000000000000000000000000007d0" +
-                    "0000000000000000000000000000000000000000000000000de0b6b3a7640000" +
-                    "0000000000000000000000000000000000000000000000000000000000000000",
+            "data": "0x"
+            + "00000000000000000000000000000000000000000000000000000000000007d0"
+            + "0000000000000000000000000000000000000000000000000de0b6b3a7640000"
+            + "0000000000000000000000000000000000000000000000000000000000000000",
             "blockNumber": 1000,
             "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
             "timestamp": 1234567890,
@@ -343,7 +373,7 @@ class TestKuruEventDetectorTimestamp:
         trade = detector.parse_trade_executed(event_log)
 
         assert isinstance(trade.timestamp, datetime)
-        assert trade.timestamp.tzinfo == timezone.utc
+        assert trade.timestamp.tzinfo == UTC
 
 
 class TestKuruEventDetectorEventTypeDetection:
@@ -353,14 +383,23 @@ class TestKuruEventDetectorEventTypeDetection:
         """Detector should identify event type from signature."""
         detector = KuruEventDetector()
 
-        # TradeExecuted
-        assert detector.get_event_type("0x" + "1" * 64) == "TradeExecuted"
+        # OrderCreated
+        assert detector.get_event_type(detector.ORDER_CREATED_SIGNATURE) == "OrderCreated"
 
-        # OrderPlaced
-        assert detector.get_event_type("0x" + "0" * 64) == "OrderPlaced"
+        # Trade
+        assert detector.get_event_type(detector.TRADE_SIGNATURE) == "Trade"
 
-        # OrderCancelled
-        assert detector.get_event_type("0x" + "2" * 64) == "OrderCancelled"
+        # OrdersCanceled
+        assert detector.get_event_type(detector.ORDERS_CANCELED_SIGNATURE) == "OrdersCanceled"
+
+    def test_detector_has_backward_compatible_aliases(self):
+        """Detector should have backward compatible signature aliases."""
+        detector = KuruEventDetector()
+
+        # Legacy aliases should point to same signatures (backward compatibility)
+        assert detector.TRADE_EXECUTED_SIGNATURE == detector.TRADE_SIGNATURE
+        assert detector.ORDER_PLACED_SIGNATURE == detector.ORDER_CREATED_SIGNATURE
+        assert detector.ORDER_CANCELLED_SIGNATURE == detector.ORDERS_CANCELED_SIGNATURE
 
     def test_detector_handles_unknown_event_type(self):
         """Detector should handle unknown event types."""
@@ -381,10 +420,10 @@ class TestKuruEventDetectorDecimalPrecision:
                 "0x" + "1" * 64,
                 "0x000000000000000000000000" + "1111111111111111111111111111111111111111",
             ],
-            "data": "0x" +
-                    "00000000000000000000000000000000000000000000006c6b935b8bbd400000" +  # 2000 * 10^18
-                    "00000000000000000000000000000000000000000000000006f05b59d3b20000" +  # 0.5 * 10^18
-                    "0000000000000000000000000000000000000000000000000000000000000000",
+            "data": "0x"
+            + "00000000000000000000000000000000000000000000006c6b935b8bbd400000"  # 2000 * 10^18
+            + "00000000000000000000000000000000000000000000000006f05b59d3b20000"  # 0.5 * 10^18
+            + "0000000000000000000000000000000000000000000000000000000000000000",
             "blockNumber": 1000,
             "transactionHash": "0xabc1234567890123456789012345678901234567890123456789012345678901",
         }

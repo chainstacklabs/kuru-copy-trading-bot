@@ -1,28 +1,49 @@
 """Kuru event detector for parsing blockchain events."""
 
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Any
 
 from pydantic import ValidationError
+from web3 import Web3
 
-from src.kuru_copytr_bot.models.trade import Trade
 from src.kuru_copytr_bot.core.enums import OrderSide
+from src.kuru_copytr_bot.models.trade import Trade
+
+
+def calculate_event_topic(signature: str) -> str:
+    """Calculate Keccak256 hash of event signature.
+
+    Args:
+        signature: Event signature string (e.g., "OrderCreated(uint40,address,uint96,uint32,bool)")
+
+    Returns:
+        32-byte hex hash with 0x prefix
+    """
+    return "0x" + Web3.keccak(text=signature).hex()
 
 
 class KuruEventDetector:
     """Detector for parsing Kuru Exchange events from blockchain logs."""
 
-    # Event signatures (simplified for tests)
-    TRADE_EXECUTED_SIGNATURE = "0x" + "1" * 64
-    ORDER_PLACED_SIGNATURE = "0x" + "0" * 64
-    ORDER_CANCELLED_SIGNATURE = "0x" + "2" * 64
+    # Event signatures - calculated from actual event definitions
+    # Based on OrderBook contract events and Kuru API spec
+    ORDER_CREATED_SIGNATURE = calculate_event_topic(
+        "OrderCreated(uint40,address,uint96,uint32,bool)"
+    )
+    TRADE_SIGNATURE = calculate_event_topic("Trade(uint40,address,address,bool,uint256,uint256)")
+    ORDERS_CANCELED_SIGNATURE = calculate_event_topic("OrdersCanceled(uint40[],address)")
+
+    # Maintain old names for backward compatibility (map to new signatures)
+    TRADE_EXECUTED_SIGNATURE = TRADE_SIGNATURE
+    ORDER_PLACED_SIGNATURE = ORDER_CREATED_SIGNATURE
+    ORDER_CANCELLED_SIGNATURE = ORDERS_CANCELED_SIGNATURE
 
     def __init__(self):
         """Initialize the event detector."""
         pass
 
-    def parse_trade_executed(self, event_log: Dict[str, Any]) -> Optional[Trade]:
+    def parse_trade_executed(self, event_log: dict[str, Any]) -> Trade | None:
         """Parse TradeExecuted event to Trade model.
 
         Args:
@@ -85,14 +106,14 @@ class KuruEventDetector:
                 # Try to decode as UTF-8 string
                 try:
                     market_bytes = bytes.fromhex(market_hex)
-                    market = market_bytes.decode('utf-8').rstrip('\x00')
+                    market = market_bytes.decode("utf-8").rstrip("\x00")
                 except (ValueError, UnicodeDecodeError):
                     pass
 
             # Extract timestamp
-            timestamp = datetime.now(timezone.utc)
+            timestamp = datetime.now(UTC)
             if "timestamp" in event_log:
-                timestamp = datetime.fromtimestamp(event_log["timestamp"], tz=timezone.utc)
+                timestamp = datetime.fromtimestamp(event_log["timestamp"], tz=UTC)
 
             # Create Trade object
             trade = Trade(
@@ -108,11 +129,11 @@ class KuruEventDetector:
 
             return trade
 
-        except (ValueError, KeyError, IndexError, UnicodeDecodeError, ValidationError) as e:
+        except (ValueError, KeyError, IndexError, UnicodeDecodeError, ValidationError):
             # Log error for debugging but don't crash
             return None
 
-    def parse_order_placed(self, event_log: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def parse_order_placed(self, event_log: dict[str, Any]) -> dict[str, Any] | None:
         """Parse OrderPlaced event.
 
         Args:
@@ -163,7 +184,7 @@ class KuruEventDetector:
         except (ValueError, KeyError, IndexError):
             return None
 
-    def parse_order_cancelled(self, event_log: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def parse_order_cancelled(self, event_log: dict[str, Any]) -> dict[str, Any] | None:
         """Parse OrderCancelled event.
 
         Args:
@@ -223,11 +244,11 @@ class KuruEventDetector:
         Returns:
             Event type name or "Unknown"
         """
-        if signature == self.TRADE_EXECUTED_SIGNATURE:
-            return "TradeExecuted"
-        elif signature == self.ORDER_PLACED_SIGNATURE:
-            return "OrderPlaced"
-        elif signature == self.ORDER_CANCELLED_SIGNATURE:
-            return "OrderCancelled"
+        if signature == self.ORDER_CREATED_SIGNATURE:
+            return "OrderCreated"
+        elif signature == self.TRADE_SIGNATURE:
+            return "Trade"
+        elif signature == self.ORDERS_CANCELED_SIGNATURE:
+            return "OrdersCanceled"
         else:
             return "Unknown"
