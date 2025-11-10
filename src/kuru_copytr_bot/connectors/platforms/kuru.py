@@ -695,6 +695,43 @@ class KuruClient:
         except requests.exceptions.RequestException:
             return []
 
+    def get_user_trades(
+        self,
+        market_address: str,
+        user_address: str,
+        start_timestamp: Optional[int] = None,
+        end_timestamp: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Get historical trades for a user on a specific market.
+
+        Args:
+            market_address: Market contract address
+            user_address: User wallet address
+            start_timestamp: Optional Unix timestamp to filter trades from
+            end_timestamp: Optional Unix timestamp to filter trades until
+
+        Returns:
+            List of trades for the user (empty list if none found)
+        """
+        try:
+            params = {}
+            if start_timestamp is not None:
+                params["start_timestamp"] = start_timestamp
+            if end_timestamp is not None:
+                params["end_timestamp"] = end_timestamp
+
+            response = requests.get(
+                f"{self.api_url}/{market_address}/trades/user/{user_address}",
+                params=params
+            )
+            if response.status_code == 404:
+                return []
+
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException:
+            return []
+
     def get_open_orders(self, market: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all open orders.
 

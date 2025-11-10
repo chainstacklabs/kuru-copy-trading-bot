@@ -810,6 +810,79 @@ class TestKuruClientOrderStatus:
         assert orders[0]["order_id"] == "order_001"
 
 
+class TestKuruClientTrades:
+    """Test Kuru trade queries."""
+
+    @patch('requests.get')
+    def test_kuru_client_gets_user_trades(self, mock_get, kuru_client):
+        """Client should get trades for a user on a specific market."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = [
+            {
+                "order_id": "123",
+                "market": "ETH-USDC",
+                "side": "BUY",
+                "price": "2000.0",
+                "size": "1.0",
+                "timestamp": 1234567890
+            },
+            {
+                "order_id": "124",
+                "market": "ETH-USDC",
+                "side": "SELL",
+                "price": "2010.0",
+                "size": "0.5",
+                "timestamp": 1234567900
+            },
+        ]
+
+        market_address = "0xMARKET00000000000000000000000000000000000"
+        user_address = "0x1234567890123456789012345678901234567890"
+        trades = kuru_client.get_user_trades(market_address, user_address)
+
+        assert len(trades) == 2
+        assert trades[0]["market"] == "ETH-USDC"
+        # Verify endpoint was called correctly
+        mock_get.assert_called_once_with(
+            f"{kuru_client.api_url}/{market_address}/trades/user/{user_address}",
+            params={}
+        )
+
+    @patch('requests.get')
+    def test_kuru_client_gets_user_trades_with_time_filter(self, mock_get, kuru_client):
+        """Client should filter trades by timestamp."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = [
+            {"order_id": "123", "market": "ETH-USDC", "timestamp": 1234567890},
+        ]
+
+        market_address = "0xMARKET00000000000000000000000000000000000"
+        user_address = "0x1234567890123456789012345678901234567890"
+        trades = kuru_client.get_user_trades(
+            market_address,
+            user_address,
+            start_timestamp=1234567000,
+            end_timestamp=1234568000
+        )
+
+        assert len(trades) == 1
+        mock_get.assert_called_once_with(
+            f"{kuru_client.api_url}/{market_address}/trades/user/{user_address}",
+            params={"start_timestamp": 1234567000, "end_timestamp": 1234568000}
+        )
+
+    @patch('requests.get')
+    def test_kuru_client_gets_user_trades_returns_empty_on_404(self, mock_get, kuru_client):
+        """Client should return empty list when no trades found."""
+        mock_get.return_value.status_code = 404
+
+        market_address = "0xMARKET00000000000000000000000000000000000"
+        user_address = "0x1234567890123456789012345678901234567890"
+        trades = kuru_client.get_user_trades(market_address, user_address)
+
+        assert trades == []
+
+
 class TestKuruClientPositions:
     """Test Kuru position queries."""
 

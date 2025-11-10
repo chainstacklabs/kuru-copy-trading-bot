@@ -184,7 +184,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-005: Add REST API - Get User Trades [HIGH]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: Cannot fetch historical trades for analysis or verification
 
@@ -1081,7 +1081,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 - ✅ WI-002: Add CLOID Support
 - ✅ WI-003: Fix Get User Orders Endpoint
 - ✅ WI-004: Add Get Active Orders Endpoint
-- ⬜ WI-005: Add Get User Trades Endpoint
+- ✅ WI-005: Add Get User Trades Endpoint
 - ⬜ WI-006: Align Order Model
 - ⬜ WI-007: Align Trade Model
 
