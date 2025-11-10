@@ -880,52 +880,61 @@ class KuruClient:
             return []
 
     def get_orderbook(self, market: str) -> Dict[str, Any]:
-        """Get current orderbook for a market.
+        """Get current orderbook for a market from contract.
 
         Args:
-            market: Market identifier (e.g., "ETH-USDC")
+            market: Market identifier (contract address)
 
         Returns:
             Dict containing orderbook data with 'bids' and 'asks' arrays
-            Each entry: {"price": str, "size": str}
+            Each entry: {"price": Decimal, "size": Decimal}
             Returns empty orderbook on error
 
-        Raises:
-            InvalidMarketError: If market is invalid
+        Note:
+            This uses bestBidAsk() to get top of book. Full orderbook depth
+            via getL2Book() requires parsing the bytes encoding format which
+            is not documented in the public API spec.
         """
         try:
-            # Try primary endpoint pattern
-            response = requests.get(f"{self.api_url}/orderbook?market={market}", timeout=5)
+            # Call contract bestBidAsk() function to get top of book
+            # Returns: (bestBid uint256, bestAsk uint256)
+            result = self.blockchain.call_contract_function(
+                contract_address=self.contract_address,
+                function_name="bestBidAsk",
+                abi=self.orderbook_abi,
+                args=[]
+            )
 
-            # If that fails, try alternative pattern
-            if response.status_code == 404:
-                response = requests.get(
-                    f"{self.api_url}/markets/{market}/orderbook", timeout=5
-                )
+            best_bid, best_ask = result
 
-            if response.status_code == 404:
-                raise InvalidMarketError(f"Market {market} not found")
+            # Get market params for scaling
+            params = self.get_market_params(market)
+            price_precision = params["price_precision"]
 
-            response.raise_for_status()
+            # Build orderbook with top of book only
+            orderbook = {
+                "bids": [],
+                "asks": [],
+            }
 
-            orderbook = response.json()
+            # Add best bid if non-zero
+            if best_bid > 0:
+                orderbook["bids"].append({
+                    "price": Decimal(best_bid) / Decimal(price_precision),
+                    "size": Decimal("0"),  # Size not available from bestBidAsk()
+                })
 
-            # Convert price and size strings to Decimal
-            for bid in orderbook.get("bids", []):
-                bid["price"] = Decimal(str(bid["price"]))
-                bid["size"] = Decimal(str(bid["size"]))
-
-            for ask in orderbook.get("asks", []):
-                ask["price"] = Decimal(str(ask["price"]))
-                ask["size"] = Decimal(str(ask["size"]))
+            # Add best ask if non-zero
+            if best_ask > 0:
+                orderbook["asks"].append({
+                    "price": Decimal(best_ask) / Decimal(price_precision),
+                    "size": Decimal("0"),  # Size not available from bestBidAsk()
+                })
 
             return orderbook
 
-        except requests.exceptions.Timeout:
-            logger.warning("Orderbook request timed out", market=market)
-            return {"bids": [], "asks": []}
-        except requests.exceptions.RequestException as e:
-            logger.error("Failed to fetch orderbook", market=market, error=str(e))
+        except Exception as e:
+            logger.error("Failed to fetch orderbook from contract", market=market, error=str(e))
             return {"bids": [], "asks": []}
 
     def get_best_price(self, market: str, side: OrderSide) -> Optional[Decimal]:

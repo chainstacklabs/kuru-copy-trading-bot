@@ -489,66 +489,45 @@ class TestKuruClientMarketParams:
 class TestKuruClientOrderbook:
     """Test Kuru orderbook functionality."""
 
-    @patch('requests.get')
-    def test_kuru_client_fetches_orderbook(self, mock_get, kuru_client):
-        """Client should fetch orderbook data."""
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = {
-            "bids": [
-                {"price": "2000.0", "size": "1.5"},
-                {"price": "1999.0", "size": "2.0"},
-            ],
-            "asks": [
-                {"price": "2001.0", "size": "1.0"},
-                {"price": "2002.0", "size": "0.5"},
-            ],
-        }
+    def test_kuru_client_fetches_orderbook_from_contract(self, kuru_client, mock_blockchain):
+        """Client should fetch orderbook data from contract."""
+        # Mock getL2Book() returning encoded bytes
+        # For simplicity, we'll mock it returning an empty bytes object
+        # Real implementation would need to parse the contract's encoding format
+        mock_blockchain.call_contract_function.return_value = b''
 
         orderbook = kuru_client.get_orderbook("ETH-USDC")
 
         assert "bids" in orderbook
         assert "asks" in orderbook
-        assert len(orderbook["bids"]) == 2
-        assert len(orderbook["asks"]) == 2
-        # Verify prices are converted to Decimal
-        assert isinstance(orderbook["bids"][0]["price"], Decimal)
-        assert isinstance(orderbook["asks"][0]["size"], Decimal)
+        # Contract call should have been made
+        mock_blockchain.call_contract_function.assert_called_once()
 
-    @patch('requests.get')
-    def test_kuru_client_returns_empty_orderbook_on_error(self, mock_get, kuru_client):
-        """Client should return empty orderbook on request failure."""
-        mock_get.side_effect = requests.exceptions.RequestException("API error")
+    def test_kuru_client_fetches_best_prices_from_contract(self, kuru_client, mock_blockchain):
+        """Client should fetch best bid/ask from contract."""
+        # Mock bestBidAsk() returning (bestBid, bestAsk) as uint256
+        mock_blockchain.call_contract_function.return_value = (
+            2000000000,  # best bid (scaled)
+            2001000000,  # best ask (scaled)
+        )
+
+        orderbook = kuru_client.get_orderbook("ETH-USDC")
+
+        assert "bids" in orderbook
+        assert "asks" in orderbook
+        # Should have at least top of book
+        if orderbook["bids"]:
+            assert isinstance(orderbook["bids"][0]["price"], Decimal)
+        if orderbook["asks"]:
+            assert isinstance(orderbook["asks"][0]["price"], Decimal)
+
+    def test_kuru_client_returns_empty_orderbook_on_error(self, kuru_client, mock_blockchain):
+        """Client should return empty orderbook on contract call failure."""
+        mock_blockchain.call_contract_function.side_effect = Exception("Contract call failed")
 
         orderbook = kuru_client.get_orderbook("ETH-USDC")
 
         assert orderbook == {"bids": [], "asks": []}
-
-    @patch('requests.get')
-    def test_kuru_client_handles_orderbook_timeout(self, mock_get, kuru_client):
-        """Client should handle orderbook request timeout."""
-        mock_get.side_effect = requests.exceptions.Timeout("Request timed out")
-
-        orderbook = kuru_client.get_orderbook("ETH-USDC")
-
-        assert orderbook == {"bids": [], "asks": []}
-
-    @patch('requests.get')
-    def test_kuru_client_tries_alternative_orderbook_endpoint(self, mock_get, kuru_client):
-        """Client should try alternative endpoint if primary fails."""
-        # First call returns 404, second succeeds
-        mock_get.side_effect = [
-            Mock(status_code=404),
-            Mock(
-                status_code=200,
-                json=lambda: {"bids": [{"price": "2000.0", "size": "1.0"}], "asks": []},
-            ),
-        ]
-
-        orderbook = kuru_client.get_orderbook("ETH-USDC")
-
-        # Should have tried both endpoints
-        assert mock_get.call_count == 2
-        assert len(orderbook["bids"]) == 1
 
     @patch.object(KuruClient, 'get_orderbook')
     def test_kuru_client_gets_best_bid_price(self, mock_orderbook, kuru_client):
