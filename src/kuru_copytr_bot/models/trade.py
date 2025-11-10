@@ -1,10 +1,51 @@
 """Trade model."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
+
 from pydantic import BaseModel, Field, field_validator
 
 from ..core.enums import OrderSide
+
+
+class TradeResponse(BaseModel):
+    """Raw trade data from Kuru API (matches API spec format with camelCase)."""
+
+    orderid: int = Field(..., description="Order ID from blockchain")
+    makeraddress: str = Field(..., description="Maker wallet address")
+    takeraddress: str = Field(..., description="Taker wallet address")
+    isbuy: bool = Field(..., description="True for buy trades, False for sell trades")
+    price: str = Field(..., description="Execution price as string")
+    filledsize: str = Field(..., description="Filled size as string")
+    transactionhash: str = Field(..., description="Transaction hash")
+    triggertime: int = Field(..., description="Unix timestamp when trade executed")
+    cloid: str | None = Field(None, description="Optional client order ID")
+
+    def to_trade(self, market: str) -> "Trade":
+        """Convert API response format to internal Trade model.
+
+        Args:
+            market: Market identifier (e.g., "ETH-USDC")
+
+        Returns:
+            Trade: Internal trade model with proper types
+        """
+        # Determine side
+        side = OrderSide.BUY if self.isbuy else OrderSide.SELL
+
+        # Convert timestamp to datetime
+        timestamp = datetime.fromtimestamp(self.triggertime, tz=UTC)
+
+        return Trade(
+            id=str(self.orderid),
+            trader_address=self.makeraddress,
+            market=market,
+            side=side,
+            price=Decimal(self.price),
+            size=Decimal(self.filledsize),
+            timestamp=timestamp,
+            tx_hash=self.transactionhash,
+        )
 
 
 class Trade(BaseModel):

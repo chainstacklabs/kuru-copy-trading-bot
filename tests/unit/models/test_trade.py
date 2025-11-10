@@ -1,13 +1,15 @@
 """Tests for Trade model."""
 
-import pytest
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 
-# These imports will fail initially - that's expected for TDD
-from src.kuru_copytr_bot.models.trade import Trade
-from src.kuru_copytr_bot.core.enums import OrderSide
+import pytest
 from pydantic import ValidationError
+
+from src.kuru_copytr_bot.core.enums import OrderSide
+
+# These imports will fail initially - that's expected for TDD
+from src.kuru_copytr_bot.models.trade import Trade, TradeResponse
 
 
 class TestTradeModel:
@@ -171,3 +173,102 @@ class TestTradeModel:
 
         assert sample_trade_buy["id"] in trade_str
         assert sample_trade_buy["market"] in trade_str
+
+
+class TestTradeResponseModel:
+    """Test TradeResponse model (API format with camelCase fields)."""
+
+    def test_trade_response_creation_with_api_format(self):
+        """TradeResponse should accept API format with camelCase fields."""
+        response = TradeResponse(
+            orderid=123456,
+            makeraddress="0x1234567890123456789012345678901234567890",
+            takeraddress="0x0987654321098765432109876543210987654321",
+            isbuy=True,
+            price="2000.50",
+            filledsize="1.5",
+            transactionhash="0xabc123def4567890123456789012345678901234567890123456789012345678",
+            triggertime=1234567890,
+        )
+
+        assert response.orderid == 123456
+        assert response.makeraddress == "0x1234567890123456789012345678901234567890"
+        assert response.isbuy is True
+        assert response.price == "2000.50"
+        assert response.filledsize == "1.5"
+
+    def test_trade_response_with_cloid(self):
+        """TradeResponse should accept optional CLOID."""
+        response = TradeResponse(
+            orderid=123456,
+            makeraddress="0x1234567890123456789012345678901234567890",
+            takeraddress="0x0987654321098765432109876543210987654321",
+            isbuy=True,
+            price="2000.00",
+            filledsize="1.0",
+            transactionhash="0xabc123def4567890123456789012345678901234567890123456789012345678",
+            triggertime=1234567890,
+            cloid="custom-cloid-789",
+        )
+
+        assert response.cloid == "custom-cloid-789"
+
+    def test_trade_response_converts_to_trade(self):
+        """TradeResponse should convert to internal Trade model."""
+        response = TradeResponse(
+            orderid=123456,
+            makeraddress="0x1234567890123456789012345678901234567890",
+            takeraddress="0x0987654321098765432109876543210987654321",
+            isbuy=True,
+            price="2000.00",
+            filledsize="2.5",
+            transactionhash="0xabc123def4567890123456789012345678901234567890123456789012345678",
+            triggertime=1234567890,
+        )
+
+        trade = response.to_trade(market="ETH-USDC")
+
+        assert trade.id == "123456"
+        assert trade.trader_address == "0x1234567890123456789012345678901234567890"
+        assert trade.market == "ETH-USDC"
+        assert trade.side == OrderSide.BUY
+        assert trade.price == Decimal("2000.00")
+        assert trade.size == Decimal("2.5")
+        assert trade.tx_hash == "0xabc123def4567890123456789012345678901234567890123456789012345678"
+        assert isinstance(trade.timestamp, datetime)
+        assert trade.timestamp.tzinfo is not None
+
+    def test_trade_response_converts_sell_trade(self):
+        """TradeResponse should correctly convert sell trades."""
+        response = TradeResponse(
+            orderid=789,
+            makeraddress="0x1234567890123456789012345678901234567890",
+            takeraddress="0x0987654321098765432109876543210987654321",
+            isbuy=False,
+            price="2100.00",
+            filledsize="1.0",
+            transactionhash="0xdef4567890123456789012345678901234567890123456789012345678901234",
+            triggertime=1234567900,
+        )
+
+        trade = response.to_trade(market="ETH-USDC")
+
+        assert trade.side == OrderSide.SELL
+        assert trade.price == Decimal("2100.00")
+
+    def test_trade_response_uses_maker_address_as_trader(self):
+        """TradeResponse should use maker address as trader address."""
+        response = TradeResponse(
+            orderid=999,
+            makeraddress="0x1111111111111111111111111111111111111111",
+            takeraddress="0x2222222222222222222222222222222222222222",
+            isbuy=True,
+            price="2000.00",
+            filledsize="1.0",
+            transactionhash="0x123abc456def78901234567890123456789012345678901234567890123456ab",
+            triggertime=1234567890,
+        )
+
+        trade = response.to_trade(market="BTC-USDC")
+
+        assert trade.trader_address == "0x1111111111111111111111111111111111111111"

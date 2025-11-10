@@ -281,7 +281,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-007: Align Trade Model with API Response Format [HIGH]
 
-**Status**: ⬜ Pending
+**Status**: 🔄 In Progress
 
 **Problem**: Trade field names use camelCase in API but snake_case in model
 
