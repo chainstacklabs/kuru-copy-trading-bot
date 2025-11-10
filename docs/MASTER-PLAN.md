@@ -9,10 +9,10 @@
 This master plan outlines isolated work items to align the copy trading bot implementation with the official Kuru API specification. Each work item is independently testable and committable.
 
 **Total Work Items**: 23
-**Completed**: 12
+**Completed**: 13
 **In Progress**: 0
-**Pending**: 11
-**Blocked**: 4 (WI-012 through WI-015 require contract ABI specifications)
+**Pending**: 10
+**Blocked**: 0
 
 ---
 
@@ -456,8 +456,6 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ## Phase 3: Feature Completeness (8 work items)
 
-**Note**: WI-012 through WI-015 are blocked pending contract ABI specifications. The OrderBook.json ABI currently lacks read functions (getMarketParams, getL2Book, getVaultParams) and write functions (batchUpdate). These need to be added based on the actual deployed contract.
-
 ### WI-010: Add REST API - Get Market Orders Endpoint [MEDIUM]
 
 **Status**: ✅ Completed
@@ -526,7 +524,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-012: Replace REST API with Contract Calls - Get Market Params [HIGH]
 
-**Status**: 🚫 Blocked (requires contract ABI specifications)
+**Status**: ✅ Completed
 
 **Problem**: Using REST API for market params; should call contract directly per spec
 
