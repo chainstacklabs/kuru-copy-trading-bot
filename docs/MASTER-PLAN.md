@@ -9,9 +9,9 @@
 This master plan outlines isolated work items to align the copy trading bot implementation with the official Kuru API specification. Each work item is independently testable and committable.
 
 **Total Work Items**: 23
-**Completed**: 16
+**Completed**: 17
 **In Progress**: 0
-**Pending**: 7
+**Pending**: 6
 **Blocked**: 0
 
 ---
@@ -734,7 +734,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-017: Add Tick Normalization for Price Validation [MEDIUM]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: Prices may be rejected if not aligned to tick size
 
@@ -1098,7 +1098,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 - ✅ WI-014: Add Get Vault Params
 - ✅ WI-015: Implement Batch Update Orders
 - ✅ WI-016: Expose Fill-or-Kill Parameter
-- ⬜ WI-017: Add Tick Normalization
+- ✅ WI-017: Add Tick Normalization
 
 ### Phase 4: Data Model Polish (3 items)
 - ⬜ WI-018: Create MarketParams Model
