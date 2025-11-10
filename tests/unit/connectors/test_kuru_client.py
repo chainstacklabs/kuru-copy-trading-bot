@@ -13,6 +13,26 @@ from src.kuru_copytr_bot.core.exceptions import (
     InvalidMarketError,
     OrderExecutionError,
 )
+from src.kuru_copytr_bot.models.market import MarketParams
+
+
+def create_test_market_params(**overrides) -> MarketParams:
+    """Helper to create test MarketParams with defaults."""
+    defaults = {
+        "price_precision": 1000,
+        "size_precision": 1000000,
+        "base_asset": "0x0000000000000000000000000000000000000001",
+        "base_asset_decimals": 18,
+        "quote_asset": "0x0000000000000000000000000000000000000002",
+        "quote_asset_decimals": 6,
+        "tick_size": Decimal("0.01"),
+        "min_size": Decimal("0.001"),
+        "max_size": Decimal("1000"),
+        "taker_fee_bps": 50,
+        "maker_fee_bps": 20,
+    }
+    defaults.update(overrides)
+    return MarketParams(**defaults)
 
 
 @pytest.fixture
@@ -149,12 +169,7 @@ class TestKuruClientLimitOrders:
     def test_kuru_client_places_limit_order(self, kuru_client, mock_blockchain):
         """Client should place GTC limit order."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
 
             order_id = kuru_client.place_limit_order(
                 market="ETH-USDC",
@@ -171,12 +186,7 @@ class TestKuruClientLimitOrders:
     def test_kuru_client_places_sell_limit_order(self, kuru_client, mock_blockchain):
         """Client should place sell limit order."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
 
             order_id = kuru_client.place_limit_order(
                 market="ETH-USDC",
@@ -225,12 +235,7 @@ class TestKuruClientLimitOrders:
     def test_kuru_client_places_limit_order_async(self, kuru_client, mock_blockchain):
         """Client should place limit order asynchronously and return tx_hash."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
 
             tx_hash = kuru_client.place_limit_order(
                 market="ETH-USDC",
@@ -253,12 +258,7 @@ class TestKuruClientLimitOrders:
     def test_kuru_client_places_limit_order_sync(self, kuru_client, mock_blockchain):
         """Client should place limit order synchronously and return order_id."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
 
             order_id = kuru_client.place_limit_order(
                 market="ETH-USDC",
@@ -277,12 +277,7 @@ class TestKuruClientLimitOrders:
     def test_kuru_client_normalizes_price_with_tick_round_down(self, kuru_client, mock_blockchain):
         """Client should normalize price down to tick size when requested."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
 
             # Price not aligned to tick size
             order_id = kuru_client.place_limit_order(
@@ -299,12 +294,7 @@ class TestKuruClientLimitOrders:
     def test_kuru_client_normalizes_price_with_tick_round_up(self, kuru_client, mock_blockchain):
         """Client should normalize price up to tick size when requested."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
 
             # Price not aligned to tick size
             order_id = kuru_client.place_limit_order(
@@ -323,12 +313,7 @@ class TestKuruClientLimitOrders:
     ):
         """Client should not normalize price when tick_normalization is none."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
 
             # Price aligned to tick size - should work fine
             order_id = kuru_client.place_limit_order(
@@ -352,12 +337,7 @@ class TestKuruClientMarketOrders:
             patch.object(kuru_client, "get_market_params") as mock_get_market,
             patch.object(kuru_client, "get_best_price") as mock_get_best_price,
         ):
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
             mock_get_best_price.return_value = Decimal("2000.0")
 
             order_id = kuru_client.place_market_order(
@@ -376,12 +356,7 @@ class TestKuruClientMarketOrders:
             patch.object(kuru_client, "get_market_params") as mock_get_market,
             patch.object(kuru_client, "get_best_price") as mock_get_best_price,
         ):
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
             mock_get_best_price.return_value = Decimal("2000.0")
 
             order_id = kuru_client.place_market_order(
@@ -411,12 +386,7 @@ class TestKuruClientMarketOrders:
             patch.object(kuru_client, "get_market_params") as mock_get_market,
             patch.object(kuru_client, "get_best_price") as mock_get_best_price,
         ):
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
             mock_get_best_price.return_value = Decimal("2000.0")
 
             with pytest.raises(InsufficientBalanceError):
@@ -432,12 +402,7 @@ class TestKuruClientMarketOrders:
             patch.object(kuru_client, "get_market_params") as mock_get_market,
             patch.object(kuru_client, "get_best_price") as mock_get_best_price,
         ):
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
             mock_get_best_price.return_value = Decimal("2000.0")
 
             tx_hash = kuru_client.place_market_order(
@@ -461,12 +426,7 @@ class TestKuruClientMarketOrders:
             patch.object(kuru_client, "get_market_params") as mock_get_market,
             patch.object(kuru_client, "get_best_price") as mock_get_best_price,
         ):
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
             mock_get_best_price.return_value = Decimal("2000.0")
 
             order_id = kuru_client.place_market_order(
@@ -622,17 +582,19 @@ class TestKuruClientMarketParams:
 
         params = kuru_client.get_market_params("ETH-USDC")
 
-        assert params["price_precision"] == 1000
-        assert params["size_precision"] == 1000000
-        assert params["base_asset"] == "0x0000000000000000000000000000000000000001"
-        assert params["base_asset_decimals"] == 18
-        assert params["quote_asset"] == "0x0000000000000000000000000000000000000002"
-        assert params["quote_asset_decimals"] == 6
-        assert isinstance(params["tick_size"], Decimal)
-        assert isinstance(params["min_size"], Decimal)
-        assert isinstance(params["max_size"], Decimal)
-        assert params["taker_fee_bps"] == 50
-        assert params["maker_fee_bps"] == 20
+        # Should return a MarketParams object
+        assert isinstance(params, MarketParams)
+        assert params.price_precision == 1000
+        assert params.size_precision == 1000000
+        assert params.base_asset == "0x0000000000000000000000000000000000000001"
+        assert params.base_asset_decimals == 18
+        assert params.quote_asset == "0x0000000000000000000000000000000000000002"
+        assert params.quote_asset_decimals == 6
+        assert isinstance(params.tick_size, Decimal)
+        assert isinstance(params.min_size, Decimal)
+        assert isinstance(params.max_size, Decimal)
+        assert params.taker_fee_bps == 50
+        assert params.maker_fee_bps == 20
 
     def test_kuru_client_handles_contract_error(self, kuru_client, mock_blockchain):
         """Client should raise error when contract call fails."""
@@ -823,30 +785,18 @@ class TestKuruClientCostEstimation:
 
     def test_kuru_client_estimates_trade_cost(self, kuru_client, mock_blockchain):
         """Client should estimate trade cost including fees."""
-        # Mock getMarketParams call
-        mock_blockchain.call_contract_function.return_value = (
-            1000,
-            1000000,
-            "0x0000000000000000000000000000000000000001",
-            18,
-            "0x0000000000000000000000000000000000000002",
-            6,
-            1,
-            1000,
-            1000000000,
-            50,
-            20,  # taker_fee_bps=50 (0.5%)
-        )
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
+            mock_get_market.return_value = create_test_market_params(taker_fee_bps=50)
 
-        cost = kuru_client.estimate_cost(
-            market="ETH-USDC",
-            side=OrderSide.BUY,
-            size=Decimal("1.0"),
-            price=Decimal("2000.0"),
-        )
+            cost = kuru_client.estimate_cost(
+                market="ETH-USDC",
+                side=OrderSide.BUY,
+                size=Decimal("1.0"),
+                price=Decimal("2000.0"),
+            )
 
-        assert isinstance(cost, Decimal)
-        assert cost > Decimal("2000.0")  # Should include fees
+            assert isinstance(cost, Decimal)
+            assert cost > Decimal("2000.0")  # Should include fees
 
     @patch.object(KuruClient, "get_best_price")
     @patch.object(KuruClient, "get_market_params")
@@ -854,7 +804,7 @@ class TestKuruClientCostEstimation:
         self, mock_get_market, mock_get_best_price, kuru_client
     ):
         """Client should fetch price from orderbook when not provided."""
-        mock_get_market.return_value = {"taker_fee": Decimal("0.0005")}
+        mock_get_market.return_value = create_test_market_params(taker_fee_bps=50)
         mock_get_best_price.return_value = Decimal("2001.0")
 
         cost = kuru_client.estimate_cost(
@@ -869,7 +819,7 @@ class TestKuruClientCostEstimation:
 
         # Cost should be based on orderbook price
         assert isinstance(cost, Decimal)
-        expected = Decimal("2001.0") * Decimal("1.0") * (Decimal("1") + Decimal("0.0005"))
+        expected = Decimal("2001.0") * Decimal("1.0") * (Decimal("1") + Decimal("0.005"))
         assert cost == expected
 
     @patch.object(KuruClient, "get_market_params")
@@ -878,7 +828,7 @@ class TestKuruClientCostEstimation:
         self, mock_get_best_price, mock_get_market, kuru_client
     ):
         """Client should raise error when orderbook is empty."""
-        mock_get_market.return_value = {"taker_fee": Decimal("0.0005")}
+        mock_get_market.return_value = create_test_market_params(taker_fee_bps=50)
         mock_get_best_price.return_value = None
 
         with pytest.raises(OrderExecutionError, match="orderbook empty"):
@@ -892,9 +842,7 @@ class TestKuruClientCostEstimation:
     def test_kuru_client_estimates_market_order_cost(self, kuru_client):
         """Client should estimate market order cost with slippage."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
-            mock_get_market.return_value = {
-                "taker_fee": Decimal("0.0005"),
-            }
+            mock_get_market.return_value = create_test_market_params(taker_fee_bps=50)
 
             cost = kuru_client.estimate_market_order_cost(
                 market="ETH-USDC",
@@ -919,12 +867,7 @@ class TestKuruClientErrorHandling:
         mock_blockchain.send_transaction.side_effect = TransactionFailedError("Transaction failed")
 
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.001"),
-                "max_order_size": Decimal("1000"),
-                "tick_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params()
 
             with pytest.raises(OrderExecutionError):
                 kuru_client.place_limit_order(
@@ -947,10 +890,7 @@ class TestKuruClientErrorHandling:
     def test_kuru_client_validates_minimum_order_size(self, kuru_client):
         """Client should enforce minimum order size."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.01"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params(min_size=Decimal("0.01"))
 
             with pytest.raises(ValueError):
                 kuru_client.place_limit_order(
@@ -963,11 +903,10 @@ class TestKuruClientErrorHandling:
     def test_kuru_client_validates_maximum_order_size(self, kuru_client):
         """Client should enforce maximum order size."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
-            mock_get_market.return_value = {
-                "min_order_size": Decimal("0.01"),
-                "max_order_size": Decimal("1000.0"),
-                "is_active": True,
-            }
+            mock_get_market.return_value = create_test_market_params(
+                min_size=Decimal("0.01"),
+                max_size=Decimal("1000.0")
+            )
 
             with pytest.raises(ValueError):
                 kuru_client.place_limit_order(
@@ -980,9 +919,7 @@ class TestKuruClientErrorHandling:
     def test_kuru_client_rejects_inactive_market(self, kuru_client):
         """Client should reject orders on inactive markets."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
-            mock_get_market.return_value = {
-                "is_active": False,
-            }
+            mock_get_market.side_effect = InvalidMarketError("Market not found or inactive")
 
             with pytest.raises(InvalidMarketError):
                 kuru_client.place_limit_order(

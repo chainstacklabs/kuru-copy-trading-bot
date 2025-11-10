@@ -22,6 +22,7 @@ from src.kuru_copytr_bot.core.exceptions import (
 from src.kuru_copytr_bot.core.interfaces import BlockchainConnector
 from src.kuru_copytr_bot.utils.logger import get_logger
 from src.kuru_copytr_bot.utils.price import normalize_to_tick
+from src.kuru_copytr_bot.models.market import MarketParams
 
 logger = get_logger(__name__)
 
@@ -257,21 +258,15 @@ class KuruClient:
         except Exception as e:
             raise InvalidMarketError(f"Failed to get market params: {e}")
 
-        if not params.get("is_active", False):
-            raise InvalidMarketError(f"Market {market} is not active")
-
         # Validate order size
-        min_size = params.get("min_order_size", Decimal("0"))
-        max_size = params.get("max_order_size", Decimal("1000000"))
-        if size < min_size:
-            raise ValueError(f"Order size {size} below minimum {min_size}")
-        if size > max_size:
-            raise ValueError(f"Order size {size} above maximum {max_size}")
+        if size < params.min_size:
+            raise ValueError(f"Order size {size} below minimum {params.min_size}")
+        if size > params.max_size:
+            raise ValueError(f"Order size {size} above maximum {params.max_size}")
 
         # Normalize price to tick size if requested
-        tick_size = params.get("tick_size", Decimal("0.01"))
         if tick_normalization != "none":
-            price = normalize_to_tick(price, tick_size, mode=tick_normalization)
+            price = normalize_to_tick(price, params.tick_size, mode=tick_normalization)
 
         # Encode price and size
         encoded_price = self._encode_price(price)
@@ -540,8 +535,8 @@ class KuruClient:
         """
         # Get market params for encoding
         params = self.get_market_params(market)
-        price_precision = params["price_precision"]
-        size_precision = params["size_precision"]
+        price_precision = params.price_precision
+        size_precision = params.size_precision
 
         # Encode buy orders
         buy_prices = []
@@ -630,14 +625,14 @@ class KuruClient:
         except Exception as e:
             raise BlockchainConnectionError(f"Failed to get balance: {e}")
 
-    def get_market_params(self, market: str) -> dict[str, Any]:
+    def get_market_params(self, market: str) -> MarketParams:
         """Get market parameters from contract.
 
         Args:
             market: Market identifier (contract address)
 
         Returns:
-            Dict with market parameters
+            MarketParams: Typed market parameters
 
         Raises:
             BlockchainConnectionError: If contract call fails
@@ -673,20 +668,20 @@ class KuruClient:
                 maker_fee_bps,
             ) = result
 
-            # Convert to decimal with proper scaling
-            params = {
-                "price_precision": price_precision,
-                "size_precision": size_precision,
-                "base_asset": base_asset,
-                "base_asset_decimals": base_asset_decimals,
-                "quote_asset": quote_asset,
-                "quote_asset_decimals": quote_asset_decimals,
-                "tick_size": Decimal(tick_size) / Decimal(price_precision),
-                "min_size": Decimal(min_size) / Decimal(size_precision),
-                "max_size": Decimal(max_size) / Decimal(size_precision),
-                "taker_fee_bps": taker_fee_bps,
-                "maker_fee_bps": maker_fee_bps,
-            }
+            # Convert to typed MarketParams model
+            params = MarketParams(
+                price_precision=price_precision,
+                size_precision=size_precision,
+                base_asset=base_asset,
+                base_asset_decimals=base_asset_decimals,
+                quote_asset=quote_asset,
+                quote_asset_decimals=quote_asset_decimals,
+                tick_size=Decimal(tick_size) / Decimal(price_precision),
+                min_size=Decimal(min_size) / Decimal(size_precision),
+                max_size=Decimal(max_size) / Decimal(size_precision),
+                taker_fee_bps=taker_fee_bps,
+                maker_fee_bps=maker_fee_bps,
+            )
 
             # Cache the result
             self._market_cache[market] = params
@@ -740,10 +735,10 @@ class KuruClient:
 
             # Get market params for scaling
             params = self.get_market_params(market)
-            price_precision = params["price_precision"]
-            size_precision = params["size_precision"]
-            base_decimals = params["base_asset_decimals"]
-            quote_decimals = params["quote_asset_decimals"]
+            price_precision = params.price_precision
+            size_precision = params.size_precision
+            base_decimals = params.base_asset_decimals
+            quote_decimals = params.quote_asset_decimals
 
             # Convert to decimal with proper scaling
             vault_params = {
@@ -794,7 +789,8 @@ class KuruClient:
         cost = size * price
 
         # Add taker fee (assuming market order)
-        taker_fee = params.get("taker_fee", Decimal("0.0005"))
+        # Convert taker_fee_bps to decimal (bps = basis points, 1 bps = 0.01%)
+        taker_fee = Decimal(params.taker_fee_bps) / Decimal("10000")
         fee = cost * taker_fee
 
         return cost + fee
@@ -829,7 +825,8 @@ class KuruClient:
             cost = cost * (Decimal("1") + slippage)
 
         # Add taker fee
-        taker_fee = params.get("taker_fee", Decimal("0.0005"))
+        # Convert taker_fee_bps to decimal (bps = basis points, 1 bps = 0.01%)
+        taker_fee = Decimal(params.taker_fee_bps) / Decimal("10000")
         fee = cost * taker_fee
 
         return cost + fee
