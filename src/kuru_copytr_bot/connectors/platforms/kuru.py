@@ -210,6 +210,7 @@ class KuruClient:
         size: Decimal,
         post_only: bool = False,
         cloid: Optional[str] = None,
+        async_execution: bool = False,
     ) -> str:
         """Place a GTC limit order.
 
@@ -220,9 +221,11 @@ class KuruClient:
             size: Order size
             post_only: Post-only flag (maker-only)
             cloid: Optional client order ID for tracking (not sent to contract)
+            async_execution: If True, return tx_hash immediately without waiting for confirmation.
+                           If False (default), wait for confirmation and return order_id.
 
         Returns:
-            str: Order ID
+            str: Transaction hash if async_execution=True, Order ID if async_execution=False
 
         Raises:
             ValueError: If validation fails
@@ -233,6 +236,9 @@ class KuruClient:
         Note:
             CLOID is for client-side tracking only and not stored on-chain.
             Use this to map bot orders to source trader orders.
+
+            Async execution is useful when submitting multiple orders in parallel.
+            Use wait_for_transaction() to manually wait for async transactions.
         """
         # Validate parameters
         if price <= 0:
@@ -282,7 +288,11 @@ class KuruClient:
                 data=order_data,
             )
 
-            # Wait for transaction receipt and extract order ID
+            # If async mode, return tx_hash immediately
+            if async_execution:
+                return tx_hash
+
+            # Otherwise, wait for transaction receipt and extract order ID
             receipt = self.blockchain.wait_for_transaction_receipt(tx_hash)
             order_id = self._extract_order_id_from_receipt(receipt)
 
@@ -300,6 +310,7 @@ class KuruClient:
         size: Decimal,
         slippage: Optional[Decimal] = None,
         cloid: Optional[str] = None,
+        async_execution: bool = False,
     ) -> str:
         """Place an IOC market order.
 
@@ -309,9 +320,11 @@ class KuruClient:
             size: Order size
             slippage: Maximum acceptable slippage
             cloid: Optional client order ID for tracking (not sent to contract)
+            async_execution: If True, return tx_hash immediately without waiting for confirmation.
+                           If False (default), wait for confirmation and return order_id.
 
         Returns:
-            str: Order ID
+            str: Transaction hash if async_execution=True, Order ID if async_execution=False
 
         Raises:
             ValueError: If validation fails
@@ -390,7 +403,11 @@ class KuruClient:
                 data=order_data,
             )
 
-            # Wait for transaction receipt
+            # If async mode, return tx_hash immediately
+            if async_execution:
+                return tx_hash
+
+            # Otherwise, wait for transaction receipt
             receipt = self.blockchain.wait_for_transaction_receipt(tx_hash)
 
             # Market orders execute immediately, return tx hash as order ID

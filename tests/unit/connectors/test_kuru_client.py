@@ -222,6 +222,58 @@ class TestKuruClientLimitOrders:
                     size=Decimal("1.0"),
                 )
 
+    def test_kuru_client_places_limit_order_async(self, kuru_client, mock_blockchain):
+        """Client should place limit order asynchronously and return tx_hash."""
+        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+            mock_get_market.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
+
+            tx_hash = kuru_client.place_limit_order(
+                market="ETH-USDC",
+                side=OrderSide.BUY,
+                price=Decimal("2000.0"),
+                size=Decimal("1.0"),
+                post_only=True,
+                async_execution=True,
+            )
+
+            # Should return tx_hash
+            assert tx_hash == mock_blockchain.send_transaction.return_value
+            assert tx_hash.startswith("0x")
+            assert len(tx_hash) == 66
+
+            # Should not wait for receipt
+            mock_blockchain.wait_for_transaction_receipt.assert_not_called()
+            mock_blockchain.send_transaction.assert_called_once()
+
+    def test_kuru_client_places_limit_order_sync(self, kuru_client, mock_blockchain):
+        """Client should place limit order synchronously and return order_id."""
+        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+            mock_get_market.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
+
+            order_id = kuru_client.place_limit_order(
+                market="ETH-USDC",
+                side=OrderSide.BUY,
+                price=Decimal("2000.0"),
+                size=Decimal("1.0"),
+                post_only=True,
+                async_execution=False,
+            )
+
+            # Should wait for receipt and return order_id
+            assert order_id is not None
+            mock_blockchain.send_transaction.assert_called_once()
+            mock_blockchain.wait_for_transaction_receipt.assert_called_once()
+
 
 class TestKuruClientMarketOrders:
     """Test Kuru market order placement."""
@@ -299,6 +351,33 @@ class TestKuruClientMarketOrders:
                     side=OrderSide.BUY,
                     size=Decimal("1000.0"),
                 )
+
+    def test_kuru_client_places_market_order_async(self, kuru_client, mock_blockchain):
+        """Client should place market order asynchronously and return tx_hash."""
+        with patch.object(kuru_client, 'get_market_params') as mock_get_market, \
+             patch.object(kuru_client, 'get_best_price') as mock_get_best_price:
+            mock_get_market.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
+            mock_get_best_price.return_value = Decimal("2000.0")
+
+            tx_hash = kuru_client.place_market_order(
+                market="ETH-USDC",
+                side=OrderSide.BUY,
+                size=Decimal("1.0"),
+                async_execution=True,
+            )
+
+            # Should return tx_hash
+            assert tx_hash == mock_blockchain.send_transaction.return_value
+            assert tx_hash.startswith("0x")
+            assert len(tx_hash) == 66
+
+            # Should not wait for receipt
+            mock_blockchain.wait_for_transaction_receipt.assert_not_called()
 
 
 class TestKuruClientOrderCancellation:
