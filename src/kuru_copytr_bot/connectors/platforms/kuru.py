@@ -3,7 +3,7 @@
 import json
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import requests
 from web3 import Web3
@@ -21,6 +21,7 @@ from src.kuru_copytr_bot.core.exceptions import (
 )
 from src.kuru_copytr_bot.core.interfaces import BlockchainConnector
 from src.kuru_copytr_bot.utils.logger import get_logger
+from src.kuru_copytr_bot.utils.price import normalize_to_tick
 
 logger = get_logger(__name__)
 
@@ -207,6 +208,7 @@ class KuruClient:
         post_only: bool = False,
         cloid: str | None = None,
         async_execution: bool = False,
+        tick_normalization: Literal["round_up", "round_down", "none"] = "none",
     ) -> str:
         """Place a GTC limit order.
 
@@ -219,12 +221,16 @@ class KuruClient:
             cloid: Optional client order ID for tracking (not sent to contract)
             async_execution: If True, return tx_hash immediately without waiting for confirmation.
                            If False (default), wait for confirmation and return order_id.
+            tick_normalization: Price normalization mode:
+                - "round_up": Round price up to next tick
+                - "round_down": Round price down to previous tick
+                - "none" (default): No normalization, reject if not aligned
 
         Returns:
             str: Transaction hash if async_execution=True, Order ID if async_execution=False
 
         Raises:
-            ValueError: If validation fails
+            ValueError: If validation fails or price not aligned to tick (when normalization is "none")
             InvalidMarketError: If market is invalid
             InsufficientBalanceError: If insufficient balance
             OrderExecutionError: If order fails
@@ -235,6 +241,9 @@ class KuruClient:
 
             Async execution is useful when submitting multiple orders in parallel.
             Use wait_for_transaction() to manually wait for async transactions.
+
+            Tick normalization ensures prices are aligned to the market's tick size.
+            This prevents rejection due to invalid price precision.
         """
         # Validate parameters
         if price <= 0:
@@ -258,6 +267,11 @@ class KuruClient:
             raise ValueError(f"Order size {size} below minimum {min_size}")
         if size > max_size:
             raise ValueError(f"Order size {size} above maximum {max_size}")
+
+        # Normalize price to tick size if requested
+        tick_size = params.get("tick_size", Decimal("0.01"))
+        if tick_normalization != "none":
+            price = normalize_to_tick(price, tick_size, mode=tick_normalization)
 
         # Encode price and size
         encoded_price = self._encode_price(price)

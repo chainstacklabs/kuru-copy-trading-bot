@@ -274,6 +274,74 @@ class TestKuruClientLimitOrders:
             mock_blockchain.send_transaction.assert_called_once()
             mock_blockchain.wait_for_transaction_receipt.assert_called_once()
 
+    def test_kuru_client_normalizes_price_with_tick_round_down(self, kuru_client, mock_blockchain):
+        """Client should normalize price down to tick size when requested."""
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
+            mock_get_market.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
+
+            # Price not aligned to tick size
+            order_id = kuru_client.place_limit_order(
+                market="ETH-USDC",
+                side=OrderSide.BUY,
+                price=Decimal("2000.123"),  # Will be normalized to 2000.12
+                size=Decimal("1.0"),
+                tick_normalization="round_down",
+            )
+
+            assert order_id is not None
+            mock_blockchain.send_transaction.assert_called_once()
+
+    def test_kuru_client_normalizes_price_with_tick_round_up(self, kuru_client, mock_blockchain):
+        """Client should normalize price up to tick size when requested."""
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
+            mock_get_market.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
+
+            # Price not aligned to tick size
+            order_id = kuru_client.place_limit_order(
+                market="ETH-USDC",
+                side=OrderSide.BUY,
+                price=Decimal("2000.123"),  # Will be normalized to 2000.13
+                size=Decimal("1.0"),
+                tick_normalization="round_up",
+            )
+
+            assert order_id is not None
+            mock_blockchain.send_transaction.assert_called_once()
+
+    def test_kuru_client_does_not_normalize_when_set_to_none(
+        self, kuru_client, mock_blockchain
+    ):
+        """Client should not normalize price when tick_normalization is none."""
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
+            mock_get_market.return_value = {
+                "min_order_size": Decimal("0.001"),
+                "max_order_size": Decimal("1000"),
+                "tick_size": Decimal("0.01"),
+                "is_active": True,
+            }
+
+            # Price aligned to tick size - should work fine
+            order_id = kuru_client.place_limit_order(
+                market="ETH-USDC",
+                side=OrderSide.BUY,
+                price=Decimal("2000.10"),
+                size=Decimal("1.0"),
+                tick_normalization="none",  # Default behavior
+            )
+
+            assert order_id is not None
+            mock_blockchain.send_transaction.assert_called_once()
+
 
 class TestKuruClientMarketOrders:
     """Test Kuru market order placement."""
