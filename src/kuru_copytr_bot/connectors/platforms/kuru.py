@@ -513,50 +513,69 @@ class KuruClient:
             raise BlockchainConnectionError(f"Failed to get balance: {e}")
 
     def get_market_params(self, market: str) -> Dict[str, Any]:
-        """Get market parameters from API.
+        """Get market parameters from contract.
 
         Args:
-            market: Market identifier
+            market: Market identifier (contract address)
 
         Returns:
             Dict with market parameters
 
         Raises:
-            InvalidMarketError: If market not found
-            BlockchainConnectionError: If API request fails
+            BlockchainConnectionError: If contract call fails
         """
         # Check cache first
         if market in self._market_cache:
             return self._market_cache[market]
 
         try:
-            response = requests.get(f"{self.api_url}/markets/{market}")
-            if response.status_code == 404:
-                raise InvalidMarketError(f"Market {market} not found")
+            # Call contract getMarketParams() function
+            # Returns: (pricePrecision, sizePrecision, baseAsset, baseAssetDecimals,
+            #          quoteAsset, quoteAssetDecimals, tickSize, minSize, maxSize,
+            #          takerFeeBps, makerFeeBps)
+            result = self.blockchain.call_contract_function(
+                contract_address=self.contract_address,
+                function_name="getMarketParams",
+                abi=self.orderbook_abi,
+                args=[]
+            )
 
-            response.raise_for_status()
-            data = response.json()
+            # Unpack 11 return values
+            (
+                price_precision,
+                size_precision,
+                base_asset,
+                base_asset_decimals,
+                quote_asset,
+                quote_asset_decimals,
+                tick_size,
+                min_size,
+                max_size,
+                taker_fee_bps,
+                maker_fee_bps,
+            ) = result
 
-            # Convert numeric strings to Decimal
+            # Convert to decimal with proper scaling
             params = {
-                "market_id": data.get("market_id", market),
-                "base_token": data.get("base_token"),
-                "quote_token": data.get("quote_token"),
-                "min_order_size": Decimal(str(data.get("min_order_size", "0"))),
-                "max_order_size": Decimal(str(data.get("max_order_size", "1000000"))),
-                "tick_size": Decimal(str(data.get("tick_size", "0.01"))),
-                "step_size": Decimal(str(data.get("step_size", "0.001"))),
-                "maker_fee": Decimal(str(data.get("maker_fee", "0.0002"))),
-                "taker_fee": Decimal(str(data.get("taker_fee", "0.0005"))),
-                "is_active": data.get("is_active", True),
+                "price_precision": price_precision,
+                "size_precision": size_precision,
+                "base_asset": base_asset,
+                "base_asset_decimals": base_asset_decimals,
+                "quote_asset": quote_asset,
+                "quote_asset_decimals": quote_asset_decimals,
+                "tick_size": Decimal(tick_size) / Decimal(price_precision),
+                "min_size": Decimal(min_size) / Decimal(size_precision),
+                "max_size": Decimal(max_size) / Decimal(size_precision),
+                "taker_fee_bps": taker_fee_bps,
+                "maker_fee_bps": maker_fee_bps,
             }
 
             # Cache the result
             self._market_cache[market] = params
             return params
 
-        except requests.exceptions.RequestException as e:
-            raise BlockchainConnectionError(f"Failed to fetch market params: {e}")
+        except Exception as e:
+            raise BlockchainConnectionError(f"Failed to fetch market params from contract: {e}")
 
     def estimate_cost(
         self,

@@ -431,58 +431,59 @@ class TestKuruClientOrderCancellation:
 class TestKuruClientMarketParams:
     """Test Kuru market parameter fetching."""
 
-    @patch('requests.get')
-    def test_kuru_client_fetches_market_params(self, mock_get, kuru_client):
-        """Client should fetch market parameters from API."""
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = {
-            "market_id": "ETH-USDC",
-            "base_token": "ETH",
-            "quote_token": "USDC",
-            "min_order_size": "0.001",
-            "max_order_size": "1000.0",
-            "tick_size": "0.01",
-            "step_size": "0.001",
-            "maker_fee": "0.0002",
-            "taker_fee": "0.0005",
-            "is_active": True,
-        }
+    def test_kuru_client_fetches_market_params(self, kuru_client, mock_blockchain):
+        """Client should fetch market parameters from contract."""
+        # Mock contract call return values (11 values from getMarketParams)
+        mock_blockchain.call_contract_function.return_value = (
+            1000,  # pricePrecision (uint32)
+            1000000,  # sizePrecision (uint96)
+            "0x0000000000000000000000000000000000000001",  # baseAsset
+            18,  # baseAssetDecimals
+            "0x0000000000000000000000000000000000000002",  # quoteAsset
+            6,  # quoteAssetDecimals
+            1,  # tickSize (uint32)
+            1000,  # minSize (uint96)
+            1000000000,  # maxSize (uint96)
+            50,  # takerFeeBps (0.5%)
+            20,  # makerFeeBps (0.2%)
+        )
 
         params = kuru_client.get_market_params("ETH-USDC")
 
-        assert params["market_id"] == "ETH-USDC"
-        assert params["base_token"] == "ETH"
-        assert params["quote_token"] == "USDC"
-        assert isinstance(params["min_order_size"], Decimal)
+        assert params["price_precision"] == 1000
+        assert params["size_precision"] == 1000000
+        assert params["base_asset"] == "0x0000000000000000000000000000000000000001"
+        assert params["base_asset_decimals"] == 18
+        assert params["quote_asset"] == "0x0000000000000000000000000000000000000002"
+        assert params["quote_asset_decimals"] == 6
         assert isinstance(params["tick_size"], Decimal)
-        assert params["is_active"] is True
+        assert isinstance(params["min_size"], Decimal)
+        assert isinstance(params["max_size"], Decimal)
+        assert params["taker_fee_bps"] == 50
+        assert params["maker_fee_bps"] == 20
 
-    @patch('requests.get')
-    def test_kuru_client_handles_invalid_market(self, mock_get, kuru_client):
-        """Client should raise error for invalid market."""
-        mock_get.return_value.status_code = 404
+    def test_kuru_client_handles_contract_error(self, kuru_client, mock_blockchain):
+        """Client should raise error when contract call fails."""
+        mock_blockchain.call_contract_function.side_effect = Exception("Contract call failed")
 
-        with pytest.raises(InvalidMarketError):
-            kuru_client.get_market_params("INVALID-MARKET")
+        with pytest.raises(BlockchainConnectionError):
+            kuru_client.get_market_params("ETH-USDC")
 
-    @patch('requests.get')
-    def test_kuru_client_caches_market_params(self, mock_get, kuru_client):
+    def test_kuru_client_caches_market_params(self, kuru_client, mock_blockchain):
         """Client should cache market parameters."""
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = {
-            "market_id": "ETH-USDC",
-            "base_token": "ETH",
-            "quote_token": "USDC",
-            "min_order_size": "0.001",
-            "is_active": True,
-        }
+        mock_blockchain.call_contract_function.return_value = (
+            1000, 1000000,
+            "0x0000000000000000000000000000000000000001", 18,
+            "0x0000000000000000000000000000000000000002", 6,
+            1, 1000, 1000000000, 50, 20
+        )
 
         # Fetch twice
         kuru_client.get_market_params("ETH-USDC")
         kuru_client.get_market_params("ETH-USDC")
 
-        # Should only call API once (cached)
-        assert mock_get.call_count == 1
+        # Should only call contract once (cached)
+        assert mock_blockchain.call_contract_function.call_count == 1
 
 
 class TestKuruClientOrderbook:
