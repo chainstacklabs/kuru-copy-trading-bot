@@ -673,8 +673,56 @@ class TestKuruClientOrderStatus:
     """Test Kuru order status queries."""
 
     @patch('requests.get')
-    def test_kuru_client_gets_order_status(self, mock_get, kuru_client):
-        """Client should get order status from API."""
+    def test_kuru_client_gets_user_orders(self, mock_get, kuru_client):
+        """Client should get all orders for a user."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = [
+            {"order_id": "order_001", "status": "OPEN", "filled_size": "0.5", "remaining_size": "0.5"},
+            {"order_id": "order_002", "status": "FILLED", "filled_size": "1.0", "remaining_size": "0"},
+        ]
+
+        user_address = "0x1234567890123456789012345678901234567890"
+        orders = kuru_client.get_user_orders(user_address)
+
+        assert len(orders) == 2
+        assert orders[0]["order_id"] == "order_001"
+        assert orders[1]["order_id"] == "order_002"
+        # Verify endpoint was called correctly
+        mock_get.assert_called_once_with(
+            f"{kuru_client.api_url}/orders/user/{user_address}",
+            params={"limit": 100, "offset": 0}
+        )
+
+    @patch('requests.get')
+    def test_kuru_client_gets_user_orders_with_pagination(self, mock_get, kuru_client):
+        """Client should support pagination for user orders."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = [
+            {"order_id": "order_101", "status": "OPEN"},
+        ]
+
+        user_address = "0x1234567890123456789012345678901234567890"
+        orders = kuru_client.get_user_orders(user_address, limit=50, offset=100)
+
+        assert len(orders) == 1
+        mock_get.assert_called_once_with(
+            f"{kuru_client.api_url}/orders/user/{user_address}",
+            params={"limit": 50, "offset": 100}
+        )
+
+    @patch('requests.get')
+    def test_kuru_client_gets_user_orders_returns_empty_on_404(self, mock_get, kuru_client):
+        """Client should return empty list when user has no orders."""
+        mock_get.return_value.status_code = 404
+
+        user_address = "0x1234567890123456789012345678901234567890"
+        orders = kuru_client.get_user_orders(user_address)
+
+        assert orders == []
+
+    @patch('requests.get')
+    def test_kuru_client_gets_single_order(self, mock_get, kuru_client):
+        """Client should get a single order by ID."""
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = {
             "order_id": "order_123456",
@@ -683,11 +731,22 @@ class TestKuruClientOrderStatus:
             "remaining_size": "0.5",
         }
 
-        status = kuru_client.get_order_status("order_123456")
+        order = kuru_client.get_order("order_123456")
 
-        assert status["order_id"] == "order_123456"
-        assert status["status"] == "OPEN"
-        assert isinstance(status["filled_size"], Decimal)
+        assert order["order_id"] == "order_123456"
+        assert order["status"] == "OPEN"
+        assert isinstance(order["filled_size"], Decimal)
+        # Verify endpoint was called correctly
+        mock_get.assert_called_once_with(f"{kuru_client.api_url}/orders/order_123456")
+
+    @patch('requests.get')
+    def test_kuru_client_gets_single_order_returns_none_on_404(self, mock_get, kuru_client):
+        """Client should return None when order not found."""
+        mock_get.return_value.status_code = 404
+
+        order = kuru_client.get_order("order_999999")
+
+        assert order is None
 
     @patch('requests.get')
     def test_kuru_client_gets_open_orders(self, mock_get, kuru_client):

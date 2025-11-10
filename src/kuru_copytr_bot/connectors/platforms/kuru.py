@@ -610,14 +610,43 @@ class KuruClient:
 
         return cost + fee
 
-    def get_order_status(self, order_id: str) -> Optional[Dict[str, Any]]:
-        """Get order status from API.
+    def get_user_orders(
+        self,
+        user_address: str,
+        limit: int = 100,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Get all orders for a user from API.
+
+        Args:
+            user_address: User wallet address
+            limit: Maximum number of orders to return (default: 100)
+            offset: Number of orders to skip (default: 0)
+
+        Returns:
+            List of orders for the user (empty list if none found)
+        """
+        try:
+            response = requests.get(
+                f"{self.api_url}/orders/user/{user_address}",
+                params={"limit": limit, "offset": offset}
+            )
+            if response.status_code == 404:
+                return []
+
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException:
+            return []
+
+    def get_order(self, order_id: str) -> Optional[Dict[str, Any]]:
+        """Get a single order by ID from API.
 
         Args:
             order_id: Order ID
 
         Returns:
-            Dict with order status or None if not found
+            Dict with order data or None if not found
         """
         try:
             response = requests.get(f"{self.api_url}/orders/{order_id}")
