@@ -23,6 +23,7 @@ from src.kuru_copytr_bot.core.interfaces import BlockchainConnector
 from src.kuru_copytr_bot.utils.logger import get_logger
 from src.kuru_copytr_bot.utils.price import normalize_to_tick
 from src.kuru_copytr_bot.models.market import MarketParams
+from src.kuru_copytr_bot.models.orderbook import L2Book, PriceLevel
 
 logger = get_logger(__name__)
 
@@ -1077,7 +1078,7 @@ class KuruClient:
 
             # Get market params for scaling
             params = self.get_market_params(market)
-            price_precision = params["price_precision"]
+            price_precision = params.price_precision
 
             # Build orderbook with top of book only
             orderbook = {
@@ -1108,6 +1109,91 @@ class KuruClient:
         except Exception as e:
             logger.error("Failed to fetch orderbook from contract", market=market, error=str(e))
             return {"bids": [], "asks": []}
+
+    def fetch_orderbook(self, market: str) -> L2Book:
+        """Fetch orderbook as typed L2Book object.
+
+        Args:
+            market: Market identifier (contract address)
+
+        Returns:
+            L2Book: Typed orderbook with price levels
+
+        Note:
+            This uses bestBidAsk() to get top of book. Returns L2Book with
+            block_num=0 (not available from this call) and size=0 for each level.
+        """
+        try:
+            # Call contract bestBidAsk() function
+            result = self.blockchain.call_contract_function(
+                contract_address=self.contract_address,
+                function_name="bestBidAsk",
+                abi=self.orderbook_abi,
+                args=[],
+            )
+
+            best_bid, best_ask = result
+
+            # Get market params for scaling
+            params = self.get_market_params(market)
+            price_precision = params.price_precision
+
+            # Build price levels
+            bids = []
+            asks = []
+
+            # Add best bid if non-zero
+            if best_bid > 0:
+                bids.append(
+                    PriceLevel(
+                        price=Decimal(best_bid) / Decimal(price_precision),
+                        size=Decimal("1"),  # Placeholder size since bestBidAsk() doesn't provide it
+                    )
+                )
+
+            # Add best ask if non-zero
+            if best_ask > 0:
+                asks.append(
+                    PriceLevel(
+                        price=Decimal(best_ask) / Decimal(price_precision),
+                        size=Decimal("1"),  # Placeholder size since bestBidAsk() doesn't provide it
+                    )
+                )
+
+            return L2Book(
+                block_num=0,  # Block number not available from bestBidAsk()
+                bids=bids,
+                asks=asks,
+            )
+
+        except Exception as e:
+            logger.error("Failed to fetch orderbook from contract", market=market, error=str(e))
+            # Return empty orderbook on error
+            return L2Book(block_num=0, bids=[], asks=[])
+
+    def get_best_bid(self, market: str) -> Decimal | None:
+        """Get best bid price from orderbook.
+
+        Args:
+            market: Market identifier
+
+        Returns:
+            Decimal: Best bid price, or None if no bids
+        """
+        book = self.fetch_orderbook(market)
+        return book.best_bid
+
+    def get_best_ask(self, market: str) -> Decimal | None:
+        """Get best ask price from orderbook.
+
+        Args:
+            market: Market identifier
+
+        Returns:
+            Decimal: Best ask price, or None if no asks
+        """
+        book = self.fetch_orderbook(market)
+        return book.best_ask
 
     def get_best_price(self, market: str, side: OrderSide) -> Decimal | None:
         """Get best available price from orderbook.
