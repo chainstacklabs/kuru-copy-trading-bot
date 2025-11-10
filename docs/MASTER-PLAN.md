@@ -9,9 +9,9 @@
 This master plan outlines isolated work items to align the copy trading bot implementation with the official Kuru API specification. Each work item is independently testable and committable.
 
 **Total Work Items**: 23
-**Completed**: 9
+**Completed**: 11
 **In Progress**: 0
-**Pending**: 14
+**Pending**: 12
 
 ---
 
@@ -457,7 +457,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-010: Add REST API - Get Market Orders Endpoint [MEDIUM]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: Cannot bulk fetch specific orders from a market
 
@@ -487,7 +487,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-011: Add REST API - Get Orders by Client Order IDs [MEDIUM]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: Cannot lookup orders by CLOID; harder to track mirrored orders
 
