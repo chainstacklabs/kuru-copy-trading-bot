@@ -14,11 +14,11 @@ This document tracks the implementation progress for all placeholder and incompl
 | ID | Title | Priority | Complexity | Status | Assignee |
 |----|-------|----------|------------|--------|----------|
 | WI-001 | Implement MonadClient.get_latest_transactions() | Medium | Medium | Not Started | - |
-| WI-002 | Implement Kuru Transaction Data Encoding | Critical | High | 🔄 In Progress | Claude |
+| WI-002 | Implement Kuru Transaction Data Encoding | Critical | High | ✅ Completed | Claude |
 | WI-003 | Implement Real Orderbook Price Fetching | High | Medium | Not Started | - |
 | WI-004 | Update Kuru Contract Address Constant | Critical | Low | ✅ Completed | Claude |
 | WI-005 | Implement Real Position Tracking | High | Medium | Not Started | - |
-| WI-006 | Add Missing Configuration Fields | Critical | Low | 🔄 In Progress | Claude |
+| WI-006 | Add Missing Configuration Fields | Critical | Low | ✅ Completed | Claude |
 | WI-007 | Resolve Empty Files | Low | Medium | Not Started | - |
 
 ## Implementation Order (Recommended)
@@ -32,21 +32,21 @@ These items are critical and/or block other work items.
    - Blocking: WI-002 cannot be completed without real contract address
    - Status: ✅ Completed (2025-01-09)
 
-2. **WI-006: Add Missing Configuration Fields** 🔄 IN PROGRESS
+2. **WI-006: Add Missing Configuration Fields** ✅ COMPLETED
    - Priority: Critical
    - Estimated: 2-3 hours
    - Blocking: Prevents main.py from running correctly
-   - Status: 🔄 In Progress (Started 2025-01-09)
+   - Status: ✅ Completed (2025-01-09)
 
 ### Phase 2: Core Trading Functionality
 These items implement core trading features.
 
-3. **WI-002: Implement Kuru Transaction Encoding** 🔄 IN PROGRESS
+3. **WI-002: Implement Kuru Transaction Encoding** ✅ COMPLETED
    - Priority: Critical
    - Estimated: 12-16 hours
    - Dependencies: WI-004 must be completed first
-   - Status: 🔄 In Progress (Started 2025-01-10)
-   - Progress: Phase 1 Complete (Deposits & Approvals)
+   - Status: ✅ Completed (2025-01-10)
+   - Progress: All phases complete (Deposits, Approvals, Orders, Cancellations)
    - Impact: ALL trading operations depend on this
 
 4. **WI-005: Implement Real Position Tracking**
@@ -91,17 +91,17 @@ These items add additional functionality and cleanup.
 
 ### Phase 1: Critical Foundations
 - [x] WI-004: Contract address updated and verified
-- [ ] WI-006: All configuration fields added and tested
+- [x] WI-006: All configuration fields added and tested
 
 ### Phase 2: Core Trading Functionality
-- [ ] WI-002: All transaction encoding implemented (Phase 1 Complete)
+- [x] WI-002: All transaction encoding implemented
   - [x] deposit_margin() encoding (native & ERC20)
-  - [ ] place_limit_order() encoding
-  - [ ] place_market_order() encoding
-  - [ ] cancel_order() encoding
-  - [ ] cancel_orders() encoding
+  - [x] place_limit_order() encoding
+  - [x] place_market_order() encoding
+  - [x] cancel_order() encoding
+  - [x] cancel_orders() encoding
   - [x] _approve_token() encoding
-  - [ ] Order ID extraction from receipts
+  - [x] Order ID extraction from receipts
 - [ ] WI-005: Position tracking implemented
 - [ ] WI-003: Orderbook price fetching implemented
 
@@ -152,24 +152,29 @@ Each work item must meet these criteria before being marked complete:
   - Added cross-field validation
   - Commit: e99ed61
 
+- ✅ **WI-002**: Implement Kuru Transaction Data Encoding (Completed 2025-01-10)
+  - Phase 1: Deposits & Token Approvals (Commit: 7a14f11)
+    - Created ABI files for MarginAccount and OrderBook
+    - Implemented _approve_token() with real ERC20 encoding
+    - Implemented deposit_margin() for native and ERC20 tokens
+    - All 4 deposit tests passing
+  - Phase 2: Order Placement & Cancellation (Commit: 366401d)
+    - Implemented place_limit_order() with addBuyOrder/addSellOrder encoding
+    - Implemented place_market_order() with slippage protection
+    - Implemented cancel_order() and cancel_orders() with batch cancellation
+    - Implemented _extract_order_id_from_receipt() to parse OrderCreated events
+    - All 35 Kuru client tests passing (84% coverage)
+
 ### In Progress
-- 🔄 **WI-002**: Implement Kuru Transaction Data Encoding (Started 2025-01-10)
-  - Phase 1 Complete: Deposits & Token Approvals (Commit: 7a14f11)
-    - ✅ Created ABI files for MarginAccount and OrderBook
-    - ✅ Implemented _approve_token() with real ERC20 encoding
-    - ✅ Implemented deposit_margin() for native and ERC20 tokens
-    - ✅ All 4 deposit tests passing
-  - Phase 2 In Progress: Order Placement & Cancellation
-    - Working on place_limit_order(), place_market_order(), cancel_orders()
-    - Working on order ID extraction from receipts
+_None currently_
 
 ### Blocked
 _None yet_
 
 ### Next Up
-1. Complete WI-002 Phase 2 (Order Placement & Cancellation)
-2. WI-005 (Implement Real Position Tracking)
-3. WI-003 (Implement Real Orderbook Price Fetching)
+1. WI-005 (Implement Real Position Tracking) - High priority, 3-4 hours
+2. WI-003 (Implement Real Orderbook Price Fetching) - High priority, 4-6 hours
+3. WI-001 (Implement MonadClient.get_latest_transactions()) - Medium priority, 4-6 hours
 
 ## Notes
 
@@ -199,5 +204,5 @@ _None yet_
 
 ---
 
-**Last Updated:** 2025-01-09
-**Next Review:** After Phase 1 completion
+**Last Updated:** 2025-01-10
+**Next Review:** After Phase 2 completion
