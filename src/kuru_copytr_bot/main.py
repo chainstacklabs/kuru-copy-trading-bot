@@ -3,25 +3,23 @@
 import signal
 import sys
 import time
-from decimal import Decimal
-from typing import Optional
 
 import click
 from dotenv import load_dotenv
 
-from src.kuru_copytr_bot.config.settings import Settings
+from src.kuru_copytr_bot.bot import CopyTradingBot
 from src.kuru_copytr_bot.config.constants import (
     KURU_CONTRACT_ADDRESS_TESTNET,
 )
+from src.kuru_copytr_bot.config.settings import Settings
 from src.kuru_copytr_bot.connectors.blockchain.monad import MonadClient
 from src.kuru_copytr_bot.connectors.platforms.kuru import KuruClient
-from src.kuru_copytr_bot.monitoring.monitor import WalletMonitor
+from src.kuru_copytr_bot.core.enums import OrderType
 from src.kuru_copytr_bot.monitoring.detector import KuruEventDetector
+from src.kuru_copytr_bot.monitoring.monitor import WalletMonitor
 from src.kuru_copytr_bot.risk.calculator import PositionSizeCalculator
 from src.kuru_copytr_bot.risk.validator import TradeValidator
 from src.kuru_copytr_bot.trading.copier import TradeCopier
-from src.kuru_copytr_bot.bot import CopyTradingBot
-from src.kuru_copytr_bot.core.enums import OrderType
 from src.kuru_copytr_bot.utils.logger import configure_logging, get_logger
 
 logger = get_logger(__name__)
@@ -37,7 +35,7 @@ class BotRunner:
             settings: Bot configuration settings
         """
         self.settings = settings
-        self.bot: Optional[CopyTradingBot] = None
+        self.bot: CopyTradingBot | None = None
         self.running = False
 
     def initialize_components(self) -> CopyTradingBot:
@@ -60,6 +58,7 @@ class BotRunner:
         kuru_client = KuruClient(
             blockchain=monad_client,
             contract_address=KURU_CONTRACT_ADDRESS_TESTNET,
+            api_url=self.settings.kuru_api_url,
         )
 
         # Initialize wallet monitor
@@ -100,7 +99,7 @@ class BotRunner:
         validator = TradeValidator(
             min_balance=self.settings.min_balance_threshold,
             max_position_size=self.settings.max_position_size,
-            max_total_exposure=self.settings.max_total_exposure,
+            max_exposure_usd=self.settings.max_total_exposure,
             market_whitelist=self.settings.market_whitelist,
             market_blacklist=self.settings.market_blacklist,
         )
