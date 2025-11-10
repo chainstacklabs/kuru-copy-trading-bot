@@ -50,6 +50,7 @@ class KuruClient:
         blockchain: BlockchainConnector,
         api_url: str,
         contract_address: str,
+        strict_api_errors: bool = False,
     ):
         """Initialize Kuru client.
 
@@ -57,6 +58,7 @@ class KuruClient:
             blockchain: Blockchain connector instance
             api_url: Kuru API base URL
             contract_address: Kuru contract address (OrderBook)
+            strict_api_errors: If True, raise exceptions on API errors. If False, return empty results and log warnings.
 
         Raises:
             ValueError: If contract address is invalid
@@ -65,6 +67,7 @@ class KuruClient:
         self.api_url = api_url.rstrip("/")
         self.contract_address = contract_address
         self.margin_account_address = KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET
+        self.strict_api_errors = strict_api_errors
 
         # Validate contract address
         if not self._is_valid_address(contract_address):
@@ -844,6 +847,9 @@ class KuruClient:
 
         Returns:
             List of orders for the user (empty list if none found)
+
+        Raises:
+            requests.exceptions.RequestException: If strict_api_errors=True and API call fails
         """
         try:
             response = requests.get(
@@ -855,7 +861,10 @@ class KuruClient:
 
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Failed to fetch user orders: {e}")
+            if self.strict_api_errors:
+                raise
             return []
 
     def get_order(self, order_id: str) -> dict[str, Any] | None:
@@ -894,6 +903,9 @@ class KuruClient:
 
         Returns:
             List of orders (empty list if none found)
+
+        Raises:
+            requests.exceptions.RequestException: If strict_api_errors=True and API call fails
         """
         try:
             # Convert order_ids list to comma-separated string
@@ -908,7 +920,10 @@ class KuruClient:
 
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Failed to fetch market orders: {e}")
+            if self.strict_api_errors:
+                raise
             return []
 
     def get_orders_by_cloid(
@@ -938,7 +953,10 @@ class KuruClient:
 
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Failed to fetch orders by CLOID: {e}")
+            if self.strict_api_errors:
+                raise
             return []
 
     def get_active_orders(
@@ -953,6 +971,9 @@ class KuruClient:
 
         Returns:
             List of active orders for the user (empty list if none found)
+
+        Raises:
+            requests.exceptions.RequestException: If strict_api_errors=True and API call fails
         """
         try:
             response = requests.get(
@@ -964,7 +985,10 @@ class KuruClient:
 
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Failed to fetch active orders: {e}")
+            if self.strict_api_errors:
+                raise
             return []
 
     def get_user_trades(
@@ -984,6 +1008,9 @@ class KuruClient:
 
         Returns:
             List of trades for the user (empty list if none found)
+
+        Raises:
+            requests.exceptions.RequestException: If strict_api_errors=True and API call fails
         """
         try:
             params = {}
@@ -1000,7 +1027,10 @@ class KuruClient:
 
             response.raise_for_status()
             return response.json()
-        except requests.exceptions.RequestException:
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Failed to fetch user trades: {e}")
+            if self.strict_api_errors:
+                raise
             return []
 
     def get_open_orders(self, market: str | None = None) -> list[dict[str, Any]]:

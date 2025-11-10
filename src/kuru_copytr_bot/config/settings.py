@@ -80,6 +80,14 @@ class Settings(BaseSettings):
     )
     dry_run: bool = Field(default=False, description="Run in dry-run mode (no actual trades)")
     log_level: str = Field(default="INFO", description="Logging level")
+    strict_api_errors: bool = Field(
+        default=False,
+        description=(
+            "Strict error handling for REST API calls. "
+            "If True, raises exceptions on API errors. "
+            "If False, returns empty results and logs warnings (default behavior)."
+        ),
+    )
 
     @field_validator("wallet_private_key")
     @classmethod
