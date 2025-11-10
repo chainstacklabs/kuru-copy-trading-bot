@@ -749,6 +749,53 @@ class TestKuruClientOrderStatus:
         assert order is None
 
     @patch('requests.get')
+    def test_kuru_client_gets_active_orders(self, mock_get, kuru_client):
+        """Client should get only active orders for a user."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = [
+            {"order_id": "order_001", "status": "OPEN"},
+            {"order_id": "order_002", "status": "PARTIALLY_FILLED"},
+        ]
+
+        user_address = "0x1234567890123456789012345678901234567890"
+        orders = kuru_client.get_active_orders(user_address)
+
+        assert len(orders) == 2
+        assert orders[0]["status"] in ["OPEN", "PARTIALLY_FILLED"]
+        # Verify endpoint was called correctly
+        mock_get.assert_called_once_with(
+            f"{kuru_client.api_url}/{user_address}/user/orders/active",
+            params={"limit": 100, "offset": 0}
+        )
+
+    @patch('requests.get')
+    def test_kuru_client_gets_active_orders_with_pagination(self, mock_get, kuru_client):
+        """Client should support pagination for active orders."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = [
+            {"order_id": "order_050", "status": "OPEN"},
+        ]
+
+        user_address = "0x1234567890123456789012345678901234567890"
+        orders = kuru_client.get_active_orders(user_address, limit=20, offset=40)
+
+        assert len(orders) == 1
+        mock_get.assert_called_once_with(
+            f"{kuru_client.api_url}/{user_address}/user/orders/active",
+            params={"limit": 20, "offset": 40}
+        )
+
+    @patch('requests.get')
+    def test_kuru_client_gets_active_orders_returns_empty_on_404(self, mock_get, kuru_client):
+        """Client should return empty list when no active orders."""
+        mock_get.return_value.status_code = 404
+
+        user_address = "0x1234567890123456789012345678901234567890"
+        orders = kuru_client.get_active_orders(user_address)
+
+        assert orders == []
+
+    @patch('requests.get')
     def test_kuru_client_gets_open_orders(self, mock_get, kuru_client):
         """Client should get all open orders."""
         mock_get.return_value.status_code = 200

@@ -666,6 +666,35 @@ class KuruClient:
         except requests.exceptions.RequestException:
             return None
 
+    def get_active_orders(
+        self,
+        user_address: str,
+        limit: int = 100,
+        offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Get only active orders (OPEN, PARTIALLY_FILLED) for a user from API.
+
+        Args:
+            user_address: User wallet address
+            limit: Maximum number of orders to return (default: 100)
+            offset: Number of orders to skip (default: 0)
+
+        Returns:
+            List of active orders for the user (empty list if none found)
+        """
+        try:
+            response = requests.get(
+                f"{self.api_url}/{user_address}/user/orders/active",
+                params={"limit": limit, "offset": offset}
+            )
+            if response.status_code == 404:
+                return []
+
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException:
+            return []
+
     def get_open_orders(self, market: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get all open orders.
 

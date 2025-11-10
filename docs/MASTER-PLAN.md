@@ -147,7 +147,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-004: Add REST API - Get Active User Orders [HIGH]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: No way to fetch only active orders; must fetch all and filter client-side
 
@@ -1080,7 +1080,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 - ✅ WI-001: Fix Event Topic Signatures
 - ✅ WI-002: Add CLOID Support
 - ✅ WI-003: Fix Get User Orders Endpoint
-- ⬜ WI-004: Add Get Active Orders Endpoint
+- ✅ WI-004: Add Get Active Orders Endpoint
 - ⬜ WI-005: Add Get User Trades Endpoint
 - ⬜ WI-006: Align Order Model
 - ⬜ WI-007: Align Trade Model
