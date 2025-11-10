@@ -99,6 +99,30 @@ class KuruClient:
         with open(orderbook_abi_path, "r") as f:
             self.orderbook_abi = json.load(f)
 
+    def _encode_price(self, price: Decimal, price_precision: int = 1000000) -> int:
+        """Encode price to uint32 format.
+
+        Args:
+            price: Decimal price
+            price_precision: Price precision factor (default 1e6)
+
+        Returns:
+            int: Encoded price as uint32
+        """
+        return int(price * Decimal(price_precision))
+
+    def _encode_size(self, size: Decimal, decimals: int = 18) -> int:
+        """Encode size to uint96 format.
+
+        Args:
+            size: Decimal size
+            decimals: Token decimals (default 18)
+
+        Returns:
+            int: Encoded size as uint96
+        """
+        return int(size * Decimal(10**decimals))
+
     def deposit_margin(self, token: str, amount: Decimal) -> str:
         """Deposit tokens to Kuru margin account.
 
@@ -224,16 +248,36 @@ class KuruClient:
         if size > max_size:
             raise ValueError(f"Order size {size} above maximum {max_size}")
 
+        # Encode price and size
+        encoded_price = self._encode_price(price)
+        encoded_size = self._encode_size(size)
+
+        # Choose correct function based on side
+        if side == OrderSide.BUY:
+            order_data = self.orderbook_contract.functions.addBuyOrder(
+                encoded_price,  # _price (uint32)
+                encoded_size,  # size (uint96)
+                post_only,  # _postOnly (bool)
+            )._encode_transaction_data()
+        else:  # SELL
+            order_data = self.orderbook_contract.functions.addSellOrder(
+                encoded_price,  # _price (uint32)
+                encoded_size,  # size (uint96)
+                post_only,  # _postOnly (bool)
+            )._encode_transaction_data()
+
         # Place order via blockchain
         try:
             tx_hash = self.blockchain.send_transaction(
                 to=self.contract_address,
-                data="0x",  # Encoded order data would go here
+                data=order_data,
             )
 
-            # Return order ID (in real implementation, parse from tx receipt)
-            # For now, use tx_hash as order_id
-            return f"order_{tx_hash[2:10]}"
+            # Wait for transaction receipt and extract order ID
+            receipt = self.blockchain.wait_for_transaction_receipt(tx_hash)
+            order_id = self._extract_order_id_from_receipt(receipt)
+
+            return order_id
 
         except TransactionFailedError as e:
             raise OrderExecutionError(f"Failed to place limit order: {e}")
@@ -286,15 +330,57 @@ class KuruClient:
                 f"Insufficient balance for market order: {balance} < {estimated_cost}"
             )
 
+        # Encode size
+        encoded_size = self._encode_size(size)
+
+        # Estimate minimum output for slippage protection
+        min_amount_out = 0
+        if slippage:
+            estimated_price = Decimal("2000.0")  # Placeholder - should fetch from orderbook
+            if side == OrderSide.BUY:
+                # For buy: min base asset received
+                min_amount_out = int(size * (Decimal("1") - slippage) * Decimal(10**18))
+            else:
+                # For sell: min quote asset received
+                min_amount_out = int(
+                    size * estimated_price * (Decimal("1") - slippage) * Decimal(10**18)
+                )
+
+        # Choose correct function based on side
+        if side == OrderSide.BUY:
+            # For market buy: specify quote size (USDC to spend)
+            order_data = self.orderbook_contract.functions.placeAndExecuteMarketBuy(
+                encoded_size,  # _quoteSize (uint96)
+                min_amount_out,  # _minAmountOut (uint256)
+                True,  # _isMargin (use margin account)
+                False,  # _isFillOrKill
+            )._encode_transaction_data()
+        else:  # SELL
+            # For market sell: specify base size (asset to sell)
+            order_data = self.orderbook_contract.functions.placeAndExecuteMarketSell(
+                encoded_size,  # _size (uint96)
+                min_amount_out,  # _minAmountOut (uint256)
+                True,  # _isMargin (use margin account)
+                False,  # _isFillOrKill
+            )._encode_transaction_data()
+
         # Place order
         try:
             tx_hash = self.blockchain.send_transaction(
                 to=self.contract_address,
-                data="0x",  # Encoded market order data
+                data=order_data,
             )
-            return f"order_{tx_hash[2:10]}"
-        except Exception as e:
+
+            # Wait for transaction receipt
+            receipt = self.blockchain.wait_for_transaction_receipt(tx_hash)
+
+            # Market orders execute immediately, return tx hash as order ID
+            return tx_hash
+
+        except TransactionFailedError as e:
             raise OrderExecutionError(f"Failed to place market order: {e}")
+        except Exception as e:
+            raise OrderExecutionError(f"Unexpected error placing market order: {e}")
 
     def cancel_order(self, order_id: str) -> str:
         """Cancel an order.
@@ -312,14 +398,8 @@ class KuruClient:
         if not order_id:
             raise ValueError("Order ID cannot be empty")
 
-        try:
-            tx_hash = self.blockchain.send_transaction(
-                to=self.contract_address,
-                data="0x",  # Encoded cancel order data
-            )
-            return tx_hash
-        except Exception as e:
-            raise OrderExecutionError(f"Failed to cancel order: {e}")
+        # Delegate to cancel_orders for batch cancellation
+        return self.cancel_orders([order_id])
 
     def cancel_orders(self, order_ids: List[str]) -> str:
         """Cancel multiple orders in batch.
@@ -333,10 +413,36 @@ class KuruClient:
         Raises:
             OrderExecutionError: If batch cancellation fails
         """
+        if not order_ids:
+            raise ValueError("Order IDs list cannot be empty")
+
+        # Convert order IDs to uint40 format
+        # Order IDs can be: numeric strings, hex strings, or "order_" prefixed strings
+        order_ids_uint40 = []
+        for order_id in order_ids:
+            try:
+                # Strip "order_" prefix if present
+                if order_id.startswith("order_"):
+                    order_id = order_id[6:]  # Remove "order_" prefix
+
+                # Try parsing as int
+                if order_id.startswith("0x"):
+                    order_id_int = int(order_id, 16)
+                else:
+                    order_id_int = int(order_id)
+                order_ids_uint40.append(order_id_int)
+            except ValueError as e:
+                raise ValueError(f"Invalid order ID format: {order_id}") from e
+
+        # Encode batch cancel transaction
+        cancel_data = self.orderbook_contract.functions.batchCancelOrders(
+            order_ids_uint40  # _orderIds (uint40[])
+        )._encode_transaction_data()
+
         try:
             tx_hash = self.blockchain.send_transaction(
                 to=self.contract_address,
-                data="0x",  # Encoded batch cancel data
+                data=cancel_data,
             )
             return tx_hash
         except Exception as e:
@@ -552,6 +658,42 @@ class KuruClient:
             return positions
         except requests.exceptions.RequestException:
             return []
+
+    def _extract_order_id_from_receipt(self, receipt: Dict[str, Any]) -> str:
+        """Extract order ID from transaction receipt.
+
+        Args:
+            receipt: Transaction receipt
+
+        Returns:
+            str: Order ID
+
+        Raises:
+            OrderExecutionError: If order ID cannot be extracted
+        """
+        try:
+            # Look for OrderCreated event in logs
+            for log in receipt.get("logs", []):
+                # OrderCreated event signature: OrderCreated(uint40,address,uint96,uint32,bool)
+                # Event topic hash for OrderCreated
+                order_created_topic = self.w3.keccak(
+                    text="OrderCreated(uint40,address,uint96,uint32,bool)"
+                ).hex()
+
+                if log.get("topics") and log["topics"][0].hex() == order_created_topic:
+                    # Decode the event data
+                    # orderId is the first parameter (uint40)
+                    order_id = int.from_bytes(log["topics"][1][:8], byteorder="big")
+                    return str(order_id)
+
+            # If no OrderCreated event found, return transaction hash
+            tx_hash = receipt["transactionHash"]
+            if isinstance(tx_hash, bytes):
+                return tx_hash.hex()
+            return str(tx_hash)
+
+        except Exception as e:
+            raise OrderExecutionError(f"Failed to extract order ID from receipt: {e}")
 
     def _approve_token(self, token: str, amount: Decimal) -> str:
         """Approve ERC20 token for spending by MarginAccount contract.
