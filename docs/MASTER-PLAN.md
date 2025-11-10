@@ -12,6 +12,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 **Completed**: 11
 **In Progress**: 0
 **Pending**: 12
+**Blocked**: 6 (WI-012 through WI-017 require contract ABI specifications)
 
 ---
 
@@ -454,6 +455,8 @@ This master plan outlines isolated work items to align the copy trading bot impl
 ---
 
 ## Phase 3: Feature Completeness (8 work items)
+
+**Note**: WI-012 through WI-017 are blocked pending contract ABI specifications. The OrderBook.json ABI currently lacks read functions (getMarketParams, getL2Book, getVaultParams, etc.). These need to be added based on the actual deployed contract.
 
 ### WI-010: Add REST API - Get Market Orders Endpoint [MEDIUM]
 

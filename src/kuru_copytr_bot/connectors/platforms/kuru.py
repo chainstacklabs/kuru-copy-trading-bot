@@ -311,6 +311,7 @@ class KuruClient:
         slippage: Optional[Decimal] = None,
         cloid: Optional[str] = None,
         async_execution: bool = False,
+        fill_or_kill: bool = False,
     ) -> str:
         """Place an IOC market order.
 
@@ -322,6 +323,8 @@ class KuruClient:
             cloid: Optional client order ID for tracking (not sent to contract)
             async_execution: If True, return tx_hash immediately without waiting for confirmation.
                            If False (default), wait for confirmation and return order_id.
+            fill_or_kill: If True, order reverts if not fully filled. If False (default),
+                         partial fills are accepted (IOC behavior).
 
         Returns:
             str: Transaction hash if async_execution=True, Order ID if async_execution=False
@@ -385,7 +388,7 @@ class KuruClient:
                 encoded_size,  # _quoteSize (uint96)
                 min_amount_out,  # _minAmountOut (uint256)
                 True,  # _isMargin (use margin account)
-                False,  # _isFillOrKill
+                fill_or_kill,  # _isFillOrKill
             )._encode_transaction_data()
         else:  # SELL
             # For market sell: specify base size (asset to sell)
@@ -393,7 +396,7 @@ class KuruClient:
                 encoded_size,  # _size (uint96)
                 min_amount_out,  # _minAmountOut (uint256)
                 True,  # _isMargin (use margin account)
-                False,  # _isFillOrKill
+                fill_or_kill,  # _isFillOrKill
             )._encode_transaction_data()
 
         # Place order
