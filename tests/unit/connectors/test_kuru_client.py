@@ -1,17 +1,17 @@
 """Unit tests for Kuru Exchange client."""
 
-import pytest
-import requests
 from decimal import Decimal
-from unittest.mock import MagicMock, Mock, patch, call
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from src.kuru_copytr_bot.connectors.platforms.kuru import KuruClient
-from src.kuru_copytr_bot.core.enums import OrderSide, OrderType
+from src.kuru_copytr_bot.core.enums import OrderSide
 from src.kuru_copytr_bot.core.exceptions import (
+    BlockchainConnectionError,
     InsufficientBalanceError,
     InvalidMarketError,
     OrderExecutionError,
-    BlockchainConnectionError,
 )
 
 
@@ -148,7 +148,7 @@ class TestKuruClientLimitOrders:
 
     def test_kuru_client_places_limit_order(self, kuru_client, mock_blockchain):
         """Client should place GTC limit order."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
@@ -170,7 +170,7 @@ class TestKuruClientLimitOrders:
 
     def test_kuru_client_places_sell_limit_order(self, kuru_client, mock_blockchain):
         """Client should place sell limit order."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
@@ -211,7 +211,7 @@ class TestKuruClientLimitOrders:
 
     def test_kuru_client_validates_market_exists(self, kuru_client, mock_blockchain):
         """Client should validate market exists."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
             mock_get_market.side_effect = InvalidMarketError("Market not found")
 
             with pytest.raises(InvalidMarketError):
@@ -224,7 +224,7 @@ class TestKuruClientLimitOrders:
 
     def test_kuru_client_places_limit_order_async(self, kuru_client, mock_blockchain):
         """Client should place limit order asynchronously and return tx_hash."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
@@ -252,7 +252,7 @@ class TestKuruClientLimitOrders:
 
     def test_kuru_client_places_limit_order_sync(self, kuru_client, mock_blockchain):
         """Client should place limit order synchronously and return order_id."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
@@ -280,8 +280,10 @@ class TestKuruClientMarketOrders:
 
     def test_kuru_client_places_market_order(self, kuru_client, mock_blockchain):
         """Client should place IOC market order."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market, \
-             patch.object(kuru_client, 'get_best_price') as mock_get_best_price:
+        with (
+            patch.object(kuru_client, "get_market_params") as mock_get_market,
+            patch.object(kuru_client, "get_best_price") as mock_get_best_price,
+        ):
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
@@ -302,8 +304,10 @@ class TestKuruClientMarketOrders:
 
     def test_kuru_client_places_market_sell_order(self, kuru_client, mock_blockchain):
         """Client should place market sell order."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market, \
-             patch.object(kuru_client, 'get_best_price') as mock_get_best_price:
+        with (
+            patch.object(kuru_client, "get_market_params") as mock_get_market,
+            patch.object(kuru_client, "get_best_price") as mock_get_best_price,
+        ):
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
@@ -335,8 +339,10 @@ class TestKuruClientMarketOrders:
         """Client should check sufficient balance for market order."""
         mock_blockchain.get_token_balance.return_value = Decimal("0")
 
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market, \
-             patch.object(kuru_client, 'get_best_price') as mock_get_best_price:
+        with (
+            patch.object(kuru_client, "get_market_params") as mock_get_market,
+            patch.object(kuru_client, "get_best_price") as mock_get_best_price,
+        ):
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
@@ -354,8 +360,10 @@ class TestKuruClientMarketOrders:
 
     def test_kuru_client_places_market_order_async(self, kuru_client, mock_blockchain):
         """Client should place market order asynchronously and return tx_hash."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market, \
-             patch.object(kuru_client, 'get_best_price') as mock_get_best_price:
+        with (
+            patch.object(kuru_client, "get_market_params") as mock_get_market,
+            patch.object(kuru_client, "get_best_price") as mock_get_best_price,
+        ):
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
@@ -381,8 +389,10 @@ class TestKuruClientMarketOrders:
 
     def test_kuru_client_places_market_order_with_fill_or_kill(self, kuru_client, mock_blockchain):
         """Client should support fill-or-kill market orders."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market, \
-             patch.object(kuru_client, 'get_best_price') as mock_get_best_price:
+        with (
+            patch.object(kuru_client, "get_market_params") as mock_get_market,
+            patch.object(kuru_client, "get_best_price") as mock_get_best_price,
+        ):
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
@@ -426,6 +436,100 @@ class TestKuruClientOrderCancellation:
         """Client should validate order ID format."""
         with pytest.raises(ValueError):
             kuru_client.cancel_order(order_id="")
+
+
+class TestKuruClientBatchUpdate:
+    """Test Kuru batch update orders functionality."""
+
+    def test_kuru_client_batch_updates_orders(self, kuru_client, mock_blockchain):
+        """Client should atomically cancel and place orders."""
+        # Mock getMarketParams call
+        mock_blockchain.call_contract_function.return_value = (
+            1000,
+            1000000,  # price/size precision
+            "0x0000000000000000000000000000000000000001",
+            18,
+            "0x0000000000000000000000000000000000000002",
+            6,
+            1,
+            1000,
+            1000000000,
+            50,
+            20,
+        )
+
+        buy_orders = [(Decimal("2000.0"), Decimal("1.0")), (Decimal("1999.0"), Decimal("0.5"))]
+        sell_orders = [(Decimal("2001.0"), Decimal("0.8"))]
+        cancel_order_ids = ["order_001", "order_002"]
+
+        tx_hash = kuru_client.batch_update_orders(
+            market="ETH-USDC",
+            buy_orders=buy_orders,
+            sell_orders=sell_orders,
+            cancel_order_ids=cancel_order_ids,
+            post_only=True,
+        )
+
+        assert tx_hash.startswith("0x")
+        assert len(tx_hash) == 66
+        mock_blockchain.send_transaction.assert_called_once()
+
+    def test_kuru_client_batch_update_async_mode(self, kuru_client, mock_blockchain):
+        """Client should support async execution for batch updates."""
+        # Mock getMarketParams call
+        mock_blockchain.call_contract_function.return_value = (
+            1000,
+            1000000,
+            "0x0000000000000000000000000000000000000001",
+            18,
+            "0x0000000000000000000000000000000000000002",
+            6,
+            1,
+            1000,
+            1000000000,
+            50,
+            20,
+        )
+
+        buy_orders = [(Decimal("2000.0"), Decimal("1.0"))]
+        sell_orders = []
+        cancel_order_ids = []
+
+        tx_hash = kuru_client.batch_update_orders(
+            market="ETH-USDC",
+            buy_orders=buy_orders,
+            sell_orders=sell_orders,
+            cancel_order_ids=cancel_order_ids,
+            async_execution=True,
+        )
+
+        assert tx_hash.startswith("0x")
+        # Should not wait for receipt in async mode
+        mock_blockchain.wait_for_transaction_receipt.assert_not_called()
+
+    def test_kuru_client_batch_update_with_empty_lists(self, kuru_client, mock_blockchain):
+        """Client should handle empty buy/sell lists."""
+        # Mock getMarketParams call
+        mock_blockchain.call_contract_function.return_value = (
+            1000,
+            1000000,
+            "0x0000000000000000000000000000000000000001",
+            18,
+            "0x0000000000000000000000000000000000000002",
+            6,
+            1,
+            1000,
+            1000000000,
+            50,
+            20,
+        )
+
+        tx_hash = kuru_client.batch_update_orders(
+            market="ETH-USDC", buy_orders=[], sell_orders=[], cancel_order_ids=["order_001"]
+        )
+
+        assert tx_hash.startswith("0x")
+        mock_blockchain.send_transaction.assert_called_once()
 
 
 class TestKuruClientMarketParams:
@@ -472,10 +576,17 @@ class TestKuruClientMarketParams:
     def test_kuru_client_caches_market_params(self, kuru_client, mock_blockchain):
         """Client should cache market parameters."""
         mock_blockchain.call_contract_function.return_value = (
-            1000, 1000000,
-            "0x0000000000000000000000000000000000000001", 18,
-            "0x0000000000000000000000000000000000000002", 6,
-            1, 1000, 1000000000, 50, 20
+            1000,
+            1000000,
+            "0x0000000000000000000000000000000000000001",
+            18,
+            "0x0000000000000000000000000000000000000002",
+            6,
+            1,
+            1000,
+            1000000000,
+            50,
+            20,
         )
 
         # Fetch twice
@@ -491,14 +602,22 @@ class TestKuruClientVaultParams:
 
     def test_kuru_client_fetches_vault_params(self, kuru_client, mock_blockchain):
         """Client should fetch vault parameters from contract."""
+
         # Mock both getMarketParams() and getVaultParams() calls
         def mock_contract_call(contract_address, function_name, abi, args):
             if function_name == "getMarketParams":
                 return (
-                    1000, 1000000,  # price/size precision
-                    "0x0000000000000000000000000000000000000001", 18,  # base asset
-                    "0x0000000000000000000000000000000000000002", 6,   # quote asset
-                    1, 1000, 1000000000, 50, 20  # tick/min/max size, fees
+                    1000,
+                    1000000,  # price/size precision
+                    "0x0000000000000000000000000000000000000001",
+                    18,  # base asset
+                    "0x0000000000000000000000000000000000000002",
+                    6,  # quote asset
+                    1,
+                    1000,
+                    1000000000,
+                    50,
+                    20,  # tick/min/max size, fees
                 )
             elif function_name == "getVaultParams":
                 return (
@@ -541,7 +660,7 @@ class TestKuruClientOrderbook:
         # Mock getL2Book() returning encoded bytes
         # For simplicity, we'll mock it returning an empty bytes object
         # Real implementation would need to parse the contract's encoding format
-        mock_blockchain.call_contract_function.return_value = b''
+        mock_blockchain.call_contract_function.return_value = b""
 
         orderbook = kuru_client.get_orderbook("ETH-USDC")
 
@@ -576,7 +695,7 @@ class TestKuruClientOrderbook:
 
         assert orderbook == {"bids": [], "asks": []}
 
-    @patch.object(KuruClient, 'get_orderbook')
+    @patch.object(KuruClient, "get_orderbook")
     def test_kuru_client_gets_best_bid_price(self, mock_orderbook, kuru_client):
         """Client should get best bid price for sell orders."""
         mock_orderbook.return_value = {
@@ -593,7 +712,7 @@ class TestKuruClientOrderbook:
 
         assert best_price == Decimal("2000.0")
 
-    @patch.object(KuruClient, 'get_orderbook')
+    @patch.object(KuruClient, "get_orderbook")
     def test_kuru_client_gets_best_ask_price(self, mock_orderbook, kuru_client):
         """Client should get best ask price for buy orders."""
         mock_orderbook.return_value = {
@@ -610,7 +729,7 @@ class TestKuruClientOrderbook:
 
         assert best_price == Decimal("2001.0")
 
-    @patch.object(KuruClient, 'get_orderbook')
+    @patch.object(KuruClient, "get_orderbook")
     def test_kuru_client_returns_none_for_empty_orderbook(self, mock_orderbook, kuru_client):
         """Client should return None when orderbook is empty."""
         mock_orderbook.return_value = {"bids": [], "asks": []}
@@ -621,7 +740,7 @@ class TestKuruClientOrderbook:
         assert best_price_buy is None
         assert best_price_sell is None
 
-    @patch.object(KuruClient, 'get_orderbook')
+    @patch.object(KuruClient, "get_orderbook")
     def test_kuru_client_handles_best_price_error(self, mock_orderbook, kuru_client):
         """Client should return None on error fetching best price."""
         mock_orderbook.side_effect = Exception("API error")
@@ -634,15 +753,22 @@ class TestKuruClientOrderbook:
 class TestKuruClientCostEstimation:
     """Test Kuru cost estimation."""
 
-    @patch('requests.get')
-    def test_kuru_client_estimates_trade_cost(self, mock_get, kuru_client):
+    def test_kuru_client_estimates_trade_cost(self, kuru_client, mock_blockchain):
         """Client should estimate trade cost including fees."""
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = {
-            "market_id": "ETH-USDC",
-            "taker_fee": "0.0005",
-            "maker_fee": "0.0002",
-        }
+        # Mock getMarketParams call
+        mock_blockchain.call_contract_function.return_value = (
+            1000,
+            1000000,
+            "0x0000000000000000000000000000000000000001",
+            18,
+            "0x0000000000000000000000000000000000000002",
+            6,
+            1,
+            1000,
+            1000000000,
+            50,
+            20,  # taker_fee_bps=50 (0.5%)
+        )
 
         cost = kuru_client.estimate_cost(
             market="ETH-USDC",
@@ -654,8 +780,8 @@ class TestKuruClientCostEstimation:
         assert isinstance(cost, Decimal)
         assert cost > Decimal("2000.0")  # Should include fees
 
-    @patch.object(KuruClient, 'get_best_price')
-    @patch.object(KuruClient, 'get_market_params')
+    @patch.object(KuruClient, "get_best_price")
+    @patch.object(KuruClient, "get_market_params")
     def test_kuru_client_estimates_cost_from_orderbook(
         self, mock_get_market, mock_get_best_price, kuru_client
     ):
@@ -678,8 +804,8 @@ class TestKuruClientCostEstimation:
         expected = Decimal("2001.0") * Decimal("1.0") * (Decimal("1") + Decimal("0.0005"))
         assert cost == expected
 
-    @patch.object(KuruClient, 'get_market_params')
-    @patch.object(KuruClient, 'get_best_price')
+    @patch.object(KuruClient, "get_market_params")
+    @patch.object(KuruClient, "get_best_price")
     def test_kuru_client_raises_error_for_empty_orderbook(
         self, mock_get_best_price, mock_get_market, kuru_client
     ):
@@ -697,7 +823,7 @@ class TestKuruClientCostEstimation:
 
     def test_kuru_client_estimates_market_order_cost(self, kuru_client):
         """Client should estimate market order cost with slippage."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
             mock_get_market.return_value = {
                 "taker_fee": Decimal("0.0005"),
             }
@@ -721,9 +847,10 @@ class TestKuruClientErrorHandling:
     def test_kuru_client_handles_transaction_failure(self, kuru_client, mock_blockchain):
         """Client should handle transaction failures."""
         from src.kuru_copytr_bot.core.exceptions import TransactionFailedError
+
         mock_blockchain.send_transaction.side_effect = TransactionFailedError("Transaction failed")
 
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
@@ -743,7 +870,7 @@ class TestKuruClientErrorHandling:
         """Client should handle network errors gracefully."""
         from src.kuru_copytr_bot.core.exceptions import BlockchainConnectionError
 
-        with patch('requests.get') as mock_get:
+        with patch("requests.get") as mock_get:
             mock_get.side_effect = BlockchainConnectionError("Network error")
 
             with pytest.raises(BlockchainConnectionError):
@@ -751,7 +878,7 @@ class TestKuruClientErrorHandling:
 
     def test_kuru_client_validates_minimum_order_size(self, kuru_client):
         """Client should enforce minimum order size."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.01"),
                 "is_active": True,
@@ -767,7 +894,7 @@ class TestKuruClientErrorHandling:
 
     def test_kuru_client_validates_maximum_order_size(self, kuru_client):
         """Client should enforce maximum order size."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.01"),
                 "max_order_size": Decimal("1000.0"),
@@ -784,7 +911,7 @@ class TestKuruClientErrorHandling:
 
     def test_kuru_client_rejects_inactive_market(self, kuru_client):
         """Client should reject orders on inactive markets."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, "get_market_params") as mock_get_market:
             mock_get_market.return_value = {
                 "is_active": False,
             }
@@ -801,13 +928,23 @@ class TestKuruClientErrorHandling:
 class TestKuruClientOrderStatus:
     """Test Kuru order status queries."""
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_user_orders(self, mock_get, kuru_client):
         """Client should get all orders for a user."""
         mock_get.return_value.status_code = 200
         mock_get.return_value.json.return_value = [
-            {"order_id": "order_001", "status": "OPEN", "filled_size": "0.5", "remaining_size": "0.5"},
-            {"order_id": "order_002", "status": "FILLED", "filled_size": "1.0", "remaining_size": "0"},
+            {
+                "order_id": "order_001",
+                "status": "OPEN",
+                "filled_size": "0.5",
+                "remaining_size": "0.5",
+            },
+            {
+                "order_id": "order_002",
+                "status": "FILLED",
+                "filled_size": "1.0",
+                "remaining_size": "0",
+            },
         ]
 
         user_address = "0x1234567890123456789012345678901234567890"
@@ -818,11 +955,10 @@ class TestKuruClientOrderStatus:
         assert orders[1]["order_id"] == "order_002"
         # Verify endpoint was called correctly
         mock_get.assert_called_once_with(
-            f"{kuru_client.api_url}/orders/user/{user_address}",
-            params={"limit": 100, "offset": 0}
+            f"{kuru_client.api_url}/orders/user/{user_address}", params={"limit": 100, "offset": 0}
         )
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_user_orders_with_pagination(self, mock_get, kuru_client):
         """Client should support pagination for user orders."""
         mock_get.return_value.status_code = 200
@@ -835,11 +971,10 @@ class TestKuruClientOrderStatus:
 
         assert len(orders) == 1
         mock_get.assert_called_once_with(
-            f"{kuru_client.api_url}/orders/user/{user_address}",
-            params={"limit": 50, "offset": 100}
+            f"{kuru_client.api_url}/orders/user/{user_address}", params={"limit": 50, "offset": 100}
         )
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_user_orders_returns_empty_on_404(self, mock_get, kuru_client):
         """Client should return empty list when user has no orders."""
         mock_get.return_value.status_code = 404
@@ -849,7 +984,7 @@ class TestKuruClientOrderStatus:
 
         assert orders == []
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_single_order(self, mock_get, kuru_client):
         """Client should get a single order by ID."""
         mock_get.return_value.status_code = 200
@@ -868,7 +1003,7 @@ class TestKuruClientOrderStatus:
         # Verify endpoint was called correctly
         mock_get.assert_called_once_with(f"{kuru_client.api_url}/orders/order_123456")
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_single_order_returns_none_on_404(self, mock_get, kuru_client):
         """Client should return None when order not found."""
         mock_get.return_value.status_code = 404
@@ -877,7 +1012,7 @@ class TestKuruClientOrderStatus:
 
         assert order is None
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_active_orders(self, mock_get, kuru_client):
         """Client should get only active orders for a user."""
         mock_get.return_value.status_code = 200
@@ -894,10 +1029,10 @@ class TestKuruClientOrderStatus:
         # Verify endpoint was called correctly
         mock_get.assert_called_once_with(
             f"{kuru_client.api_url}/{user_address}/user/orders/active",
-            params={"limit": 100, "offset": 0}
+            params={"limit": 100, "offset": 0},
         )
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_active_orders_with_pagination(self, mock_get, kuru_client):
         """Client should support pagination for active orders."""
         mock_get.return_value.status_code = 200
@@ -911,10 +1046,10 @@ class TestKuruClientOrderStatus:
         assert len(orders) == 1
         mock_get.assert_called_once_with(
             f"{kuru_client.api_url}/{user_address}/user/orders/active",
-            params={"limit": 20, "offset": 40}
+            params={"limit": 20, "offset": 40},
         )
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_active_orders_returns_empty_on_404(self, mock_get, kuru_client):
         """Client should return empty list when no active orders."""
         mock_get.return_value.status_code = 404
@@ -924,7 +1059,7 @@ class TestKuruClientOrderStatus:
 
         assert orders == []
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_open_orders(self, mock_get, kuru_client):
         """Client should get all open orders."""
         mock_get.return_value.status_code = 200
@@ -938,7 +1073,7 @@ class TestKuruClientOrderStatus:
         assert len(orders) == 2
         assert orders[0]["order_id"] == "order_001"
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_market_orders(self, mock_get, kuru_client):
         """Client should get multiple orders by ID from a market."""
         mock_get.return_value.status_code = 200
@@ -960,10 +1095,10 @@ class TestKuruClientOrderStatus:
         # Verify endpoint was called correctly
         mock_get.assert_called_once_with(
             f"{kuru_client.api_url}/orders/market/{market_address}",
-            params={"order_ids": "12345,12346,12347"}
+            params={"order_ids": "12345,12346,12347"},
         )
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_market_orders_with_empty_list(self, mock_get, kuru_client):
         """Client should handle empty order_ids list."""
         mock_get.return_value.status_code = 200
@@ -975,11 +1110,10 @@ class TestKuruClientOrderStatus:
         assert orders == []
         # Should still call API but with empty order_ids
         mock_get.assert_called_once_with(
-            f"{kuru_client.api_url}/orders/market/{market_address}",
-            params={"order_ids": ""}
+            f"{kuru_client.api_url}/orders/market/{market_address}", params={"order_ids": ""}
         )
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_market_orders_returns_empty_on_404(self, mock_get, kuru_client):
         """Client should return empty list when orders not found."""
         mock_get.return_value.status_code = 404
@@ -989,7 +1123,7 @@ class TestKuruClientOrderStatus:
 
         assert orders == []
 
-    @patch('requests.post')
+    @patch("requests.post")
     def test_kuru_client_gets_orders_by_cloid(self, mock_post, kuru_client):
         """Client should get orders by client order IDs."""
         mock_post.return_value.status_code = 200
@@ -1014,11 +1148,11 @@ class TestKuruClientOrderStatus:
             json={
                 "clientOrderIds": cloids,
                 "marketAddress": market_address,
-                "userAddress": user_address
-            }
+                "userAddress": user_address,
+            },
         )
 
-    @patch('requests.post')
+    @patch("requests.post")
     def test_kuru_client_gets_orders_by_cloid_with_empty_list(self, mock_post, kuru_client):
         """Client should handle empty CLOID list."""
         mock_post.return_value.status_code = 200
@@ -1031,7 +1165,7 @@ class TestKuruClientOrderStatus:
 
         assert orders == []
 
-    @patch('requests.post')
+    @patch("requests.post")
     def test_kuru_client_gets_orders_by_cloid_returns_empty_on_404(self, mock_post, kuru_client):
         """Client should return empty list when CLOIDs not found."""
         mock_post.return_value.status_code = 404
@@ -1047,7 +1181,7 @@ class TestKuruClientOrderStatus:
 class TestKuruClientTrades:
     """Test Kuru trade queries."""
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_user_trades(self, mock_get, kuru_client):
         """Client should get trades for a user on a specific market."""
         mock_get.return_value.status_code = 200
@@ -1058,7 +1192,7 @@ class TestKuruClientTrades:
                 "side": "BUY",
                 "price": "2000.0",
                 "size": "1.0",
-                "timestamp": 1234567890
+                "timestamp": 1234567890,
             },
             {
                 "order_id": "124",
@@ -1066,7 +1200,7 @@ class TestKuruClientTrades:
                 "side": "SELL",
                 "price": "2010.0",
                 "size": "0.5",
-                "timestamp": 1234567900
+                "timestamp": 1234567900,
             },
         ]
 
@@ -1078,11 +1212,10 @@ class TestKuruClientTrades:
         assert trades[0]["market"] == "ETH-USDC"
         # Verify endpoint was called correctly
         mock_get.assert_called_once_with(
-            f"{kuru_client.api_url}/{market_address}/trades/user/{user_address}",
-            params={}
+            f"{kuru_client.api_url}/{market_address}/trades/user/{user_address}", params={}
         )
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_user_trades_with_time_filter(self, mock_get, kuru_client):
         """Client should filter trades by timestamp."""
         mock_get.return_value.status_code = 200
@@ -1093,19 +1226,16 @@ class TestKuruClientTrades:
         market_address = "0xMARKET00000000000000000000000000000000000"
         user_address = "0x1234567890123456789012345678901234567890"
         trades = kuru_client.get_user_trades(
-            market_address,
-            user_address,
-            start_timestamp=1234567000,
-            end_timestamp=1234568000
+            market_address, user_address, start_timestamp=1234567000, end_timestamp=1234568000
         )
 
         assert len(trades) == 1
         mock_get.assert_called_once_with(
             f"{kuru_client.api_url}/{market_address}/trades/user/{user_address}",
-            params={"start_timestamp": 1234567000, "end_timestamp": 1234568000}
+            params={"start_timestamp": 1234567000, "end_timestamp": 1234568000},
         )
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_user_trades_returns_empty_on_404(self, mock_get, kuru_client):
         """Client should return empty list when no trades found."""
         mock_get.return_value.status_code = 404
@@ -1120,7 +1250,7 @@ class TestKuruClientTrades:
 class TestKuruClientPositions:
     """Test Kuru position queries."""
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_gets_positions(self, mock_get, kuru_client):
         """Client should get current positions."""
         mock_get.return_value.status_code = 200
@@ -1139,7 +1269,7 @@ class TestKuruClientPositions:
         assert positions[0]["market"] == "ETH-USDC"
         assert isinstance(positions[0]["size"], Decimal)
 
-    @patch('requests.get')
+    @patch("requests.get")
     def test_kuru_client_filters_positions_by_market(self, mock_get, kuru_client):
         """Client should filter positions by market."""
         mock_get.return_value.status_code = 200
@@ -1151,8 +1281,7 @@ class TestKuruClientPositions:
 
         assert len(positions) == 1
         mock_get.assert_called_with(
-            f"{kuru_client.api_url}/positions",
-            params={"market": "ETH-USDC"}
+            f"{kuru_client.api_url}/positions", params={"market": "ETH-USDC"}
         )
 
 
@@ -1181,8 +1310,7 @@ class TestKuruClientBalance:
 
         assert balance == Decimal("500.25")
         mock_blockchain.get_token_balance.assert_called_once_with(
-            token_address=token_address,
-            wallet_address="0x1234567890123456789012345678901234567890"
+            token_address=token_address, wallet_address="0x1234567890123456789012345678901234567890"
         )
 
     def test_kuru_client_handles_balance_check_failure(self, kuru_client, mock_blockchain):

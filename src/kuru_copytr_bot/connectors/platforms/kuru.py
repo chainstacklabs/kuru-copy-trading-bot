@@ -1,25 +1,25 @@
 """Kuru Exchange Python SDK wrapper."""
 
 import json
-import os
-import requests
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+import requests
 from web3 import Web3
 
-from src.kuru_copytr_bot.core.interfaces import BlockchainConnector
-from src.kuru_copytr_bot.core.enums import OrderSide, OrderType
+from src.kuru_copytr_bot.config.constants import (
+    KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET,
+)
+from src.kuru_copytr_bot.core.enums import OrderSide
 from src.kuru_copytr_bot.core.exceptions import (
+    BlockchainConnectionError,
     InsufficientBalanceError,
     InvalidMarketError,
     OrderExecutionError,
     TransactionFailedError,
-    BlockchainConnectionError,
 )
-from src.kuru_copytr_bot.config.constants import (
-    KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET,
-)
+from src.kuru_copytr_bot.core.interfaces import BlockchainConnector
 from src.kuru_copytr_bot.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -86,7 +86,7 @@ class KuruClient:
         )
 
         # Cache for market parameters
-        self._market_cache: Dict[str, Dict[str, Any]] = {}
+        self._market_cache: dict[str, dict[str, Any]] = {}
 
     def _load_abis(self) -> None:
         """Load contract ABIs from JSON files."""
@@ -94,12 +94,12 @@ class KuruClient:
 
         # Load MarginAccount ABI
         margin_abi_path = abi_dir / "MarginAccount.json"
-        with open(margin_abi_path, "r") as f:
+        with open(margin_abi_path) as f:
             self.margin_account_abi = json.load(f)
 
         # Load OrderBook ABI
         orderbook_abi_path = abi_dir / "OrderBook.json"
-        with open(orderbook_abi_path, "r") as f:
+        with open(orderbook_abi_path) as f:
             self.orderbook_abi = json.load(f)
 
     def _encode_price(self, price: Decimal, price_precision: int = 1000000) -> int:
@@ -144,9 +144,7 @@ class KuruClient:
         if token == "0x" + "0" * 40:  # Native token
             balance = self.blockchain.get_balance(self.blockchain.wallet_address)
             if balance < amount:
-                raise InsufficientBalanceError(
-                    f"Insufficient balance: {balance} < {amount}"
-                )
+                raise InsufficientBalanceError(f"Insufficient balance: {balance} < {amount}")
 
             # Send native token with deposit function call
             value_wei = int(amount * Decimal(10**18))
@@ -169,9 +167,7 @@ class KuruClient:
                 raise OrderExecutionError(f"Margin deposit failed: {e}")
         else:
             # ERC20 token
-            balance = self.blockchain.get_token_balance(
-                self.blockchain.wallet_address, token
-            )
+            balance = self.blockchain.get_token_balance(self.blockchain.wallet_address, token)
             if balance < amount:
                 raise InsufficientBalanceError(
                     f"Insufficient {token} balance: {balance} < {amount}"
@@ -209,7 +205,7 @@ class KuruClient:
         price: Decimal,
         size: Decimal,
         post_only: bool = False,
-        cloid: Optional[str] = None,
+        cloid: str | None = None,
         async_execution: bool = False,
     ) -> str:
         """Place a GTC limit order.
@@ -308,8 +304,8 @@ class KuruClient:
         market: str,
         side: OrderSide,
         size: Decimal,
-        slippage: Optional[Decimal] = None,
-        cloid: Optional[str] = None,
+        slippage: Decimal | None = None,
+        cloid: str | None = None,
         async_execution: bool = False,
         fill_or_kill: bool = False,
     ) -> str:
@@ -440,7 +436,7 @@ class KuruClient:
         # Delegate to cancel_orders for batch cancellation
         return self.cancel_orders([order_id])
 
-    def cancel_orders(self, order_ids: List[str]) -> str:
+    def cancel_orders(self, order_ids: list[str]) -> str:
         """Cancel multiple orders in batch.
 
         Args:
@@ -487,7 +483,115 @@ class KuruClient:
         except Exception as e:
             raise OrderExecutionError(f"Failed to cancel orders: {e}")
 
-    def get_balance(self, token: Optional[str] = None) -> Decimal:
+    def batch_update_orders(
+        self,
+        market: str,
+        buy_orders: list[tuple[Decimal, Decimal]],
+        sell_orders: list[tuple[Decimal, Decimal]],
+        cancel_order_ids: list[str],
+        post_only: bool = False,
+        async_execution: bool = False,
+    ) -> str:
+        """Atomically cancel orders and place new orders in a single transaction.
+
+        This is useful for updating order placement strategies without intermediate
+        states where orders are missing from the book.
+
+        Args:
+            market: Market identifier (contract address)
+            buy_orders: List of (price, size) tuples for buy orders
+            sell_orders: List of (price, size) tuples for sell orders
+            cancel_order_ids: List of order IDs to cancel
+            post_only: If True, orders will only be placed as maker orders
+            async_execution: If True, return tx_hash without waiting for confirmation
+
+        Returns:
+            str: Transaction hash if async_execution=True, otherwise tx hash after confirmation
+
+        Raises:
+            ValueError: If order data is invalid
+            OrderExecutionError: If batch update fails
+
+        Example:
+            ```python
+            # Cancel old orders and place new ones atomically
+            tx_hash = client.batch_update_orders(
+                market="ETH-USDC",
+                buy_orders=[(Decimal("2000"), Decimal("1.0"))],
+                sell_orders=[(Decimal("2100"), Decimal("0.5"))],
+                cancel_order_ids=["order_001", "order_002"],
+                post_only=True
+            )
+            ```
+        """
+        # Get market params for encoding
+        params = self.get_market_params(market)
+        price_precision = params["price_precision"]
+        size_precision = params["size_precision"]
+
+        # Encode buy orders
+        buy_prices = []
+        buy_sizes = []
+        for price, size in buy_orders:
+            encoded_price = int(price * Decimal(price_precision))
+            encoded_size = int(size * Decimal(size_precision))
+            buy_prices.append(encoded_price)
+            buy_sizes.append(encoded_size)
+
+        # Encode sell orders
+        sell_prices = []
+        sell_sizes = []
+        for price, size in sell_orders:
+            encoded_price = int(price * Decimal(price_precision))
+            encoded_size = int(size * Decimal(size_precision))
+            sell_prices.append(encoded_price)
+            sell_sizes.append(encoded_size)
+
+        # Convert order IDs to uint40
+        order_ids_uint40 = []
+        for order_id in cancel_order_ids:
+            try:
+                # Strip "order_" prefix if present
+                if order_id.startswith("order_"):
+                    order_id = order_id[6:]
+
+                # Parse as int
+                if order_id.startswith("0x"):
+                    order_id_int = int(order_id, 16)
+                else:
+                    order_id_int = int(order_id)
+                order_ids_uint40.append(order_id_int)
+            except ValueError as e:
+                raise ValueError(f"Invalid order ID format: {order_id}") from e
+
+        # Encode batch update transaction
+        update_data = self.orderbook_contract.functions.batchUpdate(
+            buy_prices,  # uint32[]
+            buy_sizes,  # uint96[]
+            sell_prices,  # uint32[]
+            sell_sizes,  # uint96[]
+            order_ids_uint40,  # uint40[]
+            post_only,  # bool
+        )._encode_transaction_data()
+
+        try:
+            tx_hash = self.blockchain.send_transaction(
+                to=self.contract_address,
+                data=update_data,
+            )
+
+            # If async mode, return tx_hash immediately
+            if async_execution:
+                return tx_hash
+
+            # Otherwise, wait for confirmation
+            self.blockchain.wait_for_transaction_receipt(tx_hash)
+            return tx_hash
+
+        except Exception as e:
+            raise OrderExecutionError(f"Failed to batch update orders: {e}")
+
+    def get_balance(self, token: str | None = None) -> Decimal:
         """Get balance from blockchain.
 
         Args:
@@ -512,7 +616,7 @@ class KuruClient:
         except Exception as e:
             raise BlockchainConnectionError(f"Failed to get balance: {e}")
 
-    def get_market_params(self, market: str) -> Dict[str, Any]:
+    def get_market_params(self, market: str) -> dict[str, Any]:
         """Get market parameters from contract.
 
         Args:
@@ -537,7 +641,7 @@ class KuruClient:
                 contract_address=self.contract_address,
                 function_name="getMarketParams",
                 abi=self.orderbook_abi,
-                args=[]
+                args=[],
             )
 
             # Unpack 11 return values
@@ -577,7 +681,7 @@ class KuruClient:
         except Exception as e:
             raise BlockchainConnectionError(f"Failed to fetch market params from contract: {e}")
 
-    def get_vault_params(self, market: str) -> Dict[str, Any]:
+    def get_vault_params(self, market: str) -> dict[str, Any]:
         """Get AMM vault parameters from contract.
 
         Args:
@@ -605,7 +709,7 @@ class KuruClient:
                 contract_address=self.contract_address,
                 function_name="getVaultParams",
                 abi=self.orderbook_abi,
-                args=[]
+                args=[],
             )
 
             # Unpack 8 return values
@@ -630,9 +734,9 @@ class KuruClient:
             # Convert to decimal with proper scaling
             vault_params = {
                 "vault_address": vault_address,
-                "base_balance": Decimal(base_balance) / Decimal(10 ** base_decimals),
+                "base_balance": Decimal(base_balance) / Decimal(10**base_decimals),
                 "vault_ask_order_size": Decimal(vault_ask_order_size) / Decimal(size_precision),
-                "quote_balance": Decimal(quote_balance) / Decimal(10 ** quote_decimals),
+                "quote_balance": Decimal(quote_balance) / Decimal(10**quote_decimals),
                 "vault_bid_order_size": Decimal(vault_bid_order_size) / Decimal(size_precision),
                 "vault_ask_price": Decimal(vault_ask_price) / Decimal(price_precision),
                 "vault_bid_price": Decimal(vault_bid_price) / Decimal(price_precision),
@@ -649,7 +753,7 @@ class KuruClient:
         market: str,
         side: OrderSide,
         size: Decimal,
-        price: Optional[Decimal] = None,
+        price: Decimal | None = None,
     ) -> Decimal:
         """Estimate trade cost including fees.
 
@@ -687,7 +791,7 @@ class KuruClient:
         side: OrderSide,
         size: Decimal,
         expected_price: Decimal,
-        slippage: Optional[Decimal] = None,
+        slippage: Decimal | None = None,
     ) -> Decimal:
         """Estimate market order cost with slippage.
 
@@ -717,11 +821,8 @@ class KuruClient:
         return cost + fee
 
     def get_user_orders(
-        self,
-        user_address: str,
-        limit: int = 100,
-        offset: int = 0
-    ) -> List[Dict[str, Any]]:
+        self, user_address: str, limit: int = 100, offset: int = 0
+    ) -> list[dict[str, Any]]:
         """Get all orders for a user from API.
 
         Args:
@@ -735,7 +836,7 @@ class KuruClient:
         try:
             response = requests.get(
                 f"{self.api_url}/orders/user/{user_address}",
-                params={"limit": limit, "offset": offset}
+                params={"limit": limit, "offset": offset},
             )
             if response.status_code == 404:
                 return []
@@ -745,7 +846,7 @@ class KuruClient:
         except requests.exceptions.RequestException:
             return []
 
-    def get_order(self, order_id: str) -> Optional[Dict[str, Any]]:
+    def get_order(self, order_id: str) -> dict[str, Any] | None:
         """Get a single order by ID from API.
 
         Args:
@@ -772,11 +873,7 @@ class KuruClient:
         except requests.exceptions.RequestException:
             return None
 
-    def get_market_orders(
-        self,
-        market_address: str,
-        order_ids: List[int]
-    ) -> List[Dict[str, Any]]:
+    def get_market_orders(self, market_address: str, order_ids: list[int]) -> list[dict[str, Any]]:
         """Get multiple orders by ID from a specific market.
 
         Args:
@@ -792,7 +889,7 @@ class KuruClient:
 
             response = requests.get(
                 f"{self.api_url}/orders/market/{market_address}",
-                params={"order_ids": order_ids_str}
+                params={"order_ids": order_ids_str},
             )
             if response.status_code == 404:
                 return []
@@ -803,11 +900,8 @@ class KuruClient:
             return []
 
     def get_orders_by_cloid(
-        self,
-        market_address: str,
-        user_address: str,
-        client_order_ids: List[str]
-    ) -> List[Dict[str, Any]]:
+        self, market_address: str, user_address: str, client_order_ids: list[str]
+    ) -> list[dict[str, Any]]:
         """Get orders by client order IDs (CLOIDs).
 
         Args:
@@ -824,8 +918,8 @@ class KuruClient:
                 json={
                     "clientOrderIds": client_order_ids,
                     "marketAddress": market_address,
-                    "userAddress": user_address
-                }
+                    "userAddress": user_address,
+                },
             )
             if response.status_code == 404:
                 return []
@@ -836,11 +930,8 @@ class KuruClient:
             return []
 
     def get_active_orders(
-        self,
-        user_address: str,
-        limit: int = 100,
-        offset: int = 0
-    ) -> List[Dict[str, Any]]:
+        self, user_address: str, limit: int = 100, offset: int = 0
+    ) -> list[dict[str, Any]]:
         """Get only active orders (OPEN, PARTIALLY_FILLED) for a user from API.
 
         Args:
@@ -854,7 +945,7 @@ class KuruClient:
         try:
             response = requests.get(
                 f"{self.api_url}/{user_address}/user/orders/active",
-                params={"limit": limit, "offset": offset}
+                params={"limit": limit, "offset": offset},
             )
             if response.status_code == 404:
                 return []
@@ -868,9 +959,9 @@ class KuruClient:
         self,
         market_address: str,
         user_address: str,
-        start_timestamp: Optional[int] = None,
-        end_timestamp: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        start_timestamp: int | None = None,
+        end_timestamp: int | None = None,
+    ) -> list[dict[str, Any]]:
         """Get historical trades for a user on a specific market.
 
         Args:
@@ -890,8 +981,7 @@ class KuruClient:
                 params["end_timestamp"] = end_timestamp
 
             response = requests.get(
-                f"{self.api_url}/{market_address}/trades/user/{user_address}",
-                params=params
+                f"{self.api_url}/{market_address}/trades/user/{user_address}", params=params
             )
             if response.status_code == 404:
                 return []
@@ -901,7 +991,7 @@ class KuruClient:
         except requests.exceptions.RequestException:
             return []
 
-    def get_open_orders(self, market: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_open_orders(self, market: str | None = None) -> list[dict[str, Any]]:
         """Get all open orders.
 
         Args:
@@ -918,7 +1008,7 @@ class KuruClient:
         except requests.exceptions.RequestException:
             return []
 
-    def get_positions(self, market: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_positions(self, market: str | None = None) -> list[dict[str, Any]]:
         """Get current positions.
 
         Args:
@@ -946,7 +1036,7 @@ class KuruClient:
         except requests.exceptions.RequestException:
             return []
 
-    def get_orderbook(self, market: str) -> Dict[str, Any]:
+    def get_orderbook(self, market: str) -> dict[str, Any]:
         """Get current orderbook for a market from contract.
 
         Args:
@@ -969,7 +1059,7 @@ class KuruClient:
                 contract_address=self.contract_address,
                 function_name="bestBidAsk",
                 abi=self.orderbook_abi,
-                args=[]
+                args=[],
             )
 
             best_bid, best_ask = result
@@ -986,17 +1076,21 @@ class KuruClient:
 
             # Add best bid if non-zero
             if best_bid > 0:
-                orderbook["bids"].append({
-                    "price": Decimal(best_bid) / Decimal(price_precision),
-                    "size": Decimal("0"),  # Size not available from bestBidAsk()
-                })
+                orderbook["bids"].append(
+                    {
+                        "price": Decimal(best_bid) / Decimal(price_precision),
+                        "size": Decimal("0"),  # Size not available from bestBidAsk()
+                    }
+                )
 
             # Add best ask if non-zero
             if best_ask > 0:
-                orderbook["asks"].append({
-                    "price": Decimal(best_ask) / Decimal(price_precision),
-                    "size": Decimal("0"),  # Size not available from bestBidAsk()
-                })
+                orderbook["asks"].append(
+                    {
+                        "price": Decimal(best_ask) / Decimal(price_precision),
+                        "size": Decimal("0"),  # Size not available from bestBidAsk()
+                    }
+                )
 
             return orderbook
 
@@ -1004,7 +1098,7 @@ class KuruClient:
             logger.error("Failed to fetch orderbook from contract", market=market, error=str(e))
             return {"bids": [], "asks": []}
 
-    def get_best_price(self, market: str, side: OrderSide) -> Optional[Decimal]:
+    def get_best_price(self, market: str, side: OrderSide) -> Decimal | None:
         """Get best available price from orderbook.
 
         Args:
@@ -1044,7 +1138,7 @@ class KuruClient:
             )
             return None
 
-    def _extract_order_id_from_receipt(self, receipt: Dict[str, Any]) -> str:
+    def _extract_order_id_from_receipt(self, receipt: dict[str, Any]) -> str:
         """Extract order ID from transaction receipt.
 
         Args:
