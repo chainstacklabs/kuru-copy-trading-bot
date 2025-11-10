@@ -9,9 +9,9 @@
 This master plan outlines isolated work items to align the copy trading bot implementation with the official Kuru API specification. Each work item is independently testable and committable.
 
 **Total Work Items**: 23
-**Completed**: 17
+**Completed**: 18
 **In Progress**: 0
-**Pending**: 6
+**Pending**: 5
 **Blocked**: 0
 
 ---
@@ -786,7 +786,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-018: Create Typed MarketParams Model [MEDIUM]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: Market params returned as untyped dict; no validation
 
@@ -1101,7 +1101,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 - ✅ WI-017: Add Tick Normalization
 
 ### Phase 4: Data Model Polish (3 items)
-- ⬜ WI-018: Create MarketParams Model
+- ✅ WI-018: Create MarketParams Model
 - ⬜ WI-019: Create L2Book Model
 - ⬜ WI-020: Improve Event Log Parsing
 
