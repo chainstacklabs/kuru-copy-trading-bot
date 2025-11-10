@@ -1,5 +1,7 @@
 """Constants for the Kuru copy trading bot."""
 
+from web3 import Web3
+
 # Monad Blockchain Chain IDs
 # Source: https://docs.monad.xyz/developer-essentials/network-information
 # Verified: 2025-01-09
@@ -37,9 +39,9 @@ YAKI_ADDRESS_TESTNET = "0xfe140e1dCe99Be9F4F15d657CD9b7BF622270C50"
 
 # Official Market Addresses (Testnet)
 MON_USDC_MARKET_ADDRESS = "0xD3AF145f1Aa1A471b5f0F62c52Cf8fcdc9AB55D3"
-DAK_MON_MARKET_ADDRESS = "0x94B72620e65577De5FB2B8A8b93328cAF6CA161b"
-CHOG_MON_MARKET_ADDRESS = "0x277BF4A0aAc16f19D7Bf592FefFc8D2D9a890508"
-YAKI_MON_MARKET_ADDRESS = "0xD5c1DC181C359f0199C83045a85CD2556B325dE0"
+DAK_MON_MARKET_ADDRESS = "0x94B72620e65577De5FB2b8a8B93328CAf6Ca161b"
+CHOG_MON_MARKET_ADDRESS = "0x277bF4a0AAc16f19d7bf592FeFFc8D2d9a890508"
+YAKI_MON_MARKET_ADDRESS = "0xD5C1Dc181c359f0199c83045A85Cd2556B325De0"
 
 # Legacy constant for backward compatibility (points to Router)
 KURU_CONTRACT_ADDRESS_TESTNET = KURU_ROUTER_ADDRESS_TESTNET
@@ -77,3 +79,40 @@ WALLET_MONITORING_INTERVAL_SECONDS = 2  # How often to check wallet transactions
 # Order Configuration
 MIN_ORDER_SIZE_USD = 1.0  # Minimum order size in USD
 MAX_SLIPPAGE_PERCENT = 5.0  # Maximum allowed slippage percentage
+
+# ============================================================
+# Address Validation (Runtime checks at module import)
+# ============================================================
+# Validate that all contract addresses are properly checksummed
+# This ensures we catch any address errors at import time rather than runtime
+
+_ADDRESSES_TO_VALIDATE = {
+    "KURU_ROUTER_ADDRESS_TESTNET": KURU_ROUTER_ADDRESS_TESTNET,
+    "KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET": KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET,
+    "KURU_FORWARDER_ADDRESS_TESTNET": KURU_FORWARDER_ADDRESS_TESTNET,
+    "KURU_DEPLOYER_ADDRESS_TESTNET": KURU_DEPLOYER_ADDRESS_TESTNET,
+    "KURU_UTILS_ADDRESS_TESTNET": KURU_UTILS_ADDRESS_TESTNET,
+    "USDC_ADDRESS_TESTNET": USDC_ADDRESS_TESTNET,
+    "KUSDC_ADDRESS_TESTNET": KUSDC_ADDRESS_TESTNET,
+    "USDT_ADDRESS_TESTNET": USDT_ADDRESS_TESTNET,
+    "DAK_ADDRESS_TESTNET": DAK_ADDRESS_TESTNET,
+    "CHOG_ADDRESS_TESTNET": CHOG_ADDRESS_TESTNET,
+    "YAKI_ADDRESS_TESTNET": YAKI_ADDRESS_TESTNET,
+    "MON_USDC_MARKET_ADDRESS": MON_USDC_MARKET_ADDRESS,
+    "DAK_MON_MARKET_ADDRESS": DAK_MON_MARKET_ADDRESS,
+    "CHOG_MON_MARKET_ADDRESS": CHOG_MON_MARKET_ADDRESS,
+    "YAKI_MON_MARKET_ADDRESS": YAKI_MON_MARKET_ADDRESS,
+}
+
+for _name, _address in _ADDRESSES_TO_VALIDATE.items():
+    try:
+        if not Web3.is_checksum_address(_address):
+            raise ValueError(
+                f"{_name} address '{_address}' is not properly checksummed. "
+                f"Expected: {Web3.to_checksum_address(_address)}"
+            )
+    except Exception as e:
+        raise ValueError(f"Invalid address for {_name}: {_address}") from e
+
+# Clean up namespace
+del _name, _address, _ADDRESSES_TO_VALIDATE
