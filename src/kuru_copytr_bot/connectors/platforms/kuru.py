@@ -577,6 +577,73 @@ class KuruClient:
         except Exception as e:
             raise BlockchainConnectionError(f"Failed to fetch market params from contract: {e}")
 
+    def get_vault_params(self, market: str) -> Dict[str, Any]:
+        """Get AMM vault parameters from contract.
+
+        Args:
+            market: Market identifier (contract address)
+
+        Returns:
+            Dict with vault parameters including:
+            - vault_address: Vault contract address
+            - base_balance: Base asset balance in vault
+            - vault_ask_order_size: Size of AMM ask orders
+            - quote_balance: Quote asset balance in vault
+            - vault_bid_order_size: Size of AMM bid orders
+            - vault_ask_price: AMM ask price
+            - vault_bid_price: AMM bid price
+            - spread: AMM spread
+
+        Raises:
+            BlockchainConnectionError: If contract call fails
+        """
+        try:
+            # Call contract getVaultParams() function
+            # Returns: (vaultAddress, baseBalance, vaultAskOrderSize, quoteBalance,
+            #          vaultBidOrderSize, vaultAskPrice, vaultBidPrice, spread)
+            result = self.blockchain.call_contract_function(
+                contract_address=self.contract_address,
+                function_name="getVaultParams",
+                abi=self.orderbook_abi,
+                args=[]
+            )
+
+            # Unpack 8 return values
+            (
+                vault_address,
+                base_balance,
+                vault_ask_order_size,
+                quote_balance,
+                vault_bid_order_size,
+                vault_ask_price,
+                vault_bid_price,
+                spread,
+            ) = result
+
+            # Get market params for scaling
+            params = self.get_market_params(market)
+            price_precision = params["price_precision"]
+            size_precision = params["size_precision"]
+            base_decimals = params["base_asset_decimals"]
+            quote_decimals = params["quote_asset_decimals"]
+
+            # Convert to decimal with proper scaling
+            vault_params = {
+                "vault_address": vault_address,
+                "base_balance": Decimal(base_balance) / Decimal(10 ** base_decimals),
+                "vault_ask_order_size": Decimal(vault_ask_order_size) / Decimal(size_precision),
+                "quote_balance": Decimal(quote_balance) / Decimal(10 ** quote_decimals),
+                "vault_bid_order_size": Decimal(vault_bid_order_size) / Decimal(size_precision),
+                "vault_ask_price": Decimal(vault_ask_price) / Decimal(price_precision),
+                "vault_bid_price": Decimal(vault_bid_price) / Decimal(price_precision),
+                "spread": Decimal(spread) / Decimal(size_precision),
+            }
+
+            return vault_params
+
+        except Exception as e:
+            raise BlockchainConnectionError(f"Failed to fetch vault params from contract: {e}")
+
     def estimate_cost(
         self,
         market: str,

@@ -486,6 +486,53 @@ class TestKuruClientMarketParams:
         assert mock_blockchain.call_contract_function.call_count == 1
 
 
+class TestKuruClientVaultParams:
+    """Test Kuru vault parameter fetching."""
+
+    def test_kuru_client_fetches_vault_params(self, kuru_client, mock_blockchain):
+        """Client should fetch vault parameters from contract."""
+        # Mock both getMarketParams() and getVaultParams() calls
+        def mock_contract_call(contract_address, function_name, abi, args):
+            if function_name == "getMarketParams":
+                return (
+                    1000, 1000000,  # price/size precision
+                    "0x0000000000000000000000000000000000000001", 18,  # base asset
+                    "0x0000000000000000000000000000000000000002", 6,   # quote asset
+                    1, 1000, 1000000000, 50, 20  # tick/min/max size, fees
+                )
+            elif function_name == "getVaultParams":
+                return (
+                    "0x0000000000000000000000000000000000000003",  # vaultAddress
+                    1000000000000000000,  # baseBalance (1e18)
+                    5000000,  # vaultAskOrderSize
+                    5000000000,  # quoteBalance (5000 USDC with 6 decimals)
+                    5000000,  # vaultBidOrderSize
+                    2100,  # vaultAskPrice
+                    2000,  # vaultBidPrice
+                    10,  # spread
+                )
+
+        mock_blockchain.call_contract_function.side_effect = mock_contract_call
+
+        params = kuru_client.get_vault_params("ETH-USDC")
+
+        assert params["vault_address"] == "0x0000000000000000000000000000000000000003"
+        assert isinstance(params["base_balance"], Decimal)
+        assert isinstance(params["quote_balance"], Decimal)
+        assert isinstance(params["vault_ask_order_size"], Decimal)
+        assert isinstance(params["vault_bid_order_size"], Decimal)
+        assert isinstance(params["vault_ask_price"], Decimal)
+        assert isinstance(params["vault_bid_price"], Decimal)
+        assert isinstance(params["spread"], Decimal)
+
+    def test_kuru_client_handles_vault_params_error(self, kuru_client, mock_blockchain):
+        """Client should raise error when vault params call fails."""
+        mock_blockchain.call_contract_function.side_effect = Exception("Contract call failed")
+
+        with pytest.raises(BlockchainConnectionError):
+            kuru_client.get_vault_params("ETH-USDC")
+
+
 class TestKuruClientOrderbook:
     """Test Kuru orderbook functionality."""
 
