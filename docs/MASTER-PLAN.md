@@ -9,9 +9,9 @@
 This master plan outlines isolated work items to align the copy trading bot implementation with the official Kuru API specification. Each work item is independently testable and committable.
 
 **Total Work Items**: 23
-**Completed**: 19
+**Completed**: 20
 **In Progress**: 0
-**Pending**: 4
+**Pending**: 3
 **Blocked**: 0
 
 ---
@@ -901,7 +901,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-020: Improve Event Log Parsing with Web3 Decoding [HIGH]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: Manual byte manipulation for event parsing; fragile and error-prone
 
@@ -1103,7 +1103,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 ### Phase 4: Data Model Polish (3 items)
 - ✅ WI-018: Create MarketParams Model
 - ✅ WI-019: Create L2Book Model
-- ⬜ WI-020: Improve Event Log Parsing
+- ✅ WI-020: Improve Event Log Parsing
 
 ### Phase 5: Configuration (3 items)
 - ⬜ WI-021: Verify Contract Addresses
