@@ -13,7 +13,7 @@ This document tracks the implementation progress for all placeholder and incompl
 
 | ID | Title | Priority | Complexity | Status | Assignee |
 |----|-------|----------|------------|--------|----------|
-| WI-001 | Implement MonadClient.get_latest_transactions() | Medium | Medium | Not Started | - |
+| WI-001 | Implement MonadClient.get_latest_transactions() | Medium | Medium | ✅ Completed | Claude |
 | WI-002 | Implement Kuru Transaction Data Encoding | Critical | High | ✅ Completed | Claude |
 | WI-003 | Implement Real Orderbook Price Fetching | High | Medium | ✅ Completed | Claude |
 | WI-004 | Update Kuru Contract Address Constant | Critical | Low | ✅ Completed | Claude |
@@ -66,11 +66,11 @@ These items implement core trading features.
 ### Phase 3: Additional Features
 These items add additional functionality and cleanup.
 
-6. **WI-001: Implement MonadClient.get_latest_transactions()**
+6. **WI-001: Implement MonadClient.get_latest_transactions()** ✅ COMPLETED
    - Priority: Medium
    - Estimated: 4-6 hours
    - Dependencies: None
-   - Status: ⬜ Not Started
+   - Status: ✅ Completed (2025-01-10)
    - Impact: Monitoring capabilities
 
 7. **WI-007: Resolve Empty Files**
@@ -106,7 +106,7 @@ These items add additional functionality and cleanup.
 - [x] WI-003: Orderbook price fetching implemented
 
 ### Phase 3: Additional Features
-- [ ] WI-001: Transaction history fetching implemented
+- [x] WI-001: Transaction history fetching implemented
 - [ ] WI-007: All empty files resolved
 
 ## Quality Gates
@@ -189,6 +189,18 @@ Each work item must meet these criteria before being marked complete:
   - All 45 Kuru client tests passing (85% coverage)
   - Commit: f1d7637
 
+- ✅ **WI-001**: Implement MonadClient.get_latest_transactions() (Completed 2025-01-10)
+  - Implemented full block scanning with 1000-block limit
+  - Added address filtering and transaction matching logic
+  - Fixed interface signature to match implementation (addresses, from_block)
+  - Updated WalletMonitor to pass correct parameters
+  - Handles both dict and AttributeDict from web3.py
+  - Normalizes addresses for case-insensitive comparison
+  - Graceful error handling for individual block fetch failures
+  - 9 comprehensive unit tests covering all scenarios
+  - All 9 tests passing
+  - Commit: eee5f49
+
 ### In Progress
 _None currently_
 
@@ -196,10 +208,10 @@ _None currently_
 _None yet_
 
 ### Next Up
-1. WI-001 (Implement MonadClient.get_latest_transactions()) - Medium priority, 4-6 hours
-2. WI-007 (Resolve Empty Files) - Low priority, 4-8 hours
+1. WI-007 (Resolve Empty Files) - Low priority, 4-8 hours
 
 **Phase 2 Core Trading Functionality: 100% COMPLETE ✅**
+**Phase 3 Additional Features: 50% COMPLETE (1 of 2 items done)**
 
 ## Notes
 
@@ -230,4 +242,4 @@ _None yet_
 ---
 
 **Last Updated:** 2025-01-10
-**Next Review:** After remaining Phase 2 items completion
+**Next Review:** After WI-007 completion (all work items done)
