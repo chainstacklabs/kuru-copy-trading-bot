@@ -9,9 +9,9 @@
 This master plan outlines isolated work items to align the copy trading bot implementation with the official Kuru API specification. Each work item is independently testable and committable.
 
 **Total Work Items**: 23
-**Completed**: 8
+**Completed**: 9
 **In Progress**: 0
-**Pending**: 15
+**Pending**: 14
 
 ---
 
@@ -406,7 +406,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-009: Add Async Execution Mode for Transactions [HIGH]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: All transactions block until confirmed; cannot submit multiple orders in parallel
 
