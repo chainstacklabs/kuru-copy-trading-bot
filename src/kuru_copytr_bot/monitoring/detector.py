@@ -24,7 +24,7 @@ def calculate_event_topic(signature: str) -> str:
 
 
 class KuruEventDetector:
-    """Detector for parsing Kuru Exchange events from blockchain logs."""
+    """Detector for parsing Kuru Exchange events from blockchain logs using Web3.py decoding."""
 
     # Event signatures - calculated from actual event definitions
     # Based on OrderBook contract events and Kuru API spec
@@ -39,12 +39,27 @@ class KuruEventDetector:
     ORDER_PLACED_SIGNATURE = ORDER_CREATED_SIGNATURE
     ORDER_CANCELLED_SIGNATURE = ORDERS_CANCELED_SIGNATURE
 
-    def __init__(self):
-        """Initialize the event detector."""
-        pass
+    def __init__(
+        self, orderbook_abi: list[dict[str, Any]] | None = None, contract_address: str | None = None
+    ):
+        """Initialize the event detector with optional ABI for Web3.py decoding.
+
+        Args:
+            orderbook_abi: OrderBook contract ABI (optional, enables Web3.py decoding)
+            contract_address: OrderBook contract address (optional, for contract instance)
+        """
+        self.orderbook_abi = orderbook_abi
+        self.contract_address = contract_address
+        self.contract = None
+
+        # Create contract instance if ABI provided
+        if orderbook_abi and contract_address:
+            w3 = Web3()  # No provider needed for decoding
+            checksum_address = Web3.to_checksum_address(contract_address)
+            self.contract = w3.eth.contract(address=checksum_address, abi=orderbook_abi)
 
     def parse_trade_executed(self, event_log: dict[str, Any]) -> Trade | None:
-        """Parse TradeExecuted event to Trade model.
+        """Parse TradeExecuted/Trade event to Trade model using Web3.py decoding.
 
         Args:
             event_log: Raw event log from blockchain
@@ -53,6 +68,44 @@ class KuruEventDetector:
             Trade object if parsing successful, None otherwise
         """
         try:
+            # Use Web3.py decoding if contract available
+            if self.contract:
+                try:
+                    event = self.contract.events.Trade().process_log(event_log)
+                    args = event["args"]
+
+                    # Extract fields from decoded event
+                    # Trade event: orderId, makerAddress, isBuy, price, updatedSize, takerAddress, txOrigin, filledSize
+                    trader_address = args.get("takerAddress", args.get("makerAddress", ""))
+                    side = OrderSide.BUY if args["isBuy"] else OrderSide.SELL
+
+                    # Price and size need scaling (contract uses different precision)
+                    price = Decimal(str(args["price"])) / Decimal(10**18)
+                    size = Decimal(str(args["filledSize"])) / Decimal(10**18)
+
+                    # Extract timestamp
+                    timestamp = datetime.now(UTC)
+                    if "timestamp" in event_log:
+                        timestamp = datetime.fromtimestamp(event_log["timestamp"], tz=UTC)
+
+                    trade = Trade(
+                        id=event_log.get("transactionHash", ""),
+                        trader_address=trader_address,
+                        market="ETH-USDC",  # Default
+                        side=side,
+                        price=price if price > 0 else Decimal("0.000001"),
+                        size=size if size > 0 else Decimal("0.000001"),
+                        timestamp=timestamp,
+                        tx_hash=event_log.get("transactionHash", ""),
+                    )
+
+                    return trade
+
+                except Exception:
+                    # Fall back to manual parsing
+                    pass
+
+            # Fallback: Manual byte parsing for backward compatibility
             # Validate required fields
             if "topics" not in event_log or "data" not in event_log:
                 return None
@@ -134,7 +187,7 @@ class KuruEventDetector:
             return None
 
     def parse_order_placed(self, event_log: dict[str, Any]) -> dict[str, Any] | None:
-        """Parse OrderPlaced event.
+        """Parse OrderPlaced/OrderCreated event using Web3.py decoding.
 
         Args:
             event_log: Raw event log from blockchain
@@ -143,6 +196,26 @@ class KuruEventDetector:
             Dict with order data if parsing successful, None otherwise
         """
         try:
+            # Use Web3.py decoding if contract available
+            if self.contract:
+                try:
+                    event = self.contract.events.OrderCreated().process_log(event_log)
+                    args = event["args"]
+
+                    # Extract fields from decoded event
+                    # OrderCreated event: orderId, owner, size, price, isBuy
+                    return {
+                        "trader_address": args["owner"],
+                        "order_id": str(args["orderId"]),
+                        "cloid": None,  # CLOID not in current event definition
+                        "tx_hash": event_log.get("transactionHash", ""),
+                    }
+
+                except Exception:
+                    # Fall back to manual parsing
+                    pass
+
+            # Fallback: Manual byte parsing for backward compatibility
             # Validate required fields
             if "topics" not in event_log or "data" not in event_log:
                 return None
@@ -192,7 +265,7 @@ class KuruEventDetector:
             return None
 
     def parse_order_cancelled(self, event_log: dict[str, Any]) -> dict[str, Any] | None:
-        """Parse OrderCancelled event.
+        """Parse OrderCancelled/OrdersCanceled event using Web3.py decoding.
 
         Args:
             event_log: Raw event log from blockchain
@@ -201,6 +274,30 @@ class KuruEventDetector:
             Dict with cancel data if parsing successful, None otherwise
         """
         try:
+            # Use Web3.py decoding if contract available
+            if self.contract:
+                try:
+                    event = self.contract.events.OrdersCanceled().process_log(event_log)
+                    args = event["args"]
+
+                    # Extract fields from decoded event
+                    # OrdersCanceled event: orderId (uint40[]), owner (address)
+                    # Note: This returns an array of order IDs, but we return the first one for compatibility
+                    order_ids = args["orderId"]
+                    order_id = str(order_ids[0]) if order_ids else "0"
+
+                    return {
+                        "trader_address": args["owner"],
+                        "order_id": order_id,
+                        "cloid": None,  # CLOID not in current event definition
+                        "tx_hash": event_log.get("transactionHash", ""),
+                    }
+
+                except Exception:
+                    # Fall back to manual parsing
+                    pass
+
+            # Fallback: Manual byte parsing for backward compatibility
             # Validate required fields
             if "topics" not in event_log or "data" not in event_log:
                 return None

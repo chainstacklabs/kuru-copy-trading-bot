@@ -20,10 +20,10 @@ from src.kuru_copytr_bot.core.exceptions import (
     TransactionFailedError,
 )
 from src.kuru_copytr_bot.core.interfaces import BlockchainConnector
-from src.kuru_copytr_bot.utils.logger import get_logger
-from src.kuru_copytr_bot.utils.price import normalize_to_tick
 from src.kuru_copytr_bot.models.market import MarketParams
 from src.kuru_copytr_bot.models.orderbook import L2Book, PriceLevel
+from src.kuru_copytr_bot.utils.logger import get_logger
+from src.kuru_copytr_bot.utils.price import normalize_to_tick
 
 logger = get_logger(__name__)
 
@@ -1236,7 +1236,7 @@ class KuruClient:
             return None
 
     def _extract_order_id_from_receipt(self, receipt: dict[str, Any]) -> str:
-        """Extract order ID from transaction receipt.
+        """Extract order ID from transaction receipt using Web3.py event decoding.
 
         Args:
             receipt: Transaction receipt
@@ -1248,19 +1248,17 @@ class KuruClient:
             OrderExecutionError: If order ID cannot be extracted
         """
         try:
-            # Look for OrderCreated event in logs
+            # Use Web3.py contract event decoding instead of manual byte parsing
             for log in receipt.get("logs", []):
-                # OrderCreated event signature: OrderCreated(uint40,address,uint96,uint32,bool)
-                # Event topic hash for OrderCreated
-                order_created_topic = self.w3.keccak(
-                    text="OrderCreated(uint40,address,uint96,uint32,bool)"
-                ).hex()
-
-                if log.get("topics") and log["topics"][0].hex() == order_created_topic:
-                    # Decode the event data
-                    # orderId is the first parameter (uint40)
-                    order_id = int.from_bytes(log["topics"][1][:8], byteorder="big")
+                try:
+                    # Try to decode as OrderCreated event
+                    event = self.orderbook_contract.events.OrderCreated().process_log(log)
+                    # Extract orderId from event args
+                    order_id = event["args"]["orderId"]
                     return str(order_id)
+                except Exception:
+                    # Not an OrderCreated event, continue to next log
+                    continue
 
             # If no OrderCreated event found, return transaction hash
             tx_hash = receipt["transactionHash"]
