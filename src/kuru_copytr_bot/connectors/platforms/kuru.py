@@ -683,6 +683,36 @@ class KuruClient:
         except requests.exceptions.RequestException:
             return None
 
+    def get_market_orders(
+        self,
+        market_address: str,
+        order_ids: List[int]
+    ) -> List[Dict[str, Any]]:
+        """Get multiple orders by ID from a specific market.
+
+        Args:
+            market_address: Market contract address
+            order_ids: List of order IDs to fetch
+
+        Returns:
+            List of orders (empty list if none found)
+        """
+        try:
+            # Convert order_ids list to comma-separated string
+            order_ids_str = ",".join(str(order_id) for order_id in order_ids)
+
+            response = requests.get(
+                f"{self.api_url}/orders/market/{market_address}",
+                params={"order_ids": order_ids_str}
+            )
+            if response.status_code == 404:
+                return []
+
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException:
+            return []
+
     def get_active_orders(
         self,
         user_address: str,

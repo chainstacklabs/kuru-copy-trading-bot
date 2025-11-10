@@ -888,6 +888,57 @@ class TestKuruClientOrderStatus:
         assert len(orders) == 2
         assert orders[0]["order_id"] == "order_001"
 
+    @patch('requests.get')
+    def test_kuru_client_gets_market_orders(self, mock_get, kuru_client):
+        """Client should get multiple orders by ID from a market."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = [
+            {"order_id": 12345, "status": "OPEN", "price": "2000.0"},
+            {"order_id": 12346, "status": "PARTIALLY_FILLED", "price": "2001.0"},
+            {"order_id": 12347, "status": "FILLED", "price": "2002.0"},
+        ]
+
+        market_address = "0x1234567890123456789012345678901234567890"
+        order_ids = [12345, 12346, 12347]
+        orders = kuru_client.get_market_orders(market_address, order_ids)
+
+        assert len(orders) == 3
+        assert orders[0]["order_id"] == 12345
+        assert orders[1]["order_id"] == 12346
+        assert orders[2]["order_id"] == 12347
+
+        # Verify endpoint was called correctly
+        mock_get.assert_called_once_with(
+            f"{kuru_client.api_url}/orders/market/{market_address}",
+            params={"order_ids": "12345,12346,12347"}
+        )
+
+    @patch('requests.get')
+    def test_kuru_client_gets_market_orders_with_empty_list(self, mock_get, kuru_client):
+        """Client should handle empty order_ids list."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = []
+
+        market_address = "0x1234567890123456789012345678901234567890"
+        orders = kuru_client.get_market_orders(market_address, [])
+
+        assert orders == []
+        # Should still call API but with empty order_ids
+        mock_get.assert_called_once_with(
+            f"{kuru_client.api_url}/orders/market/{market_address}",
+            params={"order_ids": ""}
+        )
+
+    @patch('requests.get')
+    def test_kuru_client_gets_market_orders_returns_empty_on_404(self, mock_get, kuru_client):
+        """Client should return empty list when orders not found."""
+        mock_get.return_value.status_code = 404
+
+        market_address = "0x1234567890123456789012345678901234567890"
+        orders = kuru_client.get_market_orders(market_address, [12345])
+
+        assert orders == []
+
 
 class TestKuruClientTrades:
     """Test Kuru trade queries."""
