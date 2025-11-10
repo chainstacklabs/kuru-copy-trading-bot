@@ -9,9 +9,9 @@
 This master plan outlines isolated work items to align the copy trading bot implementation with the official Kuru API specification. Each work item is independently testable and committable.
 
 **Total Work Items**: 23
-**Completed**: 20
+**Completed**: 21
 **In Progress**: 0
-**Pending**: 3
+**Pending**: 2
 **Blocked**: 0
 
 ---
@@ -953,7 +953,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-021: Verify and Document Contract Addresses [LOW]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: Need to verify addresses are current and checksummed
 
@@ -1106,7 +1106,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 - ✅ WI-020: Improve Event Log Parsing
 
 ### Phase 5: Configuration (3 items)
-- ⬜ WI-021: Verify Contract Addresses
+- ✅ WI-021: Verify Contract Addresses
 - ⬜ WI-022: Add Strict Error Handling Mode
 - ⬜ WI-023: Document and Migrate Endpoints
 
