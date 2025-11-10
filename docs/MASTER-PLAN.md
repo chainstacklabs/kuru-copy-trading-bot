@@ -9,10 +9,10 @@
 This master plan outlines isolated work items to align the copy trading bot implementation with the official Kuru API specification. Each work item is independently testable and committable.
 
 **Total Work Items**: 23
-**Completed**: 11
+**Completed**: 12
 **In Progress**: 0
-**Pending**: 12
-**Blocked**: 6 (WI-012 through WI-017 require contract ABI specifications)
+**Pending**: 11
+**Blocked**: 4 (WI-012 through WI-015 require contract ABI specifications)
 
 ---
 
@@ -456,7 +456,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ## Phase 3: Feature Completeness (8 work items)
 
-**Note**: WI-012 through WI-017 are blocked pending contract ABI specifications. The OrderBook.json ABI currently lacks read functions (getMarketParams, getL2Book, getVaultParams, etc.). These need to be added based on the actual deployed contract.
+**Note**: WI-012 through WI-015 are blocked pending contract ABI specifications. The OrderBook.json ABI currently lacks read functions (getMarketParams, getL2Book, getVaultParams) and write functions (batchUpdate). These need to be added based on the actual deployed contract.
 
 ### WI-010: Add REST API - Get Market Orders Endpoint [MEDIUM]
 
@@ -526,7 +526,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-012: Replace REST API with Contract Calls - Get Market Params [HIGH]
 
-**Status**: ⬜ Pending
+**Status**: 🚫 Blocked (requires contract ABI specifications)
 
 **Problem**: Using REST API for market params; should call contract directly per spec
 
@@ -567,7 +567,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-013: Replace REST API with Contract Calls - Get Orderbook [HIGH]
 
-**Status**: ⬜ Pending
+**Status**: 🚫 Blocked (requires contract ABI specifications)
 
 **Problem**: Using REST API for orderbook; should call contract directly per spec
 
@@ -609,7 +609,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-014: Add Contract Read - Get Vault Parameters [MEDIUM]
 
-**Status**: ⬜ Pending
+**Status**: 🚫 Blocked (requires contract ABI specifications)
 
 **Problem**: Cannot access AMM vault configuration
 
@@ -642,7 +642,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-015: Implement Batch Update Orders [HIGH]
 
-**Status**: ⬜ Pending
+**Status**: 🚫 Blocked (requires contract ABI specifications)
 
 **Problem**: Cannot atomically update orders; must cancel and place separately
 
@@ -705,7 +705,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-016: Expose Fill-or-Kill Parameter for Market Orders [MEDIUM]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: FOK parameter hardcoded to False; cannot use fill-or-kill orders
 
