@@ -20,6 +20,9 @@ from src.kuru_copytr_bot.core.exceptions import (
 from src.kuru_copytr_bot.config.constants import (
     KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET,
 )
+from src.kuru_copytr_bot.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class KuruClient:
@@ -336,7 +339,15 @@ class KuruClient:
         # Estimate minimum output for slippage protection
         min_amount_out = 0
         if slippage:
-            estimated_price = Decimal("2000.0")  # Placeholder - should fetch from orderbook
+            # Fetch current market price from orderbook
+            estimated_price = self.get_best_price(market, side)
+            if estimated_price is None:
+                logger.warning(
+                    "Orderbook empty, using zero slippage protection",
+                    market=market,
+                )
+                estimated_price = Decimal("0")
+
             if side == OrderSide.BUY:
                 # For buy: min base asset received
                 min_amount_out = int(size * (Decimal("1") - slippage) * Decimal(10**18))
@@ -539,9 +550,13 @@ class KuruClient:
         """
         params = self.get_market_params(market)
 
-        # Use provided price or estimate from market
+        # Use provided price or fetch best price from orderbook
         if price is None:
-            price = Decimal("2000.0")  # Placeholder - would fetch from orderbook
+            price = self.get_best_price(market, side)
+            if price is None:
+                raise OrderExecutionError(
+                    f"Cannot estimate cost: orderbook empty for market {market}"
+                )
 
         # Calculate base cost
         cost = size * price
@@ -658,6 +673,95 @@ class KuruClient:
             return positions
         except requests.exceptions.RequestException:
             return []
+
+    def get_orderbook(self, market: str) -> Dict[str, Any]:
+        """Get current orderbook for a market.
+
+        Args:
+            market: Market identifier (e.g., "ETH-USDC")
+
+        Returns:
+            Dict containing orderbook data with 'bids' and 'asks' arrays
+            Each entry: {"price": str, "size": str}
+            Returns empty orderbook on error
+
+        Raises:
+            InvalidMarketError: If market is invalid
+        """
+        try:
+            # Try primary endpoint pattern
+            response = requests.get(f"{self.api_url}/orderbook?market={market}", timeout=5)
+
+            # If that fails, try alternative pattern
+            if response.status_code == 404:
+                response = requests.get(
+                    f"{self.api_url}/markets/{market}/orderbook", timeout=5
+                )
+
+            if response.status_code == 404:
+                raise InvalidMarketError(f"Market {market} not found")
+
+            response.raise_for_status()
+
+            orderbook = response.json()
+
+            # Convert price and size strings to Decimal
+            for bid in orderbook.get("bids", []):
+                bid["price"] = Decimal(str(bid["price"]))
+                bid["size"] = Decimal(str(bid["size"]))
+
+            for ask in orderbook.get("asks", []):
+                ask["price"] = Decimal(str(ask["price"]))
+                ask["size"] = Decimal(str(ask["size"]))
+
+            return orderbook
+
+        except requests.exceptions.Timeout:
+            logger.warning("Orderbook request timed out", market=market)
+            return {"bids": [], "asks": []}
+        except requests.exceptions.RequestException as e:
+            logger.error("Failed to fetch orderbook", market=market, error=str(e))
+            return {"bids": [], "asks": []}
+
+    def get_best_price(self, market: str, side: OrderSide) -> Optional[Decimal]:
+        """Get best available price from orderbook.
+
+        Args:
+            market: Market identifier
+            side: Order side (BUY uses asks, SELL uses bids)
+
+        Returns:
+            Best price as Decimal, or None if orderbook is empty
+        """
+        try:
+            orderbook = self.get_orderbook(market)
+
+            # For BUY orders, we take from asks (lowest ask price)
+            # For SELL orders, we take from bids (highest bid price)
+            if side == OrderSide.BUY:
+                asks = orderbook.get("asks", [])
+                if asks:
+                    # Asks should be sorted low to high, take first
+                    return asks[0]["price"]
+            else:  # SELL
+                bids = orderbook.get("bids", [])
+                if bids:
+                    # Bids should be sorted high to low, take first
+                    return bids[0]["price"]
+
+            logger.warning(
+                "Empty orderbook, cannot determine best price", market=market, side=side.value
+            )
+            return None
+
+        except Exception as e:
+            logger.error(
+                "Error fetching best price",
+                market=market,
+                side=side.value,
+                error=str(e),
+            )
+            return None
 
     def _extract_order_id_from_receipt(self, receipt: Dict[str, Any]) -> str:
         """Extract order ID from transaction receipt.

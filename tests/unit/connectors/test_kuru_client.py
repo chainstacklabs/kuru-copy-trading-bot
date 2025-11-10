@@ -1,6 +1,7 @@
 """Unit tests for Kuru Exchange client."""
 
 import pytest
+import requests
 from decimal import Decimal
 from unittest.mock import MagicMock, Mock, patch, call
 
@@ -227,13 +228,15 @@ class TestKuruClientMarketOrders:
 
     def test_kuru_client_places_market_order(self, kuru_client, mock_blockchain):
         """Client should place IOC market order."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, 'get_market_params') as mock_get_market, \
+             patch.object(kuru_client, 'get_best_price') as mock_get_best_price:
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
                 "tick_size": Decimal("0.01"),
                 "is_active": True,
             }
+            mock_get_best_price.return_value = Decimal("2000.0")
 
             order_id = kuru_client.place_market_order(
                 market="ETH-USDC",
@@ -247,13 +250,15 @@ class TestKuruClientMarketOrders:
 
     def test_kuru_client_places_market_sell_order(self, kuru_client, mock_blockchain):
         """Client should place market sell order."""
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, 'get_market_params') as mock_get_market, \
+             patch.object(kuru_client, 'get_best_price') as mock_get_best_price:
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
                 "tick_size": Decimal("0.01"),
                 "is_active": True,
             }
+            mock_get_best_price.return_value = Decimal("2000.0")
 
             order_id = kuru_client.place_market_order(
                 market="ETH-USDC",
@@ -278,13 +283,15 @@ class TestKuruClientMarketOrders:
         """Client should check sufficient balance for market order."""
         mock_blockchain.get_token_balance.return_value = Decimal("0")
 
-        with patch.object(kuru_client, 'get_market_params') as mock_get_market:
+        with patch.object(kuru_client, 'get_market_params') as mock_get_market, \
+             patch.object(kuru_client, 'get_best_price') as mock_get_best_price:
             mock_get_market.return_value = {
                 "min_order_size": Decimal("0.001"),
                 "max_order_size": Decimal("1000"),
                 "tick_size": Decimal("0.01"),
                 "is_active": True,
             }
+            mock_get_best_price.return_value = Decimal("2000.0")
 
             with pytest.raises(InsufficientBalanceError):
                 kuru_client.place_market_order(
@@ -376,6 +383,125 @@ class TestKuruClientMarketParams:
         assert mock_get.call_count == 1
 
 
+class TestKuruClientOrderbook:
+    """Test Kuru orderbook functionality."""
+
+    @patch('requests.get')
+    def test_kuru_client_fetches_orderbook(self, mock_get, kuru_client):
+        """Client should fetch orderbook data."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {
+            "bids": [
+                {"price": "2000.0", "size": "1.5"},
+                {"price": "1999.0", "size": "2.0"},
+            ],
+            "asks": [
+                {"price": "2001.0", "size": "1.0"},
+                {"price": "2002.0", "size": "0.5"},
+            ],
+        }
+
+        orderbook = kuru_client.get_orderbook("ETH-USDC")
+
+        assert "bids" in orderbook
+        assert "asks" in orderbook
+        assert len(orderbook["bids"]) == 2
+        assert len(orderbook["asks"]) == 2
+        # Verify prices are converted to Decimal
+        assert isinstance(orderbook["bids"][0]["price"], Decimal)
+        assert isinstance(orderbook["asks"][0]["size"], Decimal)
+
+    @patch('requests.get')
+    def test_kuru_client_returns_empty_orderbook_on_error(self, mock_get, kuru_client):
+        """Client should return empty orderbook on request failure."""
+        mock_get.side_effect = requests.exceptions.RequestException("API error")
+
+        orderbook = kuru_client.get_orderbook("ETH-USDC")
+
+        assert orderbook == {"bids": [], "asks": []}
+
+    @patch('requests.get')
+    def test_kuru_client_handles_orderbook_timeout(self, mock_get, kuru_client):
+        """Client should handle orderbook request timeout."""
+        mock_get.side_effect = requests.exceptions.Timeout("Request timed out")
+
+        orderbook = kuru_client.get_orderbook("ETH-USDC")
+
+        assert orderbook == {"bids": [], "asks": []}
+
+    @patch('requests.get')
+    def test_kuru_client_tries_alternative_orderbook_endpoint(self, mock_get, kuru_client):
+        """Client should try alternative endpoint if primary fails."""
+        # First call returns 404, second succeeds
+        mock_get.side_effect = [
+            Mock(status_code=404),
+            Mock(
+                status_code=200,
+                json=lambda: {"bids": [{"price": "2000.0", "size": "1.0"}], "asks": []},
+            ),
+        ]
+
+        orderbook = kuru_client.get_orderbook("ETH-USDC")
+
+        # Should have tried both endpoints
+        assert mock_get.call_count == 2
+        assert len(orderbook["bids"]) == 1
+
+    @patch.object(KuruClient, 'get_orderbook')
+    def test_kuru_client_gets_best_bid_price(self, mock_orderbook, kuru_client):
+        """Client should get best bid price for sell orders."""
+        mock_orderbook.return_value = {
+            "bids": [
+                {"price": Decimal("2000.0"), "size": Decimal("1.5")},
+                {"price": Decimal("1999.0"), "size": Decimal("2.0")},
+            ],
+            "asks": [
+                {"price": Decimal("2001.0"), "size": Decimal("1.0")},
+            ],
+        }
+
+        best_price = kuru_client.get_best_price("ETH-USDC", OrderSide.SELL)
+
+        assert best_price == Decimal("2000.0")
+
+    @patch.object(KuruClient, 'get_orderbook')
+    def test_kuru_client_gets_best_ask_price(self, mock_orderbook, kuru_client):
+        """Client should get best ask price for buy orders."""
+        mock_orderbook.return_value = {
+            "bids": [
+                {"price": Decimal("2000.0"), "size": Decimal("1.5")},
+            ],
+            "asks": [
+                {"price": Decimal("2001.0"), "size": Decimal("1.0")},
+                {"price": Decimal("2002.0"), "size": Decimal("0.5")},
+            ],
+        }
+
+        best_price = kuru_client.get_best_price("ETH-USDC", OrderSide.BUY)
+
+        assert best_price == Decimal("2001.0")
+
+    @patch.object(KuruClient, 'get_orderbook')
+    def test_kuru_client_returns_none_for_empty_orderbook(self, mock_orderbook, kuru_client):
+        """Client should return None when orderbook is empty."""
+        mock_orderbook.return_value = {"bids": [], "asks": []}
+
+        best_price_buy = kuru_client.get_best_price("ETH-USDC", OrderSide.BUY)
+        best_price_sell = kuru_client.get_best_price("ETH-USDC", OrderSide.SELL)
+
+        assert best_price_buy is None
+        assert best_price_sell is None
+
+    @patch.object(KuruClient, 'get_orderbook')
+    def test_kuru_client_handles_best_price_error(self, mock_orderbook, kuru_client):
+        """Client should return None on error fetching best price."""
+        mock_orderbook.side_effect = Exception("API error")
+
+        best_price = kuru_client.get_best_price("ETH-USDC", OrderSide.BUY)
+
+        assert best_price is None
+
+
 class TestKuruClientCostEstimation:
     """Test Kuru cost estimation."""
 
@@ -398,6 +524,47 @@ class TestKuruClientCostEstimation:
 
         assert isinstance(cost, Decimal)
         assert cost > Decimal("2000.0")  # Should include fees
+
+    @patch.object(KuruClient, 'get_best_price')
+    @patch.object(KuruClient, 'get_market_params')
+    def test_kuru_client_estimates_cost_from_orderbook(
+        self, mock_get_market, mock_get_best_price, kuru_client
+    ):
+        """Client should fetch price from orderbook when not provided."""
+        mock_get_market.return_value = {"taker_fee": Decimal("0.0005")}
+        mock_get_best_price.return_value = Decimal("2001.0")
+
+        cost = kuru_client.estimate_cost(
+            market="ETH-USDC",
+            side=OrderSide.BUY,
+            size=Decimal("1.0"),
+            price=None,  # Should fetch from orderbook
+        )
+
+        # Verify get_best_price was called
+        mock_get_best_price.assert_called_once_with("ETH-USDC", OrderSide.BUY)
+
+        # Cost should be based on orderbook price
+        assert isinstance(cost, Decimal)
+        expected = Decimal("2001.0") * Decimal("1.0") * (Decimal("1") + Decimal("0.0005"))
+        assert cost == expected
+
+    @patch.object(KuruClient, 'get_market_params')
+    @patch.object(KuruClient, 'get_best_price')
+    def test_kuru_client_raises_error_for_empty_orderbook(
+        self, mock_get_best_price, mock_get_market, kuru_client
+    ):
+        """Client should raise error when orderbook is empty."""
+        mock_get_market.return_value = {"taker_fee": Decimal("0.0005")}
+        mock_get_best_price.return_value = None
+
+        with pytest.raises(OrderExecutionError, match="orderbook empty"):
+            kuru_client.estimate_cost(
+                market="ETH-USDC",
+                side=OrderSide.BUY,
+                size=Decimal("1.0"),
+                price=None,
+            )
 
     def test_kuru_client_estimates_market_order_cost(self, kuru_client):
         """Client should estimate market order cost with slippage."""
