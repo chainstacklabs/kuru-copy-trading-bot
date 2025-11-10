@@ -9,9 +9,9 @@
 This master plan outlines isolated work items to align the copy trading bot implementation with the official Kuru API specification. Each work item is independently testable and committable.
 
 **Total Work Items**: 23
-**Completed**: 15
+**Completed**: 16
 **In Progress**: 0
-**Pending**: 8
+**Pending**: 7
 **Blocked**: 0
 
 ---
@@ -640,7 +640,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-015: Implement Batch Update Orders [HIGH]
 
-**Status**: 🚫 Blocked (requires contract ABI specifications)
+**Status**: ✅ Completed
 
 **Problem**: Cannot atomically update orders; must cancel and place separately
 
@@ -1091,13 +1091,13 @@ This master plan outlines isolated work items to align the copy trading bot impl
 - ⬜ WI-009: Add Async Execution Mode
 
 ### Phase 3: Feature Completeness (8 items)
-- ⬜ WI-010: Add Get Market Orders Endpoint
-- ⬜ WI-011: Add Get Orders by CLOID Endpoint
-- ⬜ WI-012: Contract Call for Market Params
-- ⬜ WI-013: Contract Call for Orderbook
-- ⬜ WI-014: Add Get Vault Params
-- ⬜ WI-015: Implement Batch Update Orders
-- ⬜ WI-016: Expose Fill-or-Kill Parameter
+- ✅ WI-010: Add Get Market Orders Endpoint
+- ✅ WI-011: Add Get Orders by CLOID Endpoint
+- ✅ WI-012: Contract Call for Market Params
+- ✅ WI-013: Contract Call for Orderbook
+- ✅ WI-014: Add Get Vault Params
+- ✅ WI-015: Implement Batch Update Orders
+- ✅ WI-016: Expose Fill-or-Kill Parameter
 - ⬜ WI-017: Add Tick Normalization
 
 ### Phase 4: Data Model Polish (3 items)
