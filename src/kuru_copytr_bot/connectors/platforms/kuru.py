@@ -713,6 +713,39 @@ class KuruClient:
         except requests.exceptions.RequestException:
             return []
 
+    def get_orders_by_cloid(
+        self,
+        market_address: str,
+        user_address: str,
+        client_order_ids: List[str]
+    ) -> List[Dict[str, Any]]:
+        """Get orders by client order IDs (CLOIDs).
+
+        Args:
+            market_address: Market contract address
+            user_address: User wallet address
+            client_order_ids: List of client order IDs to look up
+
+        Returns:
+            List of matching orders (empty list if none found)
+        """
+        try:
+            response = requests.post(
+                f"{self.api_url}/orders/client",
+                json={
+                    "clientOrderIds": client_order_ids,
+                    "marketAddress": market_address,
+                    "userAddress": user_address
+                }
+            )
+            if response.status_code == 404:
+                return []
+
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException:
+            return []
+
     def get_active_orders(
         self,
         user_address: str,

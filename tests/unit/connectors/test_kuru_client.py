@@ -939,6 +939,60 @@ class TestKuruClientOrderStatus:
 
         assert orders == []
 
+    @patch('requests.post')
+    def test_kuru_client_gets_orders_by_cloid(self, mock_post, kuru_client):
+        """Client should get orders by client order IDs."""
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = [
+            {"order_id": 12345, "cloid": "cloid-001", "status": "OPEN"},
+            {"order_id": 12346, "cloid": "cloid-002", "status": "FILLED"},
+        ]
+
+        market_address = "0x1234567890123456789012345678901234567890"
+        user_address = "0x9876543210987654321098765432109876543210"
+        cloids = ["cloid-001", "cloid-002"]
+
+        orders = kuru_client.get_orders_by_cloid(market_address, user_address, cloids)
+
+        assert len(orders) == 2
+        assert orders[0]["cloid"] == "cloid-001"
+        assert orders[1]["cloid"] == "cloid-002"
+
+        # Verify POST request was made with correct body
+        mock_post.assert_called_once_with(
+            f"{kuru_client.api_url}/orders/client",
+            json={
+                "clientOrderIds": cloids,
+                "marketAddress": market_address,
+                "userAddress": user_address
+            }
+        )
+
+    @patch('requests.post')
+    def test_kuru_client_gets_orders_by_cloid_with_empty_list(self, mock_post, kuru_client):
+        """Client should handle empty CLOID list."""
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = []
+
+        market_address = "0x1234567890123456789012345678901234567890"
+        user_address = "0x9876543210987654321098765432109876543210"
+
+        orders = kuru_client.get_orders_by_cloid(market_address, user_address, [])
+
+        assert orders == []
+
+    @patch('requests.post')
+    def test_kuru_client_gets_orders_by_cloid_returns_empty_on_404(self, mock_post, kuru_client):
+        """Client should return empty list when CLOIDs not found."""
+        mock_post.return_value.status_code = 404
+
+        market_address = "0x1234567890123456789012345678901234567890"
+        user_address = "0x9876543210987654321098765432109876543210"
+
+        orders = kuru_client.get_orders_by_cloid(market_address, user_address, ["cloid-001"])
+
+        assert orders == []
+
 
 class TestKuruClientTrades:
     """Test Kuru trade queries."""
