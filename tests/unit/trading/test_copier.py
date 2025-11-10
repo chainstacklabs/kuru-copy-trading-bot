@@ -1,18 +1,19 @@
 """Tests for trade copier."""
 
-import pytest
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, timezone
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock
 
-from src.kuru_copytr_bot.trading.copier import TradeCopier
-from src.kuru_copytr_bot.models.trade import Trade
+import pytest
+
 from src.kuru_copytr_bot.core.enums import OrderSide, OrderType
 from src.kuru_copytr_bot.core.exceptions import (
     InsufficientBalanceError,
     InvalidOrderError,
     OrderPlacementError,
 )
+from src.kuru_copytr_bot.models.trade import Trade
+from src.kuru_copytr_bot.trading.copier import TradeCopier
 
 
 @pytest.fixture
@@ -20,6 +21,7 @@ def mock_kuru_client():
     """Mock Kuru client."""
     client = Mock()
     client.get_balance.return_value = Decimal("10000.0")
+    client.get_positions.return_value = []  # Default to no positions
     client.place_limit_order.return_value = "order_123"
     client.place_market_order.return_value = "order_456"
     return client
@@ -53,7 +55,7 @@ def sample_trade():
         side=OrderSide.BUY,
         price=Decimal("2000.0"),
         size=Decimal("5.0"),
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         tx_hash="0x" + "a" * 64,
     )
 
@@ -291,9 +293,7 @@ class TestTradeCopierErrorHandling:
         self, mock_kuru_client, mock_calculator, mock_validator, sample_trade
     ):
         """Copier should handle order placement errors."""
-        mock_kuru_client.place_limit_order.side_effect = OrderPlacementError(
-            "Network error"
-        )
+        mock_kuru_client.place_limit_order.side_effect = OrderPlacementError("Network error")
 
         copier = TradeCopier(
             kuru_client=mock_kuru_client,
@@ -336,7 +336,7 @@ class TestTradeCopierBatchProcessing:
             side=OrderSide.SELL,
             price=Decimal("50000.0"),
             size=Decimal("0.5"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             tx_hash="0x" + "b" * 64,
         )
 
@@ -365,7 +365,7 @@ class TestTradeCopierBatchProcessing:
             side=OrderSide.SELL,
             price=Decimal("50000.0"),
             size=Decimal("0.5"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             tx_hash="0x" + "b" * 64,
         )
 
@@ -463,3 +463,186 @@ class TestTradeCopierStatistics:
         assert stats["successful_trades"] == 0
         assert stats["failed_trades"] == 0
         assert stats["rejected_trades"] == 0
+
+
+class TestTradeCopierPositionTracking:
+    """Test position tracking functionality."""
+
+    def test_copier_gets_long_position(self, mock_kuru_client, mock_calculator, mock_validator):
+        """Copier should fetch and return long position correctly."""
+        mock_kuru_client.get_positions.return_value = [
+            {"market": "ETH-USDC", "size": Decimal("5.0"), "entry_price": Decimal("2000.0")}
+        ]
+
+        copier = TradeCopier(
+            kuru_client=mock_kuru_client,
+            calculator=mock_calculator,
+            validator=mock_validator,
+        )
+
+        position = copier._get_current_position("ETH-USDC")
+
+        assert position == Decimal("5.0")
+        mock_kuru_client.get_positions.assert_called_once_with(market="ETH-USDC")
+
+    def test_copier_gets_short_position_with_side_field(
+        self, mock_kuru_client, mock_calculator, mock_validator
+    ):
+        """Copier should handle short positions with side field."""
+        mock_kuru_client.get_positions.return_value = [
+            {
+                "market": "ETH-USDC",
+                "size": Decimal("3.0"),
+                "side": "SELL",
+                "entry_price": Decimal("2000.0"),
+            }
+        ]
+
+        copier = TradeCopier(
+            kuru_client=mock_kuru_client,
+            calculator=mock_calculator,
+            validator=mock_validator,
+        )
+
+        position = copier._get_current_position("ETH-USDC")
+
+        assert position == Decimal("-3.0")
+
+    def test_copier_gets_short_position_with_short_side(
+        self, mock_kuru_client, mock_calculator, mock_validator
+    ):
+        """Copier should handle positions with SHORT side field."""
+        mock_kuru_client.get_positions.return_value = [
+            {
+                "market": "BTC-USDC",
+                "size": Decimal("2.5"),
+                "side": "SHORT",
+                "entry_price": Decimal("50000.0"),
+            }
+        ]
+
+        copier = TradeCopier(
+            kuru_client=mock_kuru_client,
+            calculator=mock_calculator,
+            validator=mock_validator,
+        )
+
+        position = copier._get_current_position("BTC-USDC")
+
+        assert position == Decimal("-2.5")
+
+    def test_copier_gets_long_position_with_buy_side(
+        self, mock_kuru_client, mock_calculator, mock_validator
+    ):
+        """Copier should handle positions with BUY side field."""
+        mock_kuru_client.get_positions.return_value = [
+            {
+                "market": "ETH-USDC",
+                "size": Decimal("4.0"),
+                "side": "BUY",
+                "entry_price": Decimal("2000.0"),
+            }
+        ]
+
+        copier = TradeCopier(
+            kuru_client=mock_kuru_client,
+            calculator=mock_calculator,
+            validator=mock_validator,
+        )
+
+        position = copier._get_current_position("ETH-USDC")
+
+        assert position == Decimal("4.0")
+
+    def test_copier_returns_zero_for_no_position(
+        self, mock_kuru_client, mock_calculator, mock_validator
+    ):
+        """Copier should return zero when no positions exist."""
+        mock_kuru_client.get_positions.return_value = []
+
+        copier = TradeCopier(
+            kuru_client=mock_kuru_client,
+            calculator=mock_calculator,
+            validator=mock_validator,
+        )
+
+        position = copier._get_current_position("ETH-USDC")
+
+        assert position == Decimal("0")
+
+    def test_copier_aggregates_multiple_positions(
+        self, mock_kuru_client, mock_calculator, mock_validator
+    ):
+        """Copier should aggregate multiple positions for same market."""
+        mock_kuru_client.get_positions.return_value = [
+            {"market": "ETH-USDC", "size": Decimal("2.0"), "side": "BUY"},
+            {"market": "ETH-USDC", "size": Decimal("3.0"), "side": "BUY"},
+        ]
+
+        copier = TradeCopier(
+            kuru_client=mock_kuru_client,
+            calculator=mock_calculator,
+            validator=mock_validator,
+        )
+
+        position = copier._get_current_position("ETH-USDC")
+
+        assert position == Decimal("5.0")
+
+    def test_copier_aggregates_mixed_positions(
+        self, mock_kuru_client, mock_calculator, mock_validator
+    ):
+        """Copier should aggregate mixed long and short positions."""
+        mock_kuru_client.get_positions.return_value = [
+            {"market": "ETH-USDC", "size": Decimal("5.0"), "side": "BUY"},
+            {"market": "ETH-USDC", "size": Decimal("2.0"), "side": "SELL"},
+        ]
+
+        copier = TradeCopier(
+            kuru_client=mock_kuru_client,
+            calculator=mock_calculator,
+            validator=mock_validator,
+        )
+
+        position = copier._get_current_position("ETH-USDC")
+
+        # 5.0 (long) - 2.0 (short) = 3.0 net long
+        assert position == Decimal("3.0")
+
+    def test_copier_handles_position_fetch_error(
+        self, mock_kuru_client, mock_calculator, mock_validator
+    ):
+        """Copier should handle position fetch errors gracefully."""
+        mock_kuru_client.get_positions.side_effect = Exception("API error")
+
+        copier = TradeCopier(
+            kuru_client=mock_kuru_client,
+            calculator=mock_calculator,
+            validator=mock_validator,
+        )
+
+        position = copier._get_current_position("ETH-USDC")
+
+        # Should return zero and log error
+        assert position == Decimal("0")
+
+    def test_copier_passes_position_to_validator(
+        self, mock_kuru_client, mock_calculator, mock_validator, sample_trade
+    ):
+        """Copier should pass current position to validator."""
+        mock_kuru_client.get_positions.return_value = [
+            {"market": "ETH-USDC", "size": Decimal("10.0"), "side": "BUY"}
+        ]
+
+        copier = TradeCopier(
+            kuru_client=mock_kuru_client,
+            calculator=mock_calculator,
+            validator=mock_validator,
+        )
+
+        copier.process_trade(sample_trade)
+
+        # Verify validator was called with the position
+        mock_validator.validate.assert_called_once()
+        call_args = mock_validator.validate.call_args
+        assert call_args.kwargs["current_position"] == Decimal("10.0")
