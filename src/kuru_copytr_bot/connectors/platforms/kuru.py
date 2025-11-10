@@ -1,7 +1,10 @@
 """Kuru Exchange Python SDK wrapper."""
 
+import json
+import os
 import requests
 from decimal import Decimal
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 from web3 import Web3
 
@@ -13,6 +16,9 @@ from src.kuru_copytr_bot.core.exceptions import (
     OrderExecutionError,
     TransactionFailedError,
     BlockchainConnectionError,
+)
+from src.kuru_copytr_bot.config.constants import (
+    KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET,
 )
 
 
@@ -44,7 +50,7 @@ class KuruClient:
         Args:
             blockchain: Blockchain connector instance
             api_url: Kuru API base URL
-            contract_address: Kuru contract address
+            contract_address: Kuru contract address (OrderBook)
 
         Raises:
             ValueError: If contract address is invalid
@@ -52,13 +58,46 @@ class KuruClient:
         self.blockchain = blockchain
         self.api_url = api_url.rstrip("/")
         self.contract_address = contract_address
+        self.margin_account_address = KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET
 
         # Validate contract address
         if not self._is_valid_address(contract_address):
             raise ValueError(f"Invalid contract address: {contract_address}")
 
+        # Load ABIs
+        self._load_abis()
+
+        # Create Web3 instance for encoding (no provider needed)
+        self.w3 = Web3()
+
+        # Convert addresses to checksum format
+        margin_checksum = Web3.to_checksum_address(self.margin_account_address)
+        orderbook_checksum = Web3.to_checksum_address(self.contract_address)
+
+        # Create Web3 contract instances for encoding
+        self.margin_account_contract = self.w3.eth.contract(
+            address=margin_checksum, abi=self.margin_account_abi
+        )
+        self.orderbook_contract = self.w3.eth.contract(
+            address=orderbook_checksum, abi=self.orderbook_abi
+        )
+
         # Cache for market parameters
         self._market_cache: Dict[str, Dict[str, Any]] = {}
+
+    def _load_abis(self) -> None:
+        """Load contract ABIs from JSON files."""
+        abi_dir = Path(__file__).parent.parent.parent / "config" / "abis"
+
+        # Load MarginAccount ABI
+        margin_abi_path = abi_dir / "MarginAccount.json"
+        with open(margin_abi_path, "r") as f:
+            self.margin_account_abi = json.load(f)
+
+        # Load OrderBook ABI
+        orderbook_abi_path = abi_dir / "OrderBook.json"
+        with open(orderbook_abi_path, "r") as f:
+            self.orderbook_abi = json.load(f)
 
     def deposit_margin(self, token: str, amount: Decimal) -> str:
         """Deposit tokens to Kuru margin account.
@@ -82,12 +121,20 @@ class KuruClient:
                     f"Insufficient balance: {balance} < {amount}"
                 )
 
-            # Send native token
+            # Send native token with deposit function call
             value_wei = int(amount * Decimal(10**18))
+
+            # Encode deposit function call: deposit(user, token, amount)
+            deposit_data = self.margin_account_contract.functions.deposit(
+                Web3.to_checksum_address(self.blockchain.wallet_address),  # _user
+                Web3.to_checksum_address(token),  # _token (native token address)
+                value_wei,  # _amount
+            )._encode_transaction_data()
+
             try:
                 tx_hash = self.blockchain.send_transaction(
-                    to=self.contract_address,
-                    data="0x",  # Deposit function data would go here
+                    to=self.margin_account_address,
+                    data=deposit_data,
                     value=value_wei,
                 )
                 return tx_hash
@@ -109,11 +156,20 @@ class KuruClient:
             except Exception as e:
                 raise OrderExecutionError(f"Token approval failed: {e}")
 
-            # Deposit
+            # Deposit ERC20 token
+            amount_wei = int(amount * Decimal(10**18))
+
+            # Encode deposit function call: deposit(user, token, amount)
+            deposit_data = self.margin_account_contract.functions.deposit(
+                Web3.to_checksum_address(self.blockchain.wallet_address),  # _user
+                Web3.to_checksum_address(token),  # _token (ERC20 address)
+                amount_wei,  # _amount
+            )._encode_transaction_data()
+
             try:
                 tx_hash = self.blockchain.send_transaction(
-                    to=self.contract_address,
-                    data="0x",  # Deposit function data would go here
+                    to=self.margin_account_address,
+                    data=deposit_data,
                 )
                 return tx_hash
             except Exception as e:
@@ -498,7 +554,7 @@ class KuruClient:
             return []
 
     def _approve_token(self, token: str, amount: Decimal) -> str:
-        """Approve ERC20 token for spending.
+        """Approve ERC20 token for spending by MarginAccount contract.
 
         Args:
             token: Token contract address
@@ -510,11 +566,19 @@ class KuruClient:
         # Convert amount to wei
         amount_wei = int(amount * Decimal(10**18))
 
-        # Encode approve function call
-        # In real implementation, use web3.py contract encoding
+        # Create ERC20 contract instance for encoding
+        token_checksum = Web3.to_checksum_address(token)
+        erc20_contract = self.w3.eth.contract(address=token_checksum, abi=self.ERC20_APPROVE_ABI)
+
+        # Encode approve function call: approve(spender, amount)
+        approve_data = erc20_contract.functions.approve(
+            Web3.to_checksum_address(self.margin_account_address),  # spender
+            amount_wei,  # amount to approve
+        )._encode_transaction_data()
+
         tx_hash = self.blockchain.send_transaction(
             to=token,
-            data="0x",  # Encoded approve(spender, amount) call
+            data=approve_data,
         )
         return tx_hash
 

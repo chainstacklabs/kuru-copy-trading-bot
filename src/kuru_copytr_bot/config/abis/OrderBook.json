@@ -1,0 +1,69 @@
+[
+    {
+        "inputs": [
+            {"internalType": "uint32", "name": "_price", "type": "uint32"},
+            {"internalType": "uint96", "name": "size", "type": "uint96"},
+            {"internalType": "bool", "name": "_postOnly", "type": "bool"}
+        ],
+        "name": "addBuyOrder",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "uint32", "name": "_price", "type": "uint32"},
+            {"internalType": "uint96", "name": "size", "type": "uint96"},
+            {"internalType": "bool", "name": "_postOnly", "type": "bool"}
+        ],
+        "name": "addSellOrder",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "uint96", "name": "_quoteSize", "type": "uint96"},
+            {"internalType": "uint256", "name": "_minAmountOut", "type": "uint256"},
+            {"internalType": "bool", "name": "_isMargin", "type": "bool"},
+            {"internalType": "bool", "name": "_isFillOrKill", "type": "bool"}
+        ],
+        "name": "placeAndExecuteMarketBuy",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "uint96", "name": "_size", "type": "uint96"},
+            {"internalType": "uint256", "name": "_minAmountOut", "type": "uint256"},
+            {"internalType": "bool", "name": "_isMargin", "type": "bool"},
+            {"internalType": "bool", "name": "_isFillOrKill", "type": "bool"}
+        ],
+        "name": "placeAndExecuteMarketSell",
+        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {"internalType": "uint40[]", "name": "_orderIds", "type": "uint40[]"}
+        ],
+        "name": "batchCancelOrders",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {"indexed": false, "internalType": "uint40", "name": "orderId", "type": "uint40"},
+            {"indexed": false, "internalType": "address", "name": "owner", "type": "address"},
+            {"indexed": false, "internalType": "uint96", "name": "size", "type": "uint96"},
+            {"indexed": false, "internalType": "uint32", "name": "price", "type": "uint32"},
+            {"indexed": false, "internalType": "bool", "name": "isBuy", "type": "bool"}
+        ],
+        "name": "OrderCreated",
+        "type": "event"
+    }
+]

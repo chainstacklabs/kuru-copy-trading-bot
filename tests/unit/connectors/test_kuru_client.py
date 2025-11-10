@@ -72,8 +72,10 @@ class TestKuruClientMarginDeposit:
 
     def test_kuru_client_deposits_margin(self, kuru_client, mock_blockchain):
         """Client should deposit margin to Kuru contract."""
+        # Use valid USDC testnet address
+        usdc_address = "0x9A29e9Bab1f0B599d1c6C39b60a79596b3875f56"
         tx_hash = kuru_client.deposit_margin(
-            token="0xUSDCAddress00000000000000000000000000000",
+            token=usdc_address,
             amount=Decimal("100.0"),
         )
 
@@ -81,6 +83,16 @@ class TestKuruClientMarginDeposit:
         assert len(tx_hash) == 66
         # ERC20 deposits require 2 transactions: approve + deposit
         assert mock_blockchain.send_transaction.call_count == 2
+
+        # Verify approve transaction was sent to token contract
+        first_call = mock_blockchain.send_transaction.call_args_list[0]
+        assert first_call[1]["to"] == usdc_address
+        assert first_call[1]["data"] != "0x"  # Should have encoded data
+
+        # Verify deposit transaction was sent to margin account
+        second_call = mock_blockchain.send_transaction.call_args_list[1]
+        assert second_call[1]["to"] == kuru_client.margin_account_address
+        assert second_call[1]["data"] != "0x"  # Should have encoded data
 
     def test_kuru_client_deposits_native_token(self, kuru_client, mock_blockchain):
         """Client should deposit native token (ETH/MON) to margin."""
@@ -90,29 +102,44 @@ class TestKuruClientMarginDeposit:
         )
 
         assert tx_hash.startswith("0x")
+        # Should send only one transaction (no approve needed for native)
+        assert mock_blockchain.send_transaction.call_count == 1
+
         # Should send transaction with value
         call_args = mock_blockchain.send_transaction.call_args
         assert call_args[1]["value"] > 0
+        assert call_args[1]["to"] == kuru_client.margin_account_address
+        assert call_args[1]["data"] != "0x"  # Should have encoded deposit data
 
     def test_kuru_client_checks_balance_before_deposit(self, kuru_client, mock_blockchain):
         """Client should check balance before deposit."""
         mock_blockchain.get_token_balance.return_value = Decimal("50.0")
 
+        usdc_address = "0x9A29e9Bab1f0B599d1c6C39b60a79596b3875f56"
         with pytest.raises(InsufficientBalanceError):
             kuru_client.deposit_margin(
-                token="0xUSDCAddress00000000000000000000000000000",
+                token=usdc_address,
                 amount=Decimal("100.0"),
             )
 
     def test_kuru_client_approves_erc20_before_deposit(self, kuru_client, mock_blockchain):
         """Client should approve ERC20 tokens before deposit."""
+        usdc_address = "0x9A29e9Bab1f0B599d1c6C39b60a79596b3875f56"
         kuru_client.deposit_margin(
-            token="0xUSDCAddress00000000000000000000000000000",
+            token=usdc_address,
             amount=Decimal("100.0"),
         )
 
-        # Should call send_transaction at least twice (approve + deposit)
-        assert mock_blockchain.send_transaction.call_count >= 2
+        # Should call send_transaction twice (approve + deposit)
+        assert mock_blockchain.send_transaction.call_count == 2
+
+        # First call should be approve to token contract
+        first_call = mock_blockchain.send_transaction.call_args_list[0]
+        assert first_call[1]["to"] == usdc_address
+
+        # Second call should be deposit to margin account
+        second_call = mock_blockchain.send_transaction.call_args_list[1]
+        assert second_call[1]["to"] == kuru_client.margin_account_address
 
 
 class TestKuruClientLimitOrders:
