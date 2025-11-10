@@ -223,7 +223,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-006: Align Order Model with API Response Format [HIGH]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: Order model fields don't match API spec; cannot deserialize responses
 
@@ -1082,7 +1082,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 - ✅ WI-003: Fix Get User Orders Endpoint
 - ✅ WI-004: Add Get Active Orders Endpoint
 - ✅ WI-005: Add Get User Trades Endpoint
-- ⬜ WI-006: Align Order Model
+- ✅ WI-006: Align Order Model
 - ⬜ WI-007: Align Trade Model
 
 ### Phase 2: Performance (2 items)

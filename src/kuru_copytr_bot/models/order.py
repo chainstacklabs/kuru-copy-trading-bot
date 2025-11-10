@@ -12,6 +12,63 @@ from ..core.enums import OrderSide, OrderType, OrderStatus
 from ..core.exceptions import InvalidStateTransition
 
 
+class OrderResponse(BaseModel):
+    """Raw order data from Kuru API (matches API spec format)."""
+
+    order_id: int = Field(..., description="Order ID from blockchain")
+    market_address: str = Field(..., description="Market contract address")
+    owner: str = Field(..., description="Owner wallet address")
+    price: str = Field(..., description="Order price as string")
+    size: str = Field(..., description="Order size as string")
+    remaining_size: str = Field(..., description="Remaining unfilled size as string")
+    is_buy: bool = Field(..., description="True for buy orders, False for sell orders")
+    is_canceled: bool = Field(..., description="True if order is canceled")
+    transaction_hash: str = Field(..., description="Transaction hash")
+    trigger_time: int = Field(..., description="Unix timestamp when order was created")
+    cloid: Optional[str] = Field(None, description="Optional client order ID")
+
+    def to_order(self) -> "Order":
+        """Convert API response format to internal Order model.
+
+        Returns:
+            Order: Internal order model with proper types
+        """
+        # Calculate filled size
+        size_decimal = Decimal(self.size)
+        remaining_decimal = Decimal(self.remaining_size)
+        filled_size = size_decimal - remaining_decimal
+
+        # Determine status
+        if self.is_canceled:
+            status = OrderStatus.CANCELLED
+        elif remaining_decimal == Decimal("0"):
+            status = OrderStatus.FILLED
+        elif filled_size > 0:
+            status = OrderStatus.PARTIALLY_FILLED
+        else:
+            status = OrderStatus.OPEN
+
+        # Determine side
+        side = OrderSide.BUY if self.is_buy else OrderSide.SELL
+
+        # Convert timestamp to datetime
+        created_at = datetime.fromtimestamp(self.trigger_time, tz=timezone.utc)
+
+        return Order(
+            order_id=str(self.order_id),
+            order_type=OrderType.LIMIT,  # API orders are limit orders
+            status=status,
+            side=side,
+            price=Decimal(self.price),
+            size=size_decimal,
+            filled_size=filled_size,
+            market=self.market_address,
+            created_at=created_at,
+            updated_at=created_at,
+            cloid=self.cloid if self.cloid else str(uuid.uuid4()),
+        )
+
+
 class Order(BaseModel):
     """Represents an order."""
 

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 # These imports will fail initially - that's expected for TDD
-from src.kuru_copytr_bot.models.order import Order
+from src.kuru_copytr_bot.models.order import Order, OrderResponse
 from src.kuru_copytr_bot.core.enums import OrderSide, OrderType, OrderStatus
 from src.kuru_copytr_bot.core.exceptions import InvalidStateTransition
 from pydantic import ValidationError
@@ -422,3 +422,134 @@ class TestOrderCLOIDSupport:
             order.cloid = "modified-cloid"
 
         assert order.cloid == original_cloid
+
+
+class TestOrderResponseModel:
+    """Test OrderResponse model (API format)."""
+
+    def test_order_response_creation_with_api_format(self):
+        """OrderResponse should accept API format fields."""
+        response = OrderResponse(
+            order_id=123456,
+            market_address="0x4444444444444444444444444444444444444444",
+            owner="0x1234567890123456789012345678901234567890",
+            price="2000.50",
+            size="1.5",
+            remaining_size="0.5",
+            is_buy=True,
+            is_canceled=False,
+            transaction_hash="0xabc123def456",
+            trigger_time=1234567890,
+        )
+
+        assert response.order_id == 123456
+        assert response.market_address == "0x4444444444444444444444444444444444444444"
+        assert response.price == "2000.50"
+        assert response.is_buy is True
+        assert response.is_canceled is False
+
+    def test_order_response_with_cloid(self):
+        """OrderResponse should accept optional CLOID."""
+        response = OrderResponse(
+            order_id=123456,
+            market_address="0x4444444444444444444444444444444444444444",
+            owner="0x1234567890123456789012345678901234567890",
+            price="2000.00",
+            size="1.0",
+            remaining_size="0.0",
+            is_buy=True,
+            is_canceled=False,
+            transaction_hash="0xabc123",
+            trigger_time=1234567890,
+            cloid="custom-cloid-123",
+        )
+
+        assert response.cloid == "custom-cloid-123"
+
+    def test_order_response_converts_to_order(self):
+        """OrderResponse should convert to internal Order model."""
+        response = OrderResponse(
+            order_id=123456,
+            market_address="0x4444444444444444444444444444444444444444",
+            owner="0x1234567890123456789012345678901234567890",
+            price="2000.00",
+            size="2.0",
+            remaining_size="0.5",
+            is_buy=True,
+            is_canceled=False,
+            transaction_hash="0xabc123",
+            trigger_time=1234567890,
+            cloid="test-cloid",
+        )
+
+        order = response.to_order()
+
+        assert order.order_id == "123456"
+        assert order.market == "0x4444444444444444444444444444444444444444"
+        assert order.side == OrderSide.BUY
+        assert order.price == Decimal("2000.00")
+        assert order.size == Decimal("2.0")
+        assert order.filled_size == Decimal("1.5")  # size - remaining_size
+        assert order.status == OrderStatus.PARTIALLY_FILLED
+        assert order.cloid == "test-cloid"
+        assert order.order_type == OrderType.LIMIT
+
+    def test_order_response_converts_sell_order(self):
+        """OrderResponse should correctly convert sell orders."""
+        response = OrderResponse(
+            order_id=789,
+            market_address="0x4444444444444444444444444444444444444444",
+            owner="0x1234567890123456789012345678901234567890",
+            price="2100.00",
+            size="1.0",
+            remaining_size="1.0",
+            is_buy=False,
+            is_canceled=False,
+            transaction_hash="0xdef456",
+            trigger_time=1234567900,
+        )
+
+        order = response.to_order()
+
+        assert order.side == OrderSide.SELL
+        assert order.status == OrderStatus.OPEN  # remaining_size == size
+
+    def test_order_response_converts_canceled_order(self):
+        """OrderResponse should convert canceled orders correctly."""
+        response = OrderResponse(
+            order_id=999,
+            market_address="0x4444444444444444444444444444444444444444",
+            owner="0x1234567890123456789012345678901234567890",
+            price="2000.00",
+            size="1.0",
+            remaining_size="0.3",
+            is_buy=True,
+            is_canceled=True,
+            transaction_hash="0x123abc",
+            trigger_time=1234567890,
+        )
+
+        order = response.to_order()
+
+        assert order.status == OrderStatus.CANCELLED
+        assert order.filled_size == Decimal("0.7")
+
+    def test_order_response_converts_filled_order(self):
+        """OrderResponse should convert fully filled orders correctly."""
+        response = OrderResponse(
+            order_id=555,
+            market_address="0x4444444444444444444444444444444444444444",
+            owner="0x1234567890123456789012345678901234567890",
+            price="2000.00",
+            size="1.0",
+            remaining_size="0.0",
+            is_buy=True,
+            is_canceled=False,
+            transaction_hash="0x789xyz",
+            trigger_time=1234567890,
+        )
+
+        order = response.to_order()
+
+        assert order.status == OrderStatus.FILLED
+        assert order.filled_size == Decimal("1.0")
