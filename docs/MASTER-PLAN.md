@@ -9,9 +9,9 @@
 This master plan outlines isolated work items to align the copy trading bot implementation with the official Kuru API specification. Each work item is independently testable and committable.
 
 **Total Work Items**: 23
-**Completed**: 13
+**Completed**: 15
 **In Progress**: 0
-**Pending**: 10
+**Pending**: 8
 **Blocked**: 0
 
 ---
@@ -565,7 +565,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-013: Replace REST API with Contract Calls - Get Orderbook [HIGH]
 
-**Status**: 🚫 Blocked (requires contract ABI specifications)
+**Status**: ✅ Completed
 
 **Problem**: Using REST API for orderbook; should call contract directly per spec
 
@@ -607,7 +607,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-014: Add Contract Read - Get Vault Parameters [MEDIUM]
 
-**Status**: 🚫 Blocked (requires contract ABI specifications)
+**Status**: ✅ Completed
 
 **Problem**: Cannot access AMM vault configuration
 
