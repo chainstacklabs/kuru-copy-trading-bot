@@ -65,6 +65,8 @@ ignore = [
 [tool.mypy]
 python_version = "3.13"
 strict = true
+explicit_package_bases = true
+mypy_path = "src"
 
 [[tool.mypy.overrides]]
 module = "tests.*"

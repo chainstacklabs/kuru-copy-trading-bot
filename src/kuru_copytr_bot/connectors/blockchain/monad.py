@@ -2,35 +2,37 @@
 
 import time
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, ClassVar
 
-from web3 import Web3
-from web3.exceptions import Web3Exception
 from tenacity import (
     retry,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
-    retry_if_exception_type,
 )
+from web3 import Web3
+from web3.exceptions import Web3Exception
 
-from src.kuru_copytr_bot.core.interfaces import BlockchainConnector
-from src.kuru_copytr_bot.core.exceptions import (
-    BlockchainConnectionError,
-    TransactionFailedError,
-    InsufficientGasError,
-)
 from src.kuru_copytr_bot.config.constants import (
-    DEFAULT_GAS_LIMIT,
     MAX_RETRIES,
     RETRY_BACKOFF_SECONDS,
 )
+from src.kuru_copytr_bot.core.exceptions import (
+    BlockchainConnectionError,
+    InsufficientGasError,
+    TransactionFailedError,
+)
+from src.kuru_copytr_bot.core.interfaces import BlockchainConnector
+from src.kuru_copytr_bot.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class MonadClient(BlockchainConnector):
     """Monad blockchain connector implementing BlockchainConnector interface."""
 
     # Standard ERC20 ABI for balanceOf
-    ERC20_ABI = [
+    ERC20_ABI: ClassVar[list[dict[str, Any]]] = [
         {
             "constant": True,
             "inputs": [{"name": "_owner", "type": "address"}],
@@ -64,7 +66,7 @@ class MonadClient(BlockchainConnector):
         try:
             self.w3 = Web3(Web3.HTTPProvider(rpc_url))
         except Exception as e:
-            raise BlockchainConnectionError(f"Failed to initialize Web3: {e}")
+            raise BlockchainConnectionError(f"Failed to initialize Web3: {e}") from e
 
         # Verify connection
         if not self.w3.is_connected():
@@ -75,7 +77,7 @@ class MonadClient(BlockchainConnector):
             self.account = self.w3.eth.account.from_key(private_key)
             self.wallet_address = self.account.address
         except Exception as e:
-            raise ValueError(f"Invalid private key: {e}")
+            raise ValueError(f"Invalid private key: {e}") from e
 
     def is_connected(self) -> bool:
         """Check if connected to blockchain.
@@ -118,9 +120,9 @@ class MonadClient(BlockchainConnector):
             # Convert wei to ETH/MON (18 decimals)
             return Decimal(balance_wei) / Decimal(10**18)
         except (ConnectionError, TimeoutError) as e:
-            raise BlockchainConnectionError(f"Failed to get balance after retries: {e}")
+            raise BlockchainConnectionError(f"Failed to get balance after retries: {e}") from e
         except Exception as e:
-            raise BlockchainConnectionError(f"Failed to get balance: {e}")
+            raise BlockchainConnectionError(f"Failed to get balance: {e}") from e
 
     def get_token_balance(self, address: str, token_address: str) -> Decimal:
         """Get ERC20 token balance for an address.
@@ -161,16 +163,18 @@ class MonadClient(BlockchainConnector):
             # Convert to decimal
             return Decimal(balance_raw) / Decimal(10**decimals)
         except (ConnectionError, TimeoutError) as e:
-            raise BlockchainConnectionError(f"Failed to get token balance after retries: {e}")
+            raise BlockchainConnectionError(
+                f"Failed to get token balance after retries: {e}"
+            ) from e
         except Exception as e:
-            raise BlockchainConnectionError(f"Failed to get token balance: {e}")
+            raise BlockchainConnectionError(f"Failed to get token balance: {e}") from e
 
     def send_transaction(
         self,
         to: str,
         data: str = "0x",
         value: int = 0,
-        gas: Optional[int] = None,
+        gas: int | None = None,
     ) -> str:
         """Build, sign, and send a transaction.
 
@@ -224,8 +228,8 @@ class MonadClient(BlockchainConnector):
                     tx["gas"] = estimated_gas
                 except Web3Exception as e:
                     if "out of gas" in str(e).lower():
-                        raise InsufficientGasError(f"Gas estimation failed: {e}")
-                    raise InsufficientGasError(f"Failed to estimate gas: {e}")
+                        raise InsufficientGasError(f"Gas estimation failed: {e}") from e
+                    raise InsufficientGasError(f"Failed to estimate gas: {e}") from e
             else:
                 tx["gas"] = gas
 
@@ -235,22 +239,22 @@ class MonadClient(BlockchainConnector):
             # Return hex string
             if isinstance(tx_hash, bytes):
                 # Convert bytes to hex string
-                result = tx_hash.hex() if not tx_hash.startswith(b'0x') else tx_hash.decode('utf-8')
-                return result if result.startswith('0x') else '0x' + result
+                result = tx_hash.hex() if not tx_hash.startswith(b"0x") else tx_hash.decode("utf-8")
+                return result if result.startswith("0x") else "0x" + result
             return tx_hash
 
         except (ConnectionError, TimeoutError) as e:
-            raise BlockchainConnectionError(f"Failed to send transaction after retries: {e}")
+            raise BlockchainConnectionError(f"Failed to send transaction after retries: {e}") from e
         except InsufficientGasError:
             # Don't wrap gas errors
             raise
         except (ValueError, Web3Exception) as e:
             # Wrap transaction validation/execution errors
-            raise TransactionFailedError(f"Transaction failed: {e}")
+            raise TransactionFailedError(f"Transaction failed: {e}") from e
         except Exception as e:
-            raise BlockchainConnectionError(f"Failed to send transaction: {e}")
+            raise BlockchainConnectionError(f"Failed to send transaction: {e}") from e
 
-    def get_transaction_receipt(self, tx_hash: str) -> Dict[str, Any]:
+    def get_transaction_receipt(self, tx_hash: str) -> dict[str, Any]:
         """Get transaction receipt.
 
         Args:
@@ -269,13 +273,13 @@ class MonadClient(BlockchainConnector):
             # Convert to dict if needed
             return dict(receipt) if not isinstance(receipt, dict) else receipt
         except Exception as e:
-            raise BlockchainConnectionError(f"Failed to get transaction receipt: {e}")
+            raise BlockchainConnectionError(f"Failed to get transaction receipt: {e}") from e
 
     def wait_for_transaction_receipt(
         self,
         tx_hash: str,
         timeout: int = 120,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Wait for transaction to be confirmed.
 
         Args:
@@ -299,9 +303,7 @@ class MonadClient(BlockchainConnector):
             if receipt is not None:
                 # Check if transaction succeeded
                 if receipt.get("status") == 0:
-                    raise TransactionFailedError(
-                        f"Transaction {tx_hash} failed (status=0)"
-                    )
+                    raise TransactionFailedError(f"Transaction {tx_hash} failed (status=0)")
                 return receipt
 
             # Wait before polling again
@@ -311,9 +313,9 @@ class MonadClient(BlockchainConnector):
 
     def parse_event_logs(
         self,
-        logs: List[Dict[str, Any]],
-        event_abi: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
+        logs: list[dict[str, Any]],
+        event_abi: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """Parse event logs from transaction receipt.
 
         Args:
@@ -354,7 +356,7 @@ class MonadClient(BlockchainConnector):
             return parsed_events
 
         except Exception as e:
-            raise ValueError(f"Failed to parse event logs: {e}")
+            raise ValueError(f"Failed to parse event logs: {e}") from e
 
     def get_nonce(self, address: str) -> int:
         """Get current nonce for address.
@@ -384,9 +386,9 @@ class MonadClient(BlockchainConnector):
         try:
             return _get_nonce_with_retry()
         except (ConnectionError, TimeoutError) as e:
-            raise BlockchainConnectionError(f"Failed to get nonce after retries: {e}")
+            raise BlockchainConnectionError(f"Failed to get nonce after retries: {e}") from e
         except Exception as e:
-            raise BlockchainConnectionError(f"Failed to get nonce: {e}")
+            raise BlockchainConnectionError(f"Failed to get nonce: {e}") from e
 
     def estimate_gas(
         self,
@@ -423,31 +425,127 @@ class MonadClient(BlockchainConnector):
             return self.w3.eth.estimate_gas(tx)
         except Web3Exception as e:
             if "out of gas" in str(e).lower():
-                raise InsufficientGasError(f"Gas estimation failed: {e}")
-            raise InsufficientGasError(f"Failed to estimate gas: {e}")
+                raise InsufficientGasError(f"Gas estimation failed: {e}") from e
+            raise InsufficientGasError(f"Failed to estimate gas: {e}") from e
         except Exception as e:
-            raise BlockchainConnectionError(f"Failed to estimate gas: {e}")
+            raise BlockchainConnectionError(f"Failed to estimate gas: {e}") from e
 
     def get_latest_transactions(
         self,
-        addresses: List[str],
+        addresses: list[str],
         from_block: int,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get latest transactions for addresses.
 
+        Scans blocks from from_block to current block and returns transactions
+        where any of the given addresses appear as sender or recipient.
+
         Args:
-            addresses: List of Ethereum addresses
+            addresses: List of Ethereum addresses to filter by
             from_block: Starting block number
 
         Returns:
-            List[Dict[str, Any]]: List of transactions
+            List[Dict[str, Any]]: List of transactions with keys:
+                - hash: Transaction hash
+                - from: Sender address
+                - to: Recipient address
+                - value: Transaction value in wei
+                - blockNumber: Block number
+                - timestamp: Block timestamp
+                - input: Transaction input data
 
         Raises:
             BlockchainConnectionError: If connection fails
         """
-        # This is a placeholder for future implementation
-        # Would require filtering through blocks or using event logs
-        return []
+        try:
+            # Normalize addresses to lowercase for comparison
+            normalized_addresses = {addr.lower() for addr in addresses}
+
+            # Get current block number
+            current_block = self.w3.eth.block_number
+
+            # Limit block range to prevent excessive scanning
+            max_blocks_to_scan = 1000
+            to_block = min(current_block, from_block + max_blocks_to_scan)
+
+            if current_block - from_block > max_blocks_to_scan:
+                logger.warning(
+                    "Block range exceeds maximum, limiting scan",
+                    from_block=from_block,
+                    current_block=current_block,
+                    max_blocks=max_blocks_to_scan,
+                    to_block=to_block,
+                )
+
+            logger.debug(
+                "Scanning blocks for transactions",
+                from_block=from_block,
+                to_block=to_block,
+                addresses=list(normalized_addresses),
+            )
+
+            matching_transactions = []
+
+            # Scan blocks in the range
+            for block_number in range(from_block, to_block + 1):
+                try:
+                    block = self.w3.eth.get_block(block_number, full_transactions=True)
+
+                    # Process each transaction in the block
+                    transactions_in_block = (
+                        block.get("transactions", [])
+                        if isinstance(block, dict)
+                        else block.transactions
+                    )
+                    for tx in transactions_in_block:
+                        tx_from = tx.get("from", "").lower() if tx.get("from") else ""
+                        tx_to = tx.get("to", "").lower() if tx.get("to") else ""
+
+                        # Check if transaction involves any of our target addresses
+                        if tx_from in normalized_addresses or tx_to in normalized_addresses:
+                            # Get timestamp from block (handle both dict and AttributeDict)
+                            timestamp = (
+                                block.get("timestamp", 0)
+                                if isinstance(block, dict)
+                                else block.timestamp
+                            )
+
+                            matching_transactions.append(
+                                {
+                                    "hash": tx["hash"].hex()
+                                    if isinstance(tx["hash"], bytes)
+                                    else tx["hash"],
+                                    "from": tx.get("from", ""),
+                                    "to": tx.get("to", ""),
+                                    "value": int(tx.get("value", 0)),
+                                    "blockNumber": block_number,
+                                    "timestamp": int(timestamp),
+                                    "input": tx.get("input", "0x"),
+                                }
+                            )
+
+                except Exception as e:
+                    logger.warning(
+                        "Error fetching block",
+                        block_number=block_number,
+                        error=str(e),
+                    )
+                    # Continue scanning other blocks
+                    continue
+
+            logger.info(
+                "Transaction scan complete",
+                from_block=from_block,
+                to_block=to_block,
+                transactions_found=len(matching_transactions),
+            )
+
+            return matching_transactions
+
+        except Web3Exception as e:
+            raise BlockchainConnectionError(f"Failed to fetch transactions: {e}") from e
+        except Exception as e:
+            raise BlockchainConnectionError(f"Unexpected error fetching transactions: {e}") from e
 
     def _is_valid_address(self, address: str) -> bool:
         """Validate Ethereum address format.

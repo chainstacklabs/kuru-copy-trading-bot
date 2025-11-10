@@ -11,5 +11,5 @@ repos:
     hooks:
       - id: mypy
         additional_dependencies: []
-        args: [--strict]
+        args: [--strict, --namespace-packages, --explicit-package-bases]
         exclude: ^(tests/|examples/)

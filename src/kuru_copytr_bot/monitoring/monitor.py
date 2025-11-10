@@ -1,9 +1,9 @@
 """Wallet monitor for tracking target wallet transactions."""
 
-from typing import List, Dict, Any, Set, Optional
+from typing import Any
 
-from src.kuru_copytr_bot.core.interfaces import BlockchainConnector
 from src.kuru_copytr_bot.core.exceptions import BlockchainConnectionError
+from src.kuru_copytr_bot.core.interfaces import BlockchainConnector
 from src.kuru_copytr_bot.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -15,9 +15,9 @@ class WalletMonitor:
     def __init__(
         self,
         blockchain: BlockchainConnector,
-        target_wallets: List[str],
+        target_wallets: list[str],
         kuru_contract_address: str,
-        from_block: Optional[int] = None,
+        from_block: int | None = None,
     ):
         """Initialize wallet monitor.
 
@@ -32,15 +32,15 @@ class WalletMonitor:
         self.kuru_contract_address = kuru_contract_address.lower()
 
         # Track seen transactions to prevent duplicates
-        self._processed_transactions: Set[str] = set()
+        self._processed_transactions: set[str] = set()
 
         # Track last processed block
-        self._last_block: Optional[int] = from_block
+        self._last_block: int | None = from_block
 
         # Running state
         self.is_running = False
 
-    def get_new_transactions(self) -> List[Dict[str, Any]]:
+    def get_new_transactions(self) -> list[dict[str, Any]]:
         """Get new transactions from target wallets to Kuru contract.
 
         Returns:
@@ -50,9 +50,19 @@ class WalletMonitor:
             BlockchainConnectionError: If blockchain connection fails
         """
         try:
-            # Get latest transactions from blockchain
-            all_transactions = self.blockchain.get_latest_transactions()
-            logger.debug("Retrieved transactions from blockchain", count=len(all_transactions))
+            # Determine starting block (use 0 if not set)
+            start_block = self._last_block if self._last_block is not None else 0
+
+            # Get latest transactions from blockchain for target wallets
+            all_transactions = self.blockchain.get_latest_transactions(
+                addresses=self.target_wallets,
+                from_block=start_block,
+            )
+            logger.debug(
+                "Retrieved transactions from blockchain",
+                count=len(all_transactions),
+                from_block=start_block,
+            )
 
             # Filter for target wallets and Kuru contract
             new_transactions = []
@@ -105,9 +115,9 @@ class WalletMonitor:
         except Exception as e:
             # Wrap other errors
             logger.error("Failed to get transactions", error=str(e), exc_info=True)
-            raise BlockchainConnectionError(f"Failed to get transactions: {e}")
+            raise BlockchainConnectionError(f"Failed to get transactions: {e}") from e
 
-    def _is_valid_transaction(self, tx: Dict[str, Any]) -> bool:
+    def _is_valid_transaction(self, tx: dict[str, Any]) -> bool:
         """Check if transaction has required fields.
 
         Args:
@@ -119,7 +129,7 @@ class WalletMonitor:
         required_fields = ["hash", "from", "to"]
         return all(field in tx for field in required_fields)
 
-    def get_last_processed_block(self) -> Optional[int]:
+    def get_last_processed_block(self) -> int | None:
         """Get the last processed block number.
 
         Returns:
@@ -128,7 +138,7 @@ class WalletMonitor:
         return self._last_block
 
     @property
-    def last_processed_block(self) -> Optional[int]:
+    def last_processed_block(self) -> int | None:
         """Get the last processed block number as a property.
 
         Returns:

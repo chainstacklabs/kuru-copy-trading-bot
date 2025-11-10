@@ -1,15 +1,16 @@
 """Unit tests for Monad blockchain connector."""
 
-import pytest
 from decimal import Decimal
-from unittest.mock import MagicMock, Mock, patch, call
+from unittest.mock import MagicMock, patch
+
+import pytest
 from web3.exceptions import Web3Exception
 
 from src.kuru_copytr_bot.connectors.blockchain.monad import MonadClient
 from src.kuru_copytr_bot.core.exceptions import (
     BlockchainConnectionError,
-    TransactionFailedError,
     InsufficientGasError,
+    TransactionFailedError,
 )
 
 
@@ -33,7 +34,9 @@ def mock_web3():
         web3_instance.eth.account.from_key.return_value = mock_account
 
         # Transaction submission
-        web3_instance.eth.send_raw_transaction.return_value = b"0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+        web3_instance.eth.send_raw_transaction.return_value = (
+            b"0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+        )
 
         # Transaction receipt
         web3_instance.eth.get_transaction_receipt.return_value = {
@@ -90,7 +93,7 @@ class TestMonadClientConnection:
         mock_web3.is_connected.return_value = False
 
         with pytest.raises(BlockchainConnectionError):
-            client = MonadClient(
+            MonadClient(
                 rpc_url="https://invalid.url",
                 private_key="0x" + "a" * 64,
             )
@@ -106,7 +109,7 @@ class TestMonadClientConnection:
 
     def test_monad_client_validates_chain_id(self, mock_web3):
         """Client should validate it's connected to the correct chain."""
-        client = MonadClient(
+        _ = MonadClient(
             rpc_url="https://testnet.monad.xyz",
             private_key="0x" + "a" * 64,
         )
@@ -136,8 +139,12 @@ class TestMonadClientBalanceQueries:
         """Client should query ERC20 token balance."""
         # Mock ERC20 contract call returning balance in wei
         mock_contract = MagicMock()
-        mock_contract.functions.balanceOf.return_value.call.return_value = 1000000000000000000000  # 1000 tokens (18 decimals)
-        mock_contract.functions.decimals.return_value.call.return_value = 18  # Standard ERC20 decimals
+        mock_contract.functions.balanceOf.return_value.call.return_value = (
+            1000000000000000000000  # 1000 tokens (18 decimals)
+        )
+        mock_contract.functions.decimals.return_value.call.return_value = (
+            18  # Standard ERC20 decimals
+        )
         mock_web3.eth.contract.return_value = mock_contract
 
         client = MonadClient(
@@ -420,7 +427,9 @@ class TestMonadClientNonceManagement:
         nonce = client.get_nonce("0x3333333333333333333333333333333333333333")
 
         assert nonce == 42
-        mock_web3.eth.get_transaction_count.assert_called_with("0x3333333333333333333333333333333333333333", "pending")
+        mock_web3.eth.get_transaction_count.assert_called_with(
+            "0x3333333333333333333333333333333333333333", "pending"
+        )
 
     def test_monad_client_increments_nonce_for_multiple_transactions(self, mock_web3):
         """Client should manage nonce correctly for multiple transactions."""
@@ -494,7 +503,9 @@ class TestMonadClientRetryLogic:
             private_key="0x" + "a" * 64,
         )
 
-        tx_hash = client.send_transaction(to="0x2222222222222222222222222222222222222222", data="0x")
+        tx_hash = client.send_transaction(
+            to="0x2222222222222222222222222222222222222222", data="0x"
+        )
 
         assert tx_hash.startswith("0x")
         assert mock_web3.eth.send_raw_transaction.call_count == 3
@@ -548,3 +559,309 @@ class TestMonadClientRetryLogic:
 
         # Should not retry on validation errors
         assert mock_web3.eth.send_raw_transaction.call_count == 1
+
+
+class TestMonadClientTransactionFetching:
+    """Test MonadClient transaction fetching functionality."""
+
+    def test_monad_client_fetches_transactions_for_single_address(self, mock_web3):
+        """Client should fetch transactions for a single address."""
+        target_address = "0x1111111111111111111111111111111111111111"
+
+        # Mock block with transactions
+        mock_block = {
+            "timestamp": 1704067200,
+            "transactions": [
+                {
+                    "hash": b"0xabc123",
+                    "from": target_address,
+                    "to": "0x2222222222222222222222222222222222222222",
+                    "value": 1000000000000000000,  # 1 ETH
+                    "input": "0x",
+                },
+                {
+                    "hash": b"0xdef456",
+                    "from": "0x3333333333333333333333333333333333333333",
+                    "to": "0x4444444444444444444444444444444444444444",
+                    "value": 500000000000000000,
+                    "input": "0x",
+                },
+            ],
+        }
+
+        mock_web3.eth.block_number = 1000
+        mock_web3.eth.get_block.return_value = mock_block
+
+        client = MonadClient(
+            rpc_url="https://testnet.monad.xyz",
+            private_key="0x" + "a" * 64,
+        )
+
+        transactions = client.get_latest_transactions(
+            addresses=[target_address],
+            from_block=1000,
+        )
+
+        assert len(transactions) == 1
+        assert transactions[0]["from"] == target_address
+        assert transactions[0]["value"] == 1000000000000000000
+        assert "hash" in transactions[0]
+        assert "timestamp" in transactions[0]
+        assert transactions[0]["blockNumber"] == 1000
+
+    def test_monad_client_fetches_transactions_for_multiple_addresses(self, mock_web3):
+        """Client should fetch transactions for multiple addresses."""
+        address1 = "0x1111111111111111111111111111111111111111"
+        address2 = "0x2222222222222222222222222222222222222222"
+
+        # Mock block with multiple transactions
+        mock_block = {
+            "timestamp": 1704067200,
+            "transactions": [
+                {
+                    "hash": b"0xabc123",
+                    "from": address1,
+                    "to": "0x3333333333333333333333333333333333333333",
+                    "value": 1000000000000000000,
+                    "input": "0x",
+                },
+                {
+                    "hash": b"0xdef456",
+                    "from": "0x4444444444444444444444444444444444444444",
+                    "to": address2,
+                    "value": 500000000000000000,
+                    "input": "0x",
+                },
+                {
+                    "hash": b"0xghi789",
+                    "from": "0x5555555555555555555555555555555555555555",
+                    "to": "0x6666666666666666666666666666666666666666",
+                    "value": 2000000000000000000,
+                    "input": "0x",
+                },
+            ],
+        }
+
+        mock_web3.eth.block_number = 1000
+        mock_web3.eth.get_block.return_value = mock_block
+
+        client = MonadClient(
+            rpc_url="https://testnet.monad.xyz",
+            private_key="0x" + "a" * 64,
+        )
+
+        transactions = client.get_latest_transactions(
+            addresses=[address1, address2],
+            from_block=1000,
+        )
+
+        # Should find 2 transactions (one from address1, one to address2)
+        assert len(transactions) == 2
+        assert any(tx["from"] == address1 for tx in transactions)
+        assert any(tx["to"] == address2 for tx in transactions)
+
+    def test_monad_client_scans_multiple_blocks(self, mock_web3):
+        """Client should scan multiple blocks in range."""
+        target_address = "0x1111111111111111111111111111111111111111"
+
+        # Mock different blocks
+        def get_block_side_effect(block_num, full_transactions=False):
+            return {
+                "timestamp": 1704067200 + block_num,
+                "transactions": [
+                    {
+                        "hash": f"0xblock{block_num}tx1".encode(),
+                        "from": target_address
+                        if block_num % 2 == 0
+                        else "0x2222222222222222222222222222222222222222",
+                        "to": "0x3333333333333333333333333333333333333333",
+                        "value": block_num * 1000000000,
+                        "input": "0x",
+                    }
+                ],
+            }
+
+        mock_web3.eth.block_number = 1005
+        mock_web3.eth.get_block.side_effect = get_block_side_effect
+
+        client = MonadClient(
+            rpc_url="https://testnet.monad.xyz",
+            private_key="0x" + "a" * 64,
+        )
+
+        transactions = client.get_latest_transactions(
+            addresses=[target_address],
+            from_block=1000,
+        )
+
+        # Should find transactions in blocks 1000, 1002, 1004 (even blocks)
+        assert len(transactions) == 3
+        assert all(tx["from"] == target_address for tx in transactions)
+        # Verify get_block was called for each block in range
+        assert mock_web3.eth.get_block.call_count == 6  # 1000-1005 inclusive
+
+    def test_monad_client_returns_empty_list_when_no_matches(self, mock_web3):
+        """Client should return empty list when no matching transactions."""
+        target_address = "0x1111111111111111111111111111111111111111"
+
+        # Mock block with no matching transactions
+        mock_block = {
+            "timestamp": 1704067200,
+            "transactions": [
+                {
+                    "hash": b"0xabc123",
+                    "from": "0x2222222222222222222222222222222222222222",
+                    "to": "0x3333333333333333333333333333333333333333",
+                    "value": 1000000000000000000,
+                    "input": "0x",
+                }
+            ],
+        }
+
+        mock_web3.eth.block_number = 1000
+        mock_web3.eth.get_block.return_value = mock_block
+
+        client = MonadClient(
+            rpc_url="https://testnet.monad.xyz",
+            private_key="0x" + "a" * 64,
+        )
+
+        transactions = client.get_latest_transactions(
+            addresses=[target_address],
+            from_block=1000,
+        )
+
+        assert len(transactions) == 0
+
+    def test_monad_client_handles_empty_blocks(self, mock_web3):
+        """Client should handle blocks with no transactions."""
+        # Mock empty block
+        mock_block = {
+            "timestamp": 1704067200,
+            "transactions": [],
+        }
+
+        mock_web3.eth.block_number = 1000
+        mock_web3.eth.get_block.return_value = mock_block
+
+        client = MonadClient(
+            rpc_url="https://testnet.monad.xyz",
+            private_key="0x" + "a" * 64,
+        )
+
+        transactions = client.get_latest_transactions(
+            addresses=["0x1111111111111111111111111111111111111111"],
+            from_block=1000,
+        )
+
+        assert len(transactions) == 0
+
+    def test_monad_client_limits_block_scan_range(self, mock_web3):
+        """Client should limit block scanning to prevent excessive load."""
+        mock_block = {"timestamp": 1704067200, "transactions": []}
+
+        mock_web3.eth.block_number = 5000  # 4000 blocks ahead
+        mock_web3.eth.get_block.return_value = mock_block
+
+        client = MonadClient(
+            rpc_url="https://testnet.monad.xyz",
+            private_key="0x" + "a" * 64,
+        )
+
+        client.get_latest_transactions(
+            addresses=["0x1111111111111111111111111111111111111111"],
+            from_block=1000,
+        )
+
+        # Should limit to max_blocks_to_scan (1000 blocks)
+        # So it scans from 1000 to 2000 (1001 blocks total)
+        assert mock_web3.eth.get_block.call_count == 1001
+
+    def test_monad_client_handles_block_fetch_errors_gracefully(self, mock_web3):
+        """Client should continue scanning even if some blocks fail."""
+        target_address = "0x1111111111111111111111111111111111111111"
+
+        def get_block_side_effect(block_num, full_transactions=False):
+            if block_num == 1001:
+                raise Web3Exception("Block not found")
+            return {
+                "timestamp": 1704067200,
+                "transactions": [
+                    {
+                        "hash": f"0xblock{block_num}".encode(),
+                        "from": target_address,
+                        "to": "0x2222222222222222222222222222222222222222",
+                        "value": 1000000000000000000,
+                        "input": "0x",
+                    }
+                ],
+            }
+
+        mock_web3.eth.block_number = 1002
+        mock_web3.eth.get_block.side_effect = get_block_side_effect
+
+        client = MonadClient(
+            rpc_url="https://testnet.monad.xyz",
+            private_key="0x" + "a" * 64,
+        )
+
+        transactions = client.get_latest_transactions(
+            addresses=[target_address],
+            from_block=1000,
+        )
+
+        # Should still find transactions in blocks 1000 and 1002 (skipping 1001)
+        assert len(transactions) == 2
+
+    def test_monad_client_normalizes_addresses_for_comparison(self, mock_web3):
+        """Client should normalize addresses to lowercase for comparison."""
+        # Mixed case address
+        target_address_mixed = "0x1111111111111111111111111111111111111111"
+        address_in_block = "0x1111111111111111111111111111111111111111".upper()
+
+        mock_block = {
+            "timestamp": 1704067200,
+            "transactions": [
+                {
+                    "hash": b"0xabc123",
+                    "from": address_in_block,
+                    "to": "0x2222222222222222222222222222222222222222",
+                    "value": 1000000000000000000,
+                    "input": "0x",
+                }
+            ],
+        }
+
+        mock_web3.eth.block_number = 1000
+        mock_web3.eth.get_block.return_value = mock_block
+
+        client = MonadClient(
+            rpc_url="https://testnet.monad.xyz",
+            private_key="0x" + "a" * 64,
+        )
+
+        transactions = client.get_latest_transactions(
+            addresses=[target_address_mixed],
+            from_block=1000,
+        )
+
+        # Should match despite case differences
+        assert len(transactions) == 1
+
+    def test_monad_client_raises_error_on_connection_failure(self, mock_web3):
+        """Client should raise BlockchainConnectionError when getting block number fails."""
+        # Make block_number property raise an exception
+        type(mock_web3.eth).block_number = property(
+            lambda self: (_ for _ in ()).throw(Web3Exception("Connection failed"))
+        )
+
+        client = MonadClient(
+            rpc_url="https://testnet.monad.xyz",
+            private_key="0x" + "a" * 64,
+        )
+
+        with pytest.raises(BlockchainConnectionError, match="Failed to fetch transactions"):
+            client.get_latest_transactions(
+                addresses=["0x1111111111111111111111111111111111111111"],
+                from_block=1000,
+            )

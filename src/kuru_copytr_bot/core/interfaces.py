@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class BlockchainConnector(ABC):
@@ -54,7 +54,7 @@ class BlockchainConnector(ABC):
         to: str,
         data: str = "0x",
         value: int = 0,
-        gas: Optional[int] = None,
+        gas: int | None = None,
     ) -> str:
         """Build, sign, and send a transaction.
 
@@ -75,7 +75,7 @@ class BlockchainConnector(ABC):
         pass
 
     @abstractmethod
-    def get_transaction_receipt(self, tx_hash: str) -> Dict[str, Any]:
+    def get_transaction_receipt(self, tx_hash: str) -> dict[str, Any]:
         """Get transaction receipt.
 
         Args:
@@ -94,7 +94,7 @@ class BlockchainConnector(ABC):
         self,
         tx_hash: str,
         timeout: int = 120,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Wait for transaction to be confirmed.
 
         Args:
@@ -114,9 +114,9 @@ class BlockchainConnector(ABC):
     @abstractmethod
     def parse_event_logs(
         self,
-        logs: List[Dict[str, Any]],
-        event_abi: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
+        logs: list[dict[str, Any]],
+        event_abi: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """Parse event logs from transaction receipt.
 
         Args:
@@ -170,14 +170,24 @@ class BlockchainConnector(ABC):
         pass
 
     @abstractmethod
-    def get_latest_transactions(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get latest transactions from the blockchain.
+    def get_latest_transactions(
+        self, addresses: list[str], from_block: int
+    ) -> list[dict[str, Any]]:
+        """Get latest transactions for given addresses.
 
         Args:
-            limit: Maximum number of transactions to return
+            addresses: List of addresses to filter transactions
+            from_block: Starting block number
 
         Returns:
-            List[Dict[str, Any]]: List of transaction dictionaries
+            List[Dict[str, Any]]: List of transaction dictionaries with keys:
+                - hash: Transaction hash
+                - from: Sender address
+                - to: Recipient address
+                - value: Transaction value in wei
+                - blockNumber: Block number
+                - timestamp: Block timestamp
+                - input: Transaction input data
 
         Raises:
             BlockchainConnectionError: If connection fails
@@ -217,7 +227,7 @@ class PlatformConnector(ABC):
         side: str,
         order_type: str,
         size: Decimal,
-        price: Optional[Decimal] = None,
+        price: Decimal | None = None,
     ) -> str:
         """Place an order on the platform.
 
@@ -246,7 +256,7 @@ class PlatformConnector(ABC):
         pass
 
     @abstractmethod
-    async def get_order_status(self, order_id: str) -> Dict[str, Any]:
+    async def get_order_status(self, order_id: str) -> dict[str, Any]:
         """Get order status.
 
         Args:
@@ -258,7 +268,7 @@ class PlatformConnector(ABC):
         pass
 
     @abstractmethod
-    async def get_open_orders(self, market: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def get_open_orders(self, market: str | None = None) -> list[dict[str, Any]]:
         """Get all open orders.
 
         Args:
@@ -270,7 +280,7 @@ class PlatformConnector(ABC):
         pass
 
     @abstractmethod
-    async def get_positions(self, market: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def get_positions(self, market: str | None = None) -> list[dict[str, Any]]:
         """Get all open positions.
 
         Args:
