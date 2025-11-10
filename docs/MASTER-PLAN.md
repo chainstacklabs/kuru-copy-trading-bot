@@ -9,9 +9,9 @@
 This master plan outlines isolated work items to align the copy trading bot implementation with the official Kuru API specification. Each work item is independently testable and committable.
 
 **Total Work Items**: 23
-**Completed**: 21
+**Completed**: 22
 **In Progress**: 0
-**Pending**: 2
+**Pending**: 1
 **Blocked**: 0
 
 ---
@@ -997,7 +997,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-022: Add REST API Error Handling Strict Mode [MEDIUM]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: REST API errors silently return empty lists; hides issues
 
@@ -1107,7 +1107,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### Phase 5: Configuration (3 items)
 - ✅ WI-021: Verify Contract Addresses
-- ⬜ WI-022: Add Strict Error Handling Mode
+- ✅ WI-022: Add Strict Error Handling Mode
 - ⬜ WI-023: Document and Migrate Endpoints
 
 ---
