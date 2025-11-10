@@ -209,6 +209,7 @@ class KuruClient:
         price: Decimal,
         size: Decimal,
         post_only: bool = False,
+        cloid: Optional[str] = None,
     ) -> str:
         """Place a GTC limit order.
 
@@ -218,6 +219,7 @@ class KuruClient:
             price: Limit price
             size: Order size
             post_only: Post-only flag (maker-only)
+            cloid: Optional client order ID for tracking (not sent to contract)
 
         Returns:
             str: Order ID
@@ -227,6 +229,10 @@ class KuruClient:
             InvalidMarketError: If market is invalid
             InsufficientBalanceError: If insufficient balance
             OrderExecutionError: If order fails
+
+        Note:
+            CLOID is for client-side tracking only and not stored on-chain.
+            Use this to map bot orders to source trader orders.
         """
         # Validate parameters
         if price <= 0:
@@ -293,6 +299,7 @@ class KuruClient:
         side: OrderSide,
         size: Decimal,
         slippage: Optional[Decimal] = None,
+        cloid: Optional[str] = None,
     ) -> str:
         """Place an IOC market order.
 
@@ -301,6 +308,7 @@ class KuruClient:
             side: Order side (BUY or SELL)
             size: Order size
             slippage: Maximum acceptable slippage
+            cloid: Optional client order ID for tracking (not sent to contract)
 
         Returns:
             str: Order ID

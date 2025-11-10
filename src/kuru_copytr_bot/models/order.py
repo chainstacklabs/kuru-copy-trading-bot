@@ -1,5 +1,7 @@
 """Order model."""
 
+import re
+import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
@@ -23,6 +25,21 @@ class Order(BaseModel):
     market: str = Field(..., description="Trading pair/market")
     created_at: datetime = Field(..., description="Order creation time")
     updated_at: datetime = Field(..., description="Last update time")
+    cloid: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Client Order ID for tracking", frozen=True)
+
+    @field_validator("cloid")
+    @classmethod
+    def validate_cloid_format(cls, v: str) -> str:
+        """Validate CLOID format and length."""
+        # Check max length
+        if len(v) > 36:
+            raise ValueError("CLOID must not exceed 36 characters")
+
+        # Check format: alphanumeric with dash and underscore only
+        if not re.match(r"^[a-zA-Z0-9_-]+$", v):
+            raise ValueError("CLOID must contain only alphanumeric characters, dashes, and underscores")
+
+        return v
 
     @model_validator(mode="after")
     def validate_order(self) -> "Order":

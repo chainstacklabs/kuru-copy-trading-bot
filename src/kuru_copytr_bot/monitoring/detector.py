@@ -175,9 +175,16 @@ class KuruEventDetector:
             order_id_hex = hex_data[0:64]
             order_id = str(int(order_id_hex, 16))
 
+            # Extract CLOID if present (would be in subsequent data fields)
+            # TODO: Determine exact field offset once full event structure is known
+            cloid = None
+            # If event includes CLOID field, it would be extracted here
+            # For now, setting to None as current contract events don't include it
+
             return {
                 "trader_address": trader_address,
                 "order_id": order_id,
+                "cloid": cloid,
                 "tx_hash": event_log.get("transactionHash", ""),
             }
 
@@ -226,9 +233,14 @@ class KuruEventDetector:
             order_id_hex = hex_data[0:64]
             order_id = str(int(order_id_hex, 16))
 
+            # Extract CLOID if present
+            # TODO: Determine exact field offset once full event structure is known
+            cloid = None
+
             return {
                 "trader_address": trader_address,
                 "order_id": order_id,
+                "cloid": cloid,
                 "tx_hash": event_log.get("transactionHash", ""),
             }
 

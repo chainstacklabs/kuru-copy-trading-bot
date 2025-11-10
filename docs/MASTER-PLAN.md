@@ -58,7 +58,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### WI-002: Add Client Order ID (CLOID) Support [CRITICAL]
 
-**Status**: ⬜ Pending
+**Status**: ✅ Completed
 
 **Problem**: Cannot track mirrored orders; no way to map bot orders to source trader orders
 
@@ -1078,7 +1078,7 @@ This master plan outlines isolated work items to align the copy trading bot impl
 
 ### Phase 1: Critical Fixes (7 items)
 - ✅ WI-001: Fix Event Topic Signatures
-- ⬜ WI-002: Add CLOID Support
+- ✅ WI-002: Add CLOID Support
 - ⬜ WI-003: Fix Get User Orders Endpoint
 - ⬜ WI-004: Add Get Active Orders Endpoint
 - ⬜ WI-005: Add Get User Trades Endpoint

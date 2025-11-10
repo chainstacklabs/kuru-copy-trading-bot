@@ -287,3 +287,138 @@ class TestOrderModel:
         assert isinstance(order.price, Decimal)
         assert isinstance(order.size, Decimal)
         assert isinstance(order.filled_size, Decimal)
+
+
+class TestOrderCLOIDSupport:
+    """Test Client Order ID (CLOID) support."""
+
+    def test_order_creation_with_explicit_cloid(self):
+        """Order should accept explicit client order ID."""
+        order = Order(
+            order_id="order_001",
+            order_type=OrderType.LIMIT,
+            status=OrderStatus.PENDING,
+            side=OrderSide.BUY,
+            price=Decimal("2000.00"),
+            size=Decimal("1.5"),
+            filled_size=Decimal("0"),
+            market="ETH-USDC",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            cloid="custom-cloid-12345",
+        )
+
+        assert order.cloid == "custom-cloid-12345"
+
+    def test_order_creation_without_cloid_generates_uuid(self):
+        """Order should auto-generate UUID if CLOID not provided."""
+        order = Order(
+            order_id="order_002",
+            order_type=OrderType.LIMIT,
+            status=OrderStatus.PENDING,
+            side=OrderSide.BUY,
+            price=Decimal("2000.00"),
+            size=Decimal("1.5"),
+            filled_size=Decimal("0"),
+            market="ETH-USDC",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+
+        assert order.cloid is not None
+        assert len(order.cloid) == 36  # UUID4 format: 8-4-4-4-12
+        assert order.cloid.count("-") == 4  # UUID has 4 dashes
+
+    def test_order_cloid_validation_max_length(self):
+        """CLOID should not exceed 36 characters."""
+        with pytest.raises(ValidationError):
+            Order(
+                order_id="order_003",
+                order_type=OrderType.LIMIT,
+                status=OrderStatus.PENDING,
+                side=OrderSide.BUY,
+                price=Decimal("2000.00"),
+                size=Decimal("1.0"),
+                filled_size=Decimal("0"),
+                market="ETH-USDC",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+                cloid="a" * 37,  # Too long
+            )
+
+    def test_order_cloid_validation_format(self):
+        """CLOID should be alphanumeric with dash/underscore."""
+        # Valid CLOID formats
+        valid_cloids = [
+            "simple123",
+            "with-dash-456",
+            "with_underscore_789",
+            "mix-123_abc",
+            "12345678-1234-1234-1234-123456789012",  # UUID format (36 chars)
+        ]
+
+        for cloid in valid_cloids:
+            order = Order(
+                order_id=f"order_{cloid}",
+                order_type=OrderType.LIMIT,
+                status=OrderStatus.PENDING,
+                side=OrderSide.BUY,
+                price=Decimal("2000.00"),
+                size=Decimal("1.0"),
+                filled_size=Decimal("0"),
+                market="ETH-USDC",
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+                cloid=cloid,
+            )
+            assert order.cloid == cloid
+
+    def test_order_cloid_rejects_invalid_characters(self):
+        """CLOID should reject special characters other than dash and underscore."""
+        invalid_cloids = [
+            "with spaces",
+            "with@symbol",
+            "with#hash",
+            "with$dollar",
+            "with%percent",
+        ]
+
+        for cloid in invalid_cloids:
+            with pytest.raises(ValidationError):
+                Order(
+                    order_id="order_004",
+                    order_type=OrderType.LIMIT,
+                    status=OrderStatus.PENDING,
+                    side=OrderSide.BUY,
+                    price=Decimal("2000.00"),
+                    size=Decimal("1.0"),
+                    filled_size=Decimal("0"),
+                    market="ETH-USDC",
+                    created_at=datetime.now(timezone.utc),
+                    updated_at=datetime.now(timezone.utc),
+                    cloid=cloid,
+                )
+
+    def test_order_cloid_is_immutable_after_creation(self):
+        """CLOID should not change after order creation."""
+        order = Order(
+            order_id="order_005",
+            order_type=OrderType.LIMIT,
+            status=OrderStatus.PENDING,
+            side=OrderSide.BUY,
+            price=Decimal("2000.00"),
+            size=Decimal("1.0"),
+            filled_size=Decimal("0"),
+            market="ETH-USDC",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+            cloid="original-cloid",
+        )
+
+        original_cloid = order.cloid
+
+        # Attempting to change cloid
+        with pytest.raises(ValidationError):
+            order.cloid = "modified-cloid"
+
+        assert order.cloid == original_cloid
