@@ -194,6 +194,31 @@ class BlockchainConnector(ABC):
         """
         pass
 
+    @abstractmethod
+    def call_contract_function(
+        self,
+        contract_address: str,
+        function_name: str,
+        abi: list[dict[str, Any]],
+        args: list[Any] | None = None,
+    ) -> Any:
+        """Call a contract view or pure function.
+
+        Args:
+            contract_address: Contract address to call
+            function_name: Name of the function to call
+            abi: Contract ABI definition
+            args: Function arguments (optional)
+
+        Returns:
+            Any: Function return value (single value or tuple)
+
+        Raises:
+            BlockchainConnectionError: If connection fails
+            ValueError: If function not found in ABI or invalid address
+        """
+        pass
+
 
 class PlatformConnector(ABC):
     """Interface for platform-specific connectors (e.g., Kuru Exchange)."""

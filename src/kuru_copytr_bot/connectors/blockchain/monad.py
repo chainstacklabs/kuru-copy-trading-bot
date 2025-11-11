@@ -5,6 +5,7 @@ from decimal import Decimal
 from typing import Any, ClassVar
 
 from tenacity import (
+    RetryError,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
@@ -546,6 +547,67 @@ class MonadClient(BlockchainConnector):
             raise BlockchainConnectionError(f"Failed to fetch transactions: {e}") from e
         except Exception as e:
             raise BlockchainConnectionError(f"Unexpected error fetching transactions: {e}") from e
+
+    def call_contract_function(
+        self,
+        contract_address: str,
+        function_name: str,
+        abi: list[dict[str, Any]],
+        args: list[Any] | None = None,
+    ) -> Any:
+        """Call a contract view or pure function.
+
+        Args:
+            contract_address: Contract address to call
+            function_name: Name of the function to call
+            abi: Contract ABI definition
+            args: Function arguments (optional)
+
+        Returns:
+            Any: Function return value (single value or tuple)
+
+        Raises:
+            BlockchainConnectionError: If connection fails
+            ValueError: If function not found in ABI or invalid address
+        """
+        if not self._is_valid_address(contract_address):
+            raise ValueError(f"Invalid contract address: {contract_address}")
+
+        if args is None:
+            args = []
+
+        function_abi = None
+        for item in abi:
+            if item.get("type") == "function" and item.get("name") == function_name:
+                function_abi = item
+                break
+
+        if function_abi is None:
+            raise ValueError(f"Function {function_name} not found in ABI")
+
+        @retry(
+            stop=stop_after_attempt(MAX_RETRIES),
+            wait=wait_exponential(multiplier=RETRY_BACKOFF_SECONDS, min=1, max=10),
+            retry=retry_if_exception_type((ConnectionError, TimeoutError)),
+        )
+        def _call_with_retry():
+            checksum_address = Web3.to_checksum_address(contract_address)
+            contract = self.w3.eth.contract(address=checksum_address, abi=abi)
+            function = getattr(contract.functions, function_name)
+            return function(*args).call()
+
+        try:
+            return _call_with_retry()
+        except RetryError as e:
+            raise BlockchainConnectionError(
+                f"Failed to call contract function after retries: {e.last_attempt.exception()}"
+            ) from e
+        except (ConnectionError, TimeoutError) as e:
+            raise BlockchainConnectionError(
+                f"Failed to call contract function after retries: {e}"
+            ) from e
+        except Exception as e:
+            raise BlockchainConnectionError(f"Failed to call contract function: {e}") from e
 
     def _is_valid_address(self, address: str) -> bool:
         """Validate Ethereum address format.
