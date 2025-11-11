@@ -101,7 +101,6 @@ class CopyTradingBot:
                 except Exception as e:
                     # Copier handles its own errors internally
                     logger.debug("Copier raised exception (expected)", error=str(e))
-                    pass
 
             except Exception as e:
                 # Failed to process trade
@@ -169,7 +168,6 @@ class CopyTradingBot:
                 except Exception as e:
                     # Copier handles its own errors internally
                     logger.debug("Copier raised exception (expected)", error=str(e))
-                    pass
 
             except Exception as e:
                 # Failed to process order event
