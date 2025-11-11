@@ -20,8 +20,8 @@ from src.kuru_copytr_bot.trading.copier import TradeCopier
 def mock_kuru_client():
     """Mock Kuru client."""
     client = Mock()
-    client.get_balance.return_value = Decimal("10000.0")
-    client.get_positions.return_value = []  # Default to no positions
+    client.get_margin_balance.return_value = Decimal("10000.0")
+    client.get_positions.return_value = []
     client.place_limit_order.return_value = "order_123"
     client.place_market_order.return_value = "order_456"
     return client
@@ -338,7 +338,7 @@ class TestTradeCopierErrorHandling:
         self, mock_kuru_client, mock_calculator, mock_validator, sample_trade
     ):
         """Copier should handle balance check failures."""
-        mock_kuru_client.get_balance.side_effect = Exception("Connection error")
+        mock_kuru_client.get_margin_balance.side_effect = Exception("Connection error")
 
         copier = TradeCopier(
             kuru_client=mock_kuru_client,

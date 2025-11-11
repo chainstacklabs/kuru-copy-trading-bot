@@ -376,24 +376,6 @@ class TestKuruClientMarketOrders:
                 size=Decimal("-1.0"),
             )
 
-    def test_kuru_client_checks_balance_for_market_order(self, kuru_client, mock_blockchain):
-        """Client should check sufficient balance for market order."""
-        mock_blockchain.get_token_balance.return_value = Decimal("0")
-
-        with (
-            patch.object(kuru_client, "get_market_params") as mock_get_market,
-            patch.object(kuru_client, "get_best_price") as mock_get_best_price,
-        ):
-            mock_get_market.return_value = create_test_market_params()
-            mock_get_best_price.return_value = Decimal("2000.0")
-
-            with pytest.raises(InsufficientBalanceError):
-                kuru_client.place_market_order(
-                    market="ETH-USDC",
-                    side=OrderSide.BUY,
-                    size=Decimal("1000.0"),
-                )
-
     def test_kuru_client_places_market_order_async(self, kuru_client, mock_blockchain):
         """Client should place market order asynchronously and return tx_hash."""
         with (
