@@ -1,8 +1,9 @@
 """Kuru WebSocket client for real-time event updates."""
 
 from collections.abc import Callable
+from typing import Any, cast
 
-import socketio
+import socketio  # type: ignore[import-untyped]
 import structlog
 
 from ...models.order import OrderResponse
@@ -58,7 +59,7 @@ class KuruWebSocketClient:
         self.on_order_created_callback: Callable[[OrderResponse], None] | None = None
         self.on_trade_callback: Callable[[TradeResponse], None] | None = None
         self.on_orders_canceled_callback: (
-            Callable[[list[int], list[str], str, list[dict]], None] | None
+            Callable[[list[int], list[str], str, list[dict[str, Any]]], None] | None
         ) = None
 
         # Register event handlers
@@ -67,34 +68,34 @@ class KuruWebSocketClient:
     def _register_handlers(self) -> None:
         """Register Socket.IO event handlers."""
 
-        @self.sio.event
-        async def connect():
+        @self.sio.event  # type: ignore[misc]
+        async def connect() -> None:
             """Handle connection event."""
             logger.info("websocket_connected", url=self.ws_url, market=self.market_address)
 
-        @self.sio.event
-        async def disconnect():
+        @self.sio.event  # type: ignore[misc]
+        async def disconnect() -> None:
             """Handle disconnection event."""
             logger.warning("websocket_disconnected")
             await self.handle_disconnect()
 
-        @self.sio.event
-        async def connect_error(data):
+        @self.sio.event  # type: ignore[misc]
+        async def connect_error(data: Any) -> None:
             """Handle connection error."""
             logger.error("websocket_connection_error", error=data)
 
-        @self.sio.on("OrderCreated")
-        async def on_order_created(data):
+        @self.sio.on("OrderCreated")  # type: ignore[misc]
+        async def on_order_created(data: Any) -> None:
             """Handle OrderCreated event."""
             await self.handle_order_created(data)
 
-        @self.sio.on("Trade")
-        async def on_trade(data):
+        @self.sio.on("Trade")  # type: ignore[misc]
+        async def on_trade(data: Any) -> None:
             """Handle Trade event."""
             await self.handle_trade(data)
 
-        @self.sio.on("OrdersCanceled")
-        async def on_orders_canceled(data):
+        @self.sio.on("OrdersCanceled")  # type: ignore[misc]
+        async def on_orders_canceled(data: Any) -> None:
             """Handle OrdersCanceled event."""
             await self.handle_orders_canceled(data)
 
@@ -133,14 +134,14 @@ class KuruWebSocketClient:
         if self.should_reconnect:
             logger.info("websocket_will_reconnect")
 
-    async def handle_order_created(self, data: dict) -> None:
+    async def handle_order_created(self, data: dict[str, Any]) -> None:
         """Handle OrderCreated event.
 
         Args:
             data: Raw event data from WebSocket
         """
         try:
-            # Filter by market address
+            # Filter by market address (use .get() for filtering, validation happens in Pydantic)
             market = data.get("market_address", "").lower()
             if market != self.market_address:
                 logger.debug(
@@ -150,7 +151,7 @@ class KuruWebSocketClient:
                 )
                 return
 
-            # Parse into OrderResponse model
+            # Parse into OrderResponse model (will raise ValidationError if required fields missing)
             order_response = OrderResponse(**data)
 
             logger.info(
@@ -170,14 +171,14 @@ class KuruWebSocketClient:
         except Exception as e:
             logger.error("order_created_parse_error", error=str(e), data=data)
 
-    async def handle_trade(self, data: dict) -> None:
+    async def handle_trade(self, data: dict[str, Any]) -> None:
         """Handle Trade event.
 
         Args:
             data: Raw event data from WebSocket
         """
         try:
-            # Filter by market address (if present in event data)
+            # Filter by market address (use .get() for filtering, validation happens in Pydantic)
             market = data.get("market_address", "").lower()
             if market and market != self.market_address:
                 logger.debug(
@@ -187,7 +188,7 @@ class KuruWebSocketClient:
                 )
                 return
 
-            # Parse into TradeResponse model
+            # Parse into TradeResponse model (will raise ValidationError if required fields missing)
             trade_response = TradeResponse(**data)
 
             logger.info(
@@ -206,16 +207,36 @@ class KuruWebSocketClient:
         except Exception as e:
             logger.error("trade_parse_error", error=str(e), data=data)
 
-    async def handle_orders_canceled(self, data: dict) -> None:
+    async def handle_orders_canceled(self, data: dict[str, Any]) -> None:
         """Handle OrdersCanceled event.
 
         Args:
             data: Raw event data from WebSocket
         """
         try:
-            order_ids = data.get("order_ids", [])
+            # Validate required fields are present
+            if "order_ids" not in data:
+                logger.error(
+                    "orders_canceled_missing_required_field",
+                    field="order_ids",
+                    data=data,
+                )
+                return
+
+            if "maker_address" not in data:
+                logger.error(
+                    "orders_canceled_missing_required_field",
+                    field="maker_address",
+                    data=data,
+                )
+                return
+
+            # Extract required fields
+            order_ids = data["order_ids"]
+            maker_address = data["maker_address"]
+
+            # Extract optional fields
             cloids = data.get("cloids", [])
-            maker_address = data.get("maker_address", "")
             canceled_orders_data = data.get("canceled_orders_data", [])
 
             logger.info(
@@ -252,7 +273,7 @@ class KuruWebSocketClient:
         self.on_trade_callback = callback
 
     def set_orders_canceled_callback(
-        self, callback: Callable[[list[int], list[str], str, list[dict]], None]
+        self, callback: Callable[[list[int], list[str], str, list[dict[str, Any]]], None]
     ) -> None:
         """Set callback for OrdersCanceled events.
 
@@ -269,4 +290,4 @@ class KuruWebSocketClient:
         Returns:
             True if connected, False otherwise
         """
-        return self.sio.connected
+        return cast(bool, self.sio.connected)

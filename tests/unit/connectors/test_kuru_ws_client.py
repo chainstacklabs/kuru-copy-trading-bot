@@ -290,3 +290,170 @@ class TestKuruWebSocketClient:
 
             # Should not call callback again (filtered out)
             assert trade_callback.call_count == 1
+
+
+class TestKuruWebSocketClientMalformedData:
+    """Test WebSocket client handling of malformed event data."""
+
+    @pytest.mark.asyncio
+    async def test_websocket_handles_missing_market_address_in_order_created(
+        self, ws_url, market_address
+    ):
+        """WebSocket should log error when OrderCreated event missing market_address."""
+        malformed_data = {
+            "order_id": 123456,
+            # "market_address" field is missing
+            "owner": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+            "price": "2000.50",
+            "size": "1.5",
+            "remaining_size": "1.5",
+            "is_buy": True,
+            "is_canceled": False,
+            "transaction_hash": "0xabc123def4567890123456789012345678901234567890123456789012345678",
+            "trigger_time": 1234567890,
+        }
+
+        order_callback = Mock()
+
+        with mock_socketio_client():
+            client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
+            client.on_order_created_callback = order_callback
+
+            # Should handle error gracefully and not call callback
+            await client.handle_order_created(malformed_data)
+
+            # Callback should not be called due to Pydantic validation error
+            order_callback.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_websocket_handles_missing_required_field_in_trade(self, ws_url, market_address):
+        """WebSocket should log error when Trade event missing required fields."""
+        malformed_data = {
+            "orderid": 123456,
+            "market_address": "0x1234567890123456789012345678901234567890",
+            # "makeraddress" field is missing (required)
+            "takeraddress": "0x0987654321098765432109876543210987654321",
+            "isbuy": True,
+            "price": "2000.50",
+            "filledsize": "1.5",
+            "transactionhash": "0xabc123def4567890123456789012345678901234567890123456789012345678",
+            "triggertime": 1234567890,
+        }
+
+        trade_callback = Mock()
+
+        with mock_socketio_client():
+            client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
+            client.on_trade_callback = trade_callback
+
+            # Should handle error gracefully and not call callback
+            await client.handle_trade(malformed_data)
+
+            # Callback should not be called due to Pydantic validation error
+            trade_callback.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_websocket_handles_missing_order_ids_in_orders_canceled(
+        self, ws_url, market_address
+    ):
+        """WebSocket should reject OrdersCanceled event with missing order_ids."""
+        malformed_data = {
+            # "order_ids" field is missing (required)
+            "cloids": ["cloid-123"],
+            "maker_address": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+            "canceled_orders_data": [{"order_id": 123456, "reason": "user_cancelled"}],
+        }
+
+        cancel_callback = Mock()
+
+        with mock_socketio_client():
+            client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
+            client.on_orders_canceled_callback = cancel_callback
+
+            # Should handle error and not call callback (missing required field)
+            await client.handle_orders_canceled(malformed_data)
+
+            # Callback should not be called due to missing required field
+            cancel_callback.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_websocket_handles_empty_market_address_in_order_created(
+        self, ws_url, market_address
+    ):
+        """WebSocket should filter out OrderCreated with empty market_address."""
+        malformed_data = {
+            "order_id": 123456,
+            "market_address": "",  # Empty string
+            "owner": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+            "price": "2000.50",
+            "size": "1.5",
+            "remaining_size": "1.5",
+            "is_buy": True,
+            "is_canceled": False,
+            "transaction_hash": "0xabc123def4567890123456789012345678901234567890123456789012345678",
+            "trigger_time": 1234567890,
+        }
+
+        order_callback = Mock()
+
+        with mock_socketio_client():
+            client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
+            client.on_order_created_callback = order_callback
+
+            # Should filter out due to market mismatch (empty != market_address)
+            await client.handle_order_created(malformed_data)
+
+            # Callback should not be called due to market filtering
+            order_callback.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_websocket_handles_missing_maker_address_in_orders_canceled(
+        self, ws_url, market_address
+    ):
+        """WebSocket should reject OrdersCanceled event with missing maker_address."""
+        malformed_data = {
+            "order_ids": [123456],
+            "cloids": ["cloid-123"],
+            # "maker_address" field is missing (required)
+            "canceled_orders_data": [{"order_id": 123456, "reason": "user_cancelled"}],
+        }
+
+        cancel_callback = Mock()
+
+        with mock_socketio_client():
+            client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
+            client.on_orders_canceled_callback = cancel_callback
+
+            # Should handle error and not call callback (missing required field)
+            await client.handle_orders_canceled(malformed_data)
+
+            # Callback should not be called due to missing required field
+            cancel_callback.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_websocket_allows_missing_optional_fields_in_orders_canceled(
+        self, ws_url, market_address
+    ):
+        """WebSocket should allow OrdersCanceled with missing optional fields."""
+        minimal_data = {
+            "order_ids": [123456, 789012],
+            "maker_address": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+            # cloids and canceled_orders_data are optional
+        }
+
+        cancel_callback = Mock()
+
+        with mock_socketio_client():
+            client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
+            client.on_orders_canceled_callback = cancel_callback
+
+            # Should call callback with empty lists for optional fields
+            await client.handle_orders_canceled(minimal_data)
+
+            # Callback should be called successfully
+            cancel_callback.assert_called_once()
+            call_args = cancel_callback.call_args[0]
+            assert call_args[0] == [123456, 789012]  # order_ids
+            assert call_args[1] == []  # cloids (defaulted to empty list)
+            assert call_args[2] == "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"  # maker_address
+            assert call_args[3] == []  # canceled_orders_data (defaulted to empty list)

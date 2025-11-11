@@ -10,6 +10,10 @@ repos:
     rev: v1.13.0
     hooks:
       - id: mypy
-        additional_dependencies: []
+        additional_dependencies:
+          - pydantic>=2.0.0
+          - python-socketio>=5.10.0
+          - structlog>=24.0.0
+          - types-requests
         args: [--strict, --namespace-packages, --explicit-package-bases]
         exclude: ^(tests/|examples/)
