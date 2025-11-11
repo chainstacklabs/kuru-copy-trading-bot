@@ -293,7 +293,7 @@ class KuruClient:
         # Place order via blockchain
         try:
             tx_hash = self.blockchain.send_transaction(
-                to=self.contract_address,
+                to=market,  # Use market parameter (contract address) instead of hardcoded self.contract_address
                 data=order_data,
             )
 
@@ -411,7 +411,7 @@ class KuruClient:
         # Place order
         try:
             tx_hash = self.blockchain.send_transaction(
-                to=self.contract_address,
+                to=market,  # Use market parameter (contract address) instead of hardcoded self.contract_address
                 data=order_data,
             )
 
@@ -449,11 +449,12 @@ class KuruClient:
         # Delegate to cancel_orders for batch cancellation
         return self.cancel_orders([order_id])
 
-    def cancel_orders(self, order_ids: list[str]) -> str:
+    def cancel_orders(self, order_ids: list[str], market_address: str | None = None) -> str:
         """Cancel multiple orders in batch.
 
         Args:
             order_ids: List of order IDs to cancel
+            market_address: Market contract address (optional, defaults to self.contract_address)
 
         Returns:
             str: Transaction hash
@@ -463,6 +464,9 @@ class KuruClient:
         """
         if not order_ids:
             raise ValueError("Order IDs list cannot be empty")
+
+        # Use provided market address or fall back to default
+        target_market = market_address if market_address else self.contract_address
 
         # Convert order IDs to uint40 format
         # Order IDs can be: numeric strings, hex strings, or "order_" prefixed strings
@@ -486,7 +490,7 @@ class KuruClient:
 
         try:
             tx_hash = self.blockchain.send_transaction(
-                to=self.contract_address,
+                to=target_market,  # Use market parameter instead of hardcoded self.contract_address
                 data=cancel_data,
             )
             return tx_hash
@@ -583,7 +587,7 @@ class KuruClient:
 
         try:
             tx_hash = self.blockchain.send_transaction(
-                to=self.contract_address,
+                to=market,  # Use market parameter (contract address) instead of hardcoded self.contract_address
                 data=update_data,
             )
 

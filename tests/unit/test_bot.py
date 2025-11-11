@@ -567,8 +567,10 @@ class TestCopyTradingBotOrdersCanceledProcessing:
             [{"order_id": sample_order_response.order_id, "reason": "user_cancelled"}],
         )
 
-        # Should have called cancel_orders
-        mock_copier.cancel_orders.assert_called_once_with(["order_456"])
+        # Should have called cancel_orders with market address
+        mock_copier.cancel_orders.assert_called_once_with(
+            ["order_456"], "0x4444444444444444444444444444444444444444"
+        )
 
     @pytest.mark.asyncio
     async def test_bot_ignores_cancellations_from_unmonitored_wallet(

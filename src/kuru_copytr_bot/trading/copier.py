@@ -330,11 +330,12 @@ class TradeCopier:
             )
             return None
 
-    def cancel_orders(self, order_ids: list[str]) -> bool:
+    def cancel_orders(self, order_ids: list[str], market_address: str) -> bool:
         """Cancel multiple orders.
 
         Args:
             order_ids: List of order IDs to cancel
+            market_address: Market contract address where orders were placed
 
         Returns:
             True if successful, False otherwise
@@ -343,11 +344,16 @@ class TradeCopier:
             logger.debug("No orders to cancel")
             return True
 
-        logger.info("Canceling orders", order_count=len(order_ids), order_ids=order_ids)
+        logger.info(
+            "Canceling orders",
+            order_count=len(order_ids),
+            order_ids=order_ids,
+            market=market_address,
+        )
 
         try:
             # Use batch cancel for efficiency
-            tx_hash = self.kuru_client.cancel_orders(order_ids)
+            tx_hash = self.kuru_client.cancel_orders(order_ids, market_address)
 
             self._orders_canceled += len(order_ids)
             logger.info(

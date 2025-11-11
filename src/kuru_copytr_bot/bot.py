@@ -240,11 +240,12 @@ class CopyTradingBot:
                 # Cancel our mirrored orders
                 if our_order_ids:
                     try:
-                        self.copier.cancel_orders(our_order_ids)
+                        self.copier.cancel_orders(our_order_ids, market_address)
                         logger.info(
                             "Mirrored orders canceled successfully",
                             canceled_count=len(our_order_ids),
                             order_ids=our_order_ids,
+                            market=market_address,
                         )
 
                         # Remove from tracking

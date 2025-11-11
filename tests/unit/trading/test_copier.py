@@ -189,6 +189,35 @@ class TestTradeCopierProcessing:
         mock_validator.validate.assert_not_called()
         mock_kuru_client.place_limit_order.assert_not_called()
 
+    def test_copier_passes_market_address_to_kuru_client(
+        self, mock_kuru_client, mock_calculator, mock_validator
+    ):
+        """Copier should pass market address from trade to KuruClient."""
+        # Create trade with specific market address (contract address)
+        trade = Trade(
+            id="trade_1",
+            trader_address="0x1111111111111111111111111111111111111111",
+            market="0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",  # Contract address
+            side=OrderSide.BUY,
+            price=Decimal("2000.0"),
+            size=Decimal("5.0"),
+            timestamp=datetime.now(UTC),
+            tx_hash="0x" + "a" * 64,
+        )
+
+        copier = TradeCopier(
+            kuru_client=mock_kuru_client,
+            calculator=mock_calculator,
+            validator=mock_validator,
+        )
+
+        copier.process_trade(trade)
+
+        # Verify KuruClient was called with the market address from the trade
+        mock_kuru_client.place_limit_order.assert_called_once()
+        call_kwargs = mock_kuru_client.place_limit_order.call_args[1]
+        assert call_kwargs["market"] == "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
 
 class TestTradeCopierOrderTypes:
     """Test different order types."""
