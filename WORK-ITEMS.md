@@ -223,44 +223,21 @@ Empty strings as fallbacks hide missing data issues. Should explicitly validate 
 
 ---
 
-### WI-008: Document API Field Name Inconsistencies
-
-**Priority**: LOW
-**Status**: TODO
-
-**Details**:
-The Kuru API has inconsistent field naming:
-- OrderCreated: uses `owner` field
-- Trade: uses `makeraddress` field (lowercase, no underscore)
-- OrdersCanceled: uses `maker_address` field (snake_case)
-
-This isn't a bug in our code, but should be documented for future maintenance.
-
-**Acceptance Criteria**:
-- [ ] Add section to KURU_API_SPEC.md documenting inconsistencies
-- [ ] Add code comments in models explaining field mappings
-- [ ] Consider creating field name constants to centralize mappings
-- [ ] No code changes required
-- [ ] Documentation complete
-
-**Test Updates Required**:
-- None (documentation only)
-
----
-
 ## Summary
 
-**Total Work Items**: 8
+**Total Work Items**: 7
 **High Priority**: 3 (WI-001, WI-002, WI-006)
 **Medium Priority**: 2 (WI-004, WI-005)
-**Low Priority**: 3 (WI-003, WI-007, WI-008)
+**Low Priority**: 2 (WI-003, WI-007)
+
+**Completed**: 3 (WI-001, WI-002, WI-006)
+**Remaining**: 4
 
 **Recommended Order**:
-1. WI-002 (Trade market filtering - critical for correctness)
-2. WI-001 (OrdersCanceled fields - API compliance)
-3. WI-006 (Callback signature update - depends on WI-001)
+1. ✅ WI-002 (Trade market filtering - critical for correctness)
+2. ✅ WI-001 (OrdersCanceled fields - API compliance)
+3. ✅ WI-006 (Callback signature update - depends on WI-001)
 4. WI-005 (Multi-market support - architectural)
 5. WI-004 (Remove placeholders - code quality)
 6. WI-007 (Field validation - robustness)
 7. WI-003 (Remove pass statements - cleanup)
-8. WI-008 (Documentation - reference)
