@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from src.kuru_copytr_bot.core.enums import OrderSide
+from src.kuru_copytr_bot.models.order import Order
 from src.kuru_copytr_bot.models.trade import Trade
 
 
@@ -107,6 +108,73 @@ class TradeValidator:
         # Check 7: Market blacklist (if no whitelist)
         elif self.market_blacklist is not None and trade.market in self.market_blacklist:
             return ValidationResult(is_valid=False, reason=f"Market {trade.market} is blacklisted")
+
+        # All checks passed
+        return ValidationResult(is_valid=True, reason=None)
+
+    def validate_order(
+        self,
+        order: Order,
+        current_balance: Decimal,
+    ) -> ValidationResult:
+        """Validate an order against all configured rules.
+
+        Args:
+            order: Order to validate
+            current_balance: Current available balance (in quote currency, e.g., USDC)
+
+        Returns:
+            ValidationResult: Validation result with reason if invalid
+        """
+        # Check 1: Minimum balance threshold
+        if self.min_balance is not None and current_balance < self.min_balance:
+            return ValidationResult(
+                is_valid=False,
+                reason=f"Balance {current_balance} below minimum threshold {self.min_balance}",
+            )
+
+        # Check 2: Balance covers order cost (for BUY orders)
+        if order.side == OrderSide.BUY:
+            order_cost = order.notional_value  # price * size
+            if current_balance < order_cost:
+                return ValidationResult(
+                    is_valid=False,
+                    reason=f"Insufficient balance for order: {current_balance} < {order_cost}",
+                )
+
+        # Check 3: Minimum order size
+        if self.min_order_size is not None and order.size < self.min_order_size:
+            return ValidationResult(
+                is_valid=False,
+                reason=f"Order size {order.size} below minimum {self.min_order_size}",
+            )
+
+        # Check 4: Maximum position size (interpret as max single order size for spot)
+        if self.max_position_size is not None and order.size > self.max_position_size:
+            return ValidationResult(
+                is_valid=False,
+                reason=f"Order size {order.size} exceeds maximum {self.max_position_size}",
+            )
+
+        # Check 5: Maximum exposure (interpret as max notional value per order for spot)
+        if self.max_exposure_usd is not None:
+            order_notional = order.notional_value
+            if order_notional > self.max_exposure_usd:
+                return ValidationResult(
+                    is_valid=False,
+                    reason=f"Order notional {order_notional} exceeds max exposure {self.max_exposure_usd}",
+                )
+
+        # Check 6: Market whitelist (takes precedence over blacklist)
+        if self.market_whitelist is not None:
+            if order.market not in self.market_whitelist:
+                return ValidationResult(
+                    is_valid=False, reason=f"Market {order.market} not in whitelist"
+                )
+
+        # Check 7: Market blacklist (if no whitelist)
+        elif self.market_blacklist is not None and order.market in self.market_blacklist:
+            return ValidationResult(is_valid=False, reason=f"Market {order.market} is blacklisted")
 
         # All checks passed
         return ValidationResult(is_valid=True, reason=None)

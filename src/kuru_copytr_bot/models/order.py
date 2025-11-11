@@ -2,13 +2,14 @@
 
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Optional
-from pydantic import BaseModel, Field, field_validator, model_validator, ValidationError
-from pydantic_core import ValidationError as CoreValidationError, InitErrorDetails
 
-from ..core.enums import OrderSide, OrderType, OrderStatus
+from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic_core import InitErrorDetails
+from pydantic_core import ValidationError as CoreValidationError
+
+from ..core.enums import OrderSide, OrderStatus, OrderType
 from ..core.exceptions import InvalidStateTransition
 
 
@@ -25,7 +26,7 @@ class OrderResponse(BaseModel):
     is_canceled: bool = Field(..., description="True if order is canceled")
     transaction_hash: str = Field(..., description="Transaction hash")
     trigger_time: int = Field(..., description="Unix timestamp when order was created")
-    cloid: Optional[str] = Field(None, description="Optional client order ID")
+    cloid: str | None = Field(None, description="Optional client order ID")
 
     def to_order(self) -> "Order":
         """Convert API response format to internal Order model.
@@ -52,7 +53,7 @@ class OrderResponse(BaseModel):
         side = OrderSide.BUY if self.is_buy else OrderSide.SELL
 
         # Convert timestamp to datetime
-        created_at = datetime.fromtimestamp(self.trigger_time, tz=timezone.utc)
+        created_at = datetime.fromtimestamp(self.trigger_time, tz=UTC)
 
         return Order(
             order_id=str(self.order_id),
@@ -76,13 +77,17 @@ class Order(BaseModel):
     order_type: OrderType = Field(..., description="Order type (LIMIT, MARKET, etc.)")
     status: OrderStatus = Field(..., description="Order status")
     side: OrderSide = Field(..., description="Order side (BUY or SELL)")
-    price: Optional[Decimal] = Field(None, description="Order price (None for market orders)")
+    price: Decimal | None = Field(None, description="Order price (None for market orders)")
     size: Decimal = Field(..., description="Order size", gt=0)
     filled_size: Decimal = Field(..., description="Amount filled so far", ge=0)
     market: str = Field(..., description="Trading pair/market")
     created_at: datetime = Field(..., description="Order creation time")
     updated_at: datetime = Field(..., description="Last update time")
-    cloid: str = Field(default_factory=lambda: str(uuid.uuid4()), description="Client Order ID for tracking", frozen=True)
+    cloid: str = Field(
+        default_factory=lambda: str(uuid.uuid4()),
+        description="Client Order ID for tracking",
+        frozen=True,
+    )
 
     @field_validator("cloid")
     @classmethod
@@ -94,7 +99,9 @@ class Order(BaseModel):
 
         # Check format: alphanumeric with dash and underscore only
         if not re.match(r"^[a-zA-Z0-9_-]+$", v):
-            raise ValueError("CLOID must contain only alphanumeric characters, dashes, and underscores")
+            raise ValueError(
+                "CLOID must contain only alphanumeric characters, dashes, and underscores"
+            )
 
         return v
 
@@ -133,12 +140,27 @@ class Order(BaseModel):
         """Check if order is active (can still be filled or cancelled)."""
         return self.status in (OrderStatus.PENDING, OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED)
 
+    @property
+    def notional_value(self) -> Decimal:
+        """Calculate notional value (price * size).
+
+        Returns:
+            Decimal: Notional value, or 0 if price is None (market orders)
+        """
+        if self.price is None:
+            return Decimal("0")
+        return self.price * self.size
+
     def transition_to(self, new_status: OrderStatus) -> None:
         """Transition order to a new status."""
         # Define valid transitions
         valid_transitions = {
             OrderStatus.PENDING: {OrderStatus.OPEN, OrderStatus.FAILED, OrderStatus.CANCELLED},
-            OrderStatus.OPEN: {OrderStatus.PARTIALLY_FILLED, OrderStatus.FILLED, OrderStatus.CANCELLED},
+            OrderStatus.OPEN: {
+                OrderStatus.PARTIALLY_FILLED,
+                OrderStatus.FILLED,
+                OrderStatus.CANCELLED,
+            },
             OrderStatus.PARTIALLY_FILLED: {OrderStatus.FILLED, OrderStatus.CANCELLED},
             OrderStatus.FILLED: set(),  # Terminal state
             OrderStatus.CANCELLED: set(),  # Terminal state
@@ -151,7 +173,7 @@ class Order(BaseModel):
             )
 
         self.status = new_status
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
     def add_fill(self, fill_size: Decimal) -> None:
         """Add a fill to the order."""
@@ -166,13 +188,15 @@ class Order(BaseModel):
                         type="value_error",
                         loc=("filled_size",),
                         input=new_filled_size,
-                        ctx={"error": f"Fill would exceed order size: {new_filled_size} > {self.size}"},
+                        ctx={
+                            "error": f"Fill would exceed order size: {new_filled_size} > {self.size}"
+                        },
                     )
                 ],
             )
 
         self.filled_size = new_filled_size
-        self.updated_at = datetime.now(timezone.utc)
+        self.updated_at = datetime.now(UTC)
 
         # Update status based on fill
         if self.is_fully_filled:

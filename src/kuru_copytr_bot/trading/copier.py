@@ -1,5 +1,7 @@
 """Trade copier for executing mirror trades."""
 
+from decimal import Decimal
+
 from src.kuru_copytr_bot.connectors.platforms.kuru import KuruClient
 from src.kuru_copytr_bot.core.enums import OrderType
 from src.kuru_copytr_bot.core.exceptions import (
@@ -241,24 +243,26 @@ class TradeCopier:
                 logger.info("Calculated size is zero, skipping order", order_id=order.order_id)
                 return None
 
-            # Step 3: Create mirror trade for validation
-            # We need to create a Trade object to use the validator
-            from src.kuru_copytr_bot.models.trade import Trade
+            # Step 3: Create mirror order for validation
+            # Create a temporary Order object with calculated size
+            from src.kuru_copytr_bot.core.enums import OrderStatus, OrderType
 
-            mirror_trade = Trade(
-                id=f"mirror_{order.order_id}",
-                trader_address=order.market,  # Use market as placeholder
-                market=order.market,
+            mirror_order = Order(
+                order_id=f"mirror_{order.order_id}",
+                order_type=OrderType.LIMIT,
+                status=OrderStatus.PENDING,
                 side=order.side,
                 price=order.price,
                 size=calculated_size,
-                timestamp=order.created_at,
-                tx_hash="",  # No tx_hash yet for orders
+                filled_size=Decimal("0"),
+                market=order.market,
+                created_at=order.created_at,
+                updated_at=order.created_at,
             )
 
-            # Step 4: Validate
-            validation_result = self.validator.validate(
-                trade=mirror_trade,
+            # Step 4: Validate order
+            validation_result = self.validator.validate_order(
+                order=mirror_order,
                 current_balance=balance,
             )
 

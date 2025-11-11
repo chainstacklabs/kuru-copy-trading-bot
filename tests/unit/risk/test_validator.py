@@ -5,7 +5,8 @@ from decimal import Decimal
 
 import pytest
 
-from src.kuru_copytr_bot.core.enums import OrderSide
+from src.kuru_copytr_bot.core.enums import OrderSide, OrderStatus, OrderType
+from src.kuru_copytr_bot.models.order import Order
 from src.kuru_copytr_bot.models.trade import Trade
 from src.kuru_copytr_bot.risk.validator import TradeValidator, ValidationResult
 
@@ -397,5 +398,169 @@ class TestTradeValidatorEdgeCases:
         result = validator.validate(
             trade=tiny_trade,
             current_balance=Decimal("1.0"),
+        )
+        assert result.is_valid is True
+
+
+class TestTradeValidatorOrderValidation:
+    """Test TradeValidator with Order objects."""
+
+    @pytest.fixture
+    def sample_buy_order(self):
+        """Create a sample buy order."""
+        return Order(
+            order_id="12345",
+            order_type=OrderType.LIMIT,
+            status=OrderStatus.OPEN,
+            side=OrderSide.BUY,
+            price=Decimal("2000.0"),
+            size=Decimal("1.0"),
+            filled_size=Decimal("0.0"),
+            market="ETH-USDC",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+    @pytest.fixture
+    def sample_sell_order(self):
+        """Create a sample sell order."""
+        return Order(
+            order_id="12346",
+            order_type=OrderType.LIMIT,
+            status=OrderStatus.OPEN,
+            side=OrderSide.SELL,
+            price=Decimal("2100.0"),
+            size=Decimal("0.5"),
+            filled_size=Decimal("0.0"),
+            market="ETH-USDC",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+    def test_validator_validates_order_successfully(self, sample_buy_order):
+        """Validator should validate valid order."""
+        validator = TradeValidator()
+        result = validator.validate_order(
+            order=sample_buy_order,
+            current_balance=Decimal("10000.0"),
+        )
+        assert result.is_valid is True
+        assert result.reason is None
+
+    def test_validator_rejects_order_with_insufficient_balance(self, sample_buy_order):
+        """Validator should reject order when balance is insufficient."""
+        validator = TradeValidator()
+        result = validator.validate_order(
+            order=sample_buy_order,
+            current_balance=Decimal("1000.0"),  # Less than 2000 needed
+        )
+        assert result.is_valid is False
+        assert "Insufficient balance" in result.reason
+
+    def test_validator_checks_min_balance_for_order(self, sample_buy_order):
+        """Validator should check minimum balance threshold for orders."""
+        validator = TradeValidator(min_balance=Decimal("5000.0"))
+        result = validator.validate_order(
+            order=sample_buy_order,
+            current_balance=Decimal("3000.0"),
+        )
+        assert result.is_valid is False
+        assert "below minimum threshold" in result.reason
+
+    def test_validator_checks_min_order_size(self, sample_buy_order):
+        """Validator should check minimum order size."""
+        small_order = Order(
+            order_id="12347",
+            order_type=OrderType.LIMIT,
+            status=OrderStatus.OPEN,
+            side=OrderSide.BUY,
+            price=Decimal("2000.0"),
+            size=Decimal("0.001"),
+            filled_size=Decimal("0.0"),
+            market="ETH-USDC",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        validator = TradeValidator(min_order_size=Decimal("0.01"))
+        result = validator.validate_order(
+            order=small_order,
+            current_balance=Decimal("10000.0"),
+        )
+        assert result.is_valid is False
+        assert "below minimum" in result.reason
+
+    def test_validator_checks_max_position_size_for_order(self, sample_buy_order):
+        """Validator should check maximum order size."""
+        large_order = Order(
+            order_id="12348",
+            order_type=OrderType.LIMIT,
+            status=OrderStatus.OPEN,
+            side=OrderSide.BUY,
+            price=Decimal("2000.0"),
+            size=Decimal("100.0"),
+            filled_size=Decimal("0.0"),
+            market="ETH-USDC",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        validator = TradeValidator(max_position_size=Decimal("10.0"))
+        result = validator.validate_order(
+            order=large_order,
+            current_balance=Decimal("1000000.0"),
+        )
+        assert result.is_valid is False
+        assert "exceeds maximum" in result.reason
+
+    def test_validator_checks_market_whitelist_for_order(self, sample_buy_order):
+        """Validator should check market whitelist for orders."""
+        validator = TradeValidator(market_whitelist=["BTC-USDC"])
+        result = validator.validate_order(
+            order=sample_buy_order,
+            current_balance=Decimal("10000.0"),
+        )
+        assert result.is_valid is False
+        assert "not in whitelist" in result.reason
+
+    def test_validator_checks_market_blacklist_for_order(self, sample_buy_order):
+        """Validator should check market blacklist for orders."""
+        validator = TradeValidator(market_blacklist=["ETH-USDC"])
+        result = validator.validate_order(
+            order=sample_buy_order,
+            current_balance=Decimal("10000.0"),
+        )
+        assert result.is_valid is False
+        assert "blacklisted" in result.reason
+
+    def test_validator_checks_max_exposure_for_order(self, sample_buy_order):
+        """Validator should check maximum exposure for orders."""
+        large_order = Order(
+            order_id="12349",
+            order_type=OrderType.LIMIT,
+            status=OrderStatus.OPEN,
+            side=OrderSide.BUY,
+            price=Decimal("2000.0"),
+            size=Decimal("10.0"),  # Notional: 20000
+            filled_size=Decimal("0.0"),
+            market="ETH-USDC",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+
+        validator = TradeValidator(max_exposure_usd=Decimal("10000.0"))
+        result = validator.validate_order(
+            order=large_order,
+            current_balance=Decimal("100000.0"),
+        )
+        assert result.is_valid is False
+        assert "exceeds max exposure" in result.reason
+
+    def test_validator_allows_sell_order_without_balance_check(self, sample_sell_order):
+        """Validator should not require balance for sell orders."""
+        validator = TradeValidator()
+        result = validator.validate_order(
+            order=sample_sell_order,
+            current_balance=Decimal("100.0"),  # Low balance, but selling
         )
         assert result.is_valid is True
