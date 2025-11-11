@@ -12,6 +12,7 @@ class TradeResponse(BaseModel):
     """Raw trade data from Kuru API (matches API spec format with camelCase)."""
 
     orderid: int = Field(..., description="Order ID from blockchain")
+    market_address: str | None = Field(None, description="Market contract address (from WebSocket)")
     makeraddress: str = Field(..., description="Maker wallet address")
     takeraddress: str = Field(..., description="Taker wallet address")
     isbuy: bool = Field(..., description="True for buy trades, False for sell trades")

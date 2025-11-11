@@ -1,10 +1,9 @@
 """Tests for Kuru WebSocket client."""
 
-import pytest
-from unittest.mock import AsyncMock, Mock, patch, call
 from contextlib import contextmanager
-from decimal import Decimal
-from datetime import datetime
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from src.kuru_copytr_bot.connectors.websocket.kuru_ws_client import KuruWebSocketClient
 from src.kuru_copytr_bot.models.order import OrderResponse
@@ -14,7 +13,9 @@ from src.kuru_copytr_bot.models.trade import TradeResponse
 @contextmanager
 def mock_socketio_client():
     """Context manager to properly mock Socket.IO AsyncClient."""
-    with patch("src.kuru_copytr_bot.connectors.websocket.kuru_ws_client.socketio.AsyncClient") as mock_socketio:
+    with patch(
+        "src.kuru_copytr_bot.connectors.websocket.kuru_ws_client.socketio.AsyncClient"
+    ) as mock_socketio:
         mock_sio = AsyncMock()
         # Mock the decorators to return the original function
         mock_sio.event = Mock(return_value=lambda f: f)
@@ -59,6 +60,7 @@ def sample_trade_data():
     """Sample Trade event data."""
     return {
         "orderid": 123456,
+        "market_address": "0x1234567890123456789012345678901234567890",
         "makeraddress": "0x1234567890123456789012345678901234567890",
         "takeraddress": "0x0987654321098765432109876543210987654321",
         "isbuy": True,
@@ -133,14 +135,11 @@ class TestKuruWebSocketClient:
             assert order_response.order_id == sample_order_created_data["order_id"]
 
     @pytest.mark.asyncio
-    async def test_websocket_handles_trade_event(
-        self, ws_url, market_address, sample_trade_data
-    ):
+    async def test_websocket_handles_trade_event(self, ws_url, market_address, sample_trade_data):
         """WebSocket client should handle Trade events."""
         trade_callback = Mock()
 
-        with mock_socketio_client() as mock_sio:
-
+        with mock_socketio_client() as _:
             client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
             client.on_trade_callback = trade_callback
 
@@ -160,8 +159,7 @@ class TestKuruWebSocketClient:
         """WebSocket client should handle OrdersCanceled events."""
         cancel_callback = Mock()
 
-        with mock_socketio_client() as mock_sio:
-
+        with mock_socketio_client() as _:
             client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
             client.on_orders_canceled_callback = cancel_callback
 
@@ -177,8 +175,7 @@ class TestKuruWebSocketClient:
     @pytest.mark.asyncio
     async def test_websocket_reconnection_on_disconnect(self, ws_url, market_address):
         """WebSocket client should handle reconnection on disconnect."""
-        with mock_socketio_client() as mock_sio:
-
+        with mock_socketio_client() as _:
             client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
 
             # Simulate disconnect event
@@ -194,8 +191,7 @@ class TestKuruWebSocketClient:
         """WebSocket client should filter events by market address."""
         order_callback = Mock()
 
-        with mock_socketio_client() as mock_sio:
-
+        with mock_socketio_client() as _:
             client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
             client.on_order_created_callback = order_callback
 
@@ -229,8 +225,7 @@ class TestKuruWebSocketClient:
     async def test_websocket_registers_event_handlers(self, ws_url, market_address):
         """WebSocket client should register event handlers on connection."""
         with mock_socketio_client() as mock_sio:
-
-            client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
+            KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
 
             # Should register handlers for all three event types
             assert mock_sio.on.call_count >= 3
@@ -265,3 +260,26 @@ class TestKuruWebSocketClient:
             client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
 
             assert client.is_connected == mock_sio.connected
+
+    @pytest.mark.asyncio
+    async def test_websocket_filters_trade_events_by_market(
+        self, ws_url, market_address, sample_trade_data
+    ):
+        """WebSocket client should filter Trade events by market address."""
+        trade_callback = Mock()
+
+        with mock_socketio_client() as _:
+            client = KuruWebSocketClient(ws_url=ws_url, market_address=market_address)
+            client.on_trade_callback = trade_callback
+
+            # Event with matching market address
+            await client.handle_trade(sample_trade_data)
+            assert trade_callback.call_count == 1
+
+            # Event with different market address
+            other_market_data = sample_trade_data.copy()
+            other_market_data["market_address"] = "0x9999999999999999999999999999999999999999"
+            await client.handle_trade(other_market_data)
+
+            # Should not call callback again (filtered out)
+            assert trade_callback.call_count == 1

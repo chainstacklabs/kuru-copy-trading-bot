@@ -1,8 +1,9 @@
 """Kuru WebSocket client for real-time event updates."""
 
+from collections.abc import Callable
+
 import socketio
 import structlog
-from typing import Callable, Optional, List
 
 from ...models.order import OrderResponse
 from ...models.trade import TradeResponse
@@ -54,9 +55,9 @@ class KuruWebSocketClient:
         )
 
         # Event callbacks
-        self.on_order_created_callback: Optional[Callable[[OrderResponse], None]] = None
-        self.on_trade_callback: Optional[Callable[[TradeResponse], None]] = None
-        self.on_orders_canceled_callback: Optional[Callable[[List[int], str], None]] = None
+        self.on_order_created_callback: Callable[[OrderResponse], None] | None = None
+        self.on_trade_callback: Callable[[TradeResponse], None] | None = None
+        self.on_orders_canceled_callback: Callable[[list[int], str], None] | None = None
 
         # Register event handlers
         self._register_handlers()
@@ -174,6 +175,16 @@ class KuruWebSocketClient:
             data: Raw event data from WebSocket
         """
         try:
+            # Filter by market address (if present in event data)
+            market = data.get("market_address", "").lower()
+            if market and market != self.market_address:
+                logger.debug(
+                    "trade_filtered",
+                    event_market=market,
+                    subscribed_market=self.market_address,
+                )
+                return
+
             # Parse into TradeResponse model
             trade_response = TradeResponse(**data)
 
@@ -233,7 +244,7 @@ class KuruWebSocketClient:
         """
         self.on_trade_callback = callback
 
-    def set_orders_canceled_callback(self, callback: Callable[[List[int], str], None]) -> None:
+    def set_orders_canceled_callback(self, callback: Callable[[list[int], str], None]) -> None:
         """Set callback for OrdersCanceled events.
 
         Args:
