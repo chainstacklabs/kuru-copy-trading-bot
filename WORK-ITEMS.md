@@ -195,7 +195,7 @@ This is a cascading change from WI-001.
 ### WI-007: Add Explicit Validation for Missing WebSocket Fields
 
 **Priority**: LOW
-**Status**: TODO
+**Status**: ✅ COMPLETED
 
 **Details**:
 WebSocket event handlers use `dict.get()` with empty string defaults:
@@ -208,18 +208,25 @@ Empty strings as fallbacks hide missing data issues. Should explicitly validate 
 - `src/kuru_copytr_bot/connectors/websocket/kuru_ws_client.py:141, 204`
 
 **Acceptance Criteria**:
-- [ ] Remove default empty string values from .get() calls
-- [ ] Add explicit KeyError handling for missing required fields
-- [ ] Log error with full event data when field is missing
-- [ ] Add tests for malformed event data (missing fields)
-- [ ] Verify Pydantic models catch missing fields (OrderResponse, TradeResponse)
-- [ ] All tests passing
+- [x] Remove default empty string values from .get() calls
+- [x] Add explicit KeyError handling for missing required fields
+- [x] Log error with full event data when field is missing
+- [x] Add tests for malformed event data (missing fields)
+- [x] Verify Pydantic models catch missing fields (OrderResponse, TradeResponse)
+- [x] All tests passing
 
 **Test Updates Required**:
 1. `tests/unit/connectors/test_kuru_ws_client.py` - Add malformed event tests
 2. Test missing market_address in OrderCreated
 3. Test missing maker_address in OrdersCanceled
 4. Test missing required fields in Trade event
+
+**Implementation Notes**:
+- Added 6 comprehensive tests for malformed event data
+- OrderCreated/Trade rely on Pydantic validation (OrderResponse/TradeResponse)
+- OrdersCanceled has explicit field validation for required fields (order_ids, maker_address)
+- Fixed pre-commit mypy hook with missing type stubs (pydantic, socketio, structlog)
+- Fixed all mypy strict type errors in kuru_ws_client.py
 
 ---
 
@@ -230,14 +237,14 @@ Empty strings as fallbacks hide missing data issues. Should explicitly validate 
 **Medium Priority**: 2 (WI-004, WI-005)
 **Low Priority**: 2 (WI-003, WI-007)
 
-**Completed**: 3 (WI-001, WI-002, WI-006)
-**Remaining**: 4
+**Completed**: 5 (WI-001, WI-002, WI-004, WI-005, WI-006, WI-007)
+**Remaining**: 1 (WI-003)
 
 **Recommended Order**:
 1. ✅ WI-002 (Trade market filtering - critical for correctness)
 2. ✅ WI-001 (OrdersCanceled fields - API compliance)
 3. ✅ WI-006 (Callback signature update - depends on WI-001)
-4. WI-005 (Multi-market support - architectural)
-5. WI-004 (Remove placeholders - code quality)
-6. WI-007 (Field validation - robustness)
+4. ✅ WI-005 (Multi-market support - architectural)
+5. ✅ WI-004 (Remove placeholders - code quality)
+6. ✅ WI-007 (Field validation - robustness)
 7. WI-003 (Remove pass statements - cleanup)
