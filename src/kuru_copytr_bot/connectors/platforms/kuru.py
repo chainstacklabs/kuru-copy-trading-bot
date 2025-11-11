@@ -389,19 +389,6 @@ class KuruClient:
         except Exception as e:
             raise InvalidMarketError(f"Failed to get market params: {e}") from e
 
-        # Estimate cost and check balance
-        estimated_cost = self.estimate_cost(market, side, size)
-        # Simplified balance check for USDC (quote token)
-        # In real implementation, determine quote/base based on side
-        balance = self.blockchain.get_token_balance(
-            self.blockchain.wallet_address,
-            "0xUSDCAddress00000000000000000000000000000",  # Placeholder
-        )
-        if balance < estimated_cost:
-            raise InsufficientBalanceError(
-                f"Insufficient balance for market order: {balance} < {estimated_cost}"
-            )
-
         # Encode size
         encoded_size = self._encode_size(size)
 
