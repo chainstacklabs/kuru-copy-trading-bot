@@ -77,7 +77,12 @@ def sample_orders_canceled_data():
     """Sample OrdersCanceled event data."""
     return {
         "order_ids": [123456, 789012],
-        "owner": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        "cloids": ["cloid-123", "cloid-789"],
+        "maker_address": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        "canceled_orders_data": [
+            {"order_id": 123456, "reason": "user_cancelled"},
+            {"order_id": 789012, "reason": "user_cancelled"},
+        ],
     }
 
 
@@ -166,11 +171,13 @@ class TestKuruWebSocketClient:
             # Simulate event
             await client.handle_orders_canceled(sample_orders_canceled_data)
 
-            # Should call callback with order IDs and owner
+            # Should call callback with order IDs, cloids, maker_address, and canceled_orders_data
             cancel_callback.assert_called_once()
             call_args = cancel_callback.call_args[0]
             assert call_args[0] == sample_orders_canceled_data["order_ids"]
-            assert call_args[1] == sample_orders_canceled_data["owner"]
+            assert call_args[1] == sample_orders_canceled_data["cloids"]
+            assert call_args[2] == sample_orders_canceled_data["maker_address"]
+            assert call_args[3] == sample_orders_canceled_data["canceled_orders_data"]
 
     @pytest.mark.asyncio
     async def test_websocket_reconnection_on_disconnect(self, ws_url, market_address):

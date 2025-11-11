@@ -57,7 +57,9 @@ class KuruWebSocketClient:
         # Event callbacks
         self.on_order_created_callback: Callable[[OrderResponse], None] | None = None
         self.on_trade_callback: Callable[[TradeResponse], None] | None = None
-        self.on_orders_canceled_callback: Callable[[list[int], str], None] | None = None
+        self.on_orders_canceled_callback: (
+            Callable[[list[int], list[str], str, list[dict]], None] | None
+        ) = None
 
         # Register event handlers
         self._register_handlers()
@@ -212,18 +214,23 @@ class KuruWebSocketClient:
         """
         try:
             order_ids = data.get("order_ids", [])
-            owner = data.get("owner", "")
+            cloids = data.get("cloids", [])
+            maker_address = data.get("maker_address", "")
+            canceled_orders_data = data.get("canceled_orders_data", [])
 
             logger.info(
                 "orders_canceled_event",
                 order_count=len(order_ids),
                 order_ids=order_ids,
-                owner=owner,
+                cloids=cloids,
+                maker_address=maker_address,
             )
 
             # Call callback if set
             if self.on_orders_canceled_callback:
-                self.on_orders_canceled_callback(order_ids, owner)
+                self.on_orders_canceled_callback(
+                    order_ids, cloids, maker_address, canceled_orders_data
+                )
 
         except Exception as e:
             logger.error("orders_canceled_parse_error", error=str(e), data=data)
@@ -244,11 +251,14 @@ class KuruWebSocketClient:
         """
         self.on_trade_callback = callback
 
-    def set_orders_canceled_callback(self, callback: Callable[[list[int], str], None]) -> None:
+    def set_orders_canceled_callback(
+        self, callback: Callable[[list[int], list[str], str, list[dict]], None]
+    ) -> None:
         """Set callback for OrdersCanceled events.
 
         Args:
-            callback: Function to call when OrdersCanceled event received
+            callback: Function to call when OrdersCanceled event received.
+                     Signature: (order_ids, cloids, maker_address, canceled_orders_data) -> None
         """
         self.on_orders_canceled_callback = callback
 

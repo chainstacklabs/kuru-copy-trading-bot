@@ -192,19 +192,26 @@ class CopyTradingBot:
             Async callback function for OrdersCanceled events
         """
 
-        async def on_orders_canceled(order_ids: list[int], owner: str):
+        async def on_orders_canceled(
+            order_ids: list[int],
+            cloids: list[str],
+            maker_address: str,
+            canceled_orders_data: list[dict],
+        ):
             """Handle OrdersCanceled event from WebSocket.
 
             Args:
                 order_ids: List of canceled order IDs
-                owner: Owner wallet address
+                cloids: List of client order IDs
+                maker_address: Maker wallet address
+                canceled_orders_data: Additional cancellation data
             """
             try:
                 # Filter for our source wallets
-                if owner.lower() not in self.source_wallets:
+                if maker_address.lower() not in self.source_wallets:
                     logger.debug(
                         "Orders canceled by non-monitored wallet, skipping",
-                        owner=owner,
+                        maker_address=maker_address,
                         order_count=len(order_ids),
                     )
                     return
@@ -214,7 +221,8 @@ class CopyTradingBot:
                     "Orders canceled detected",
                     order_count=len(order_ids),
                     order_ids=order_ids,
-                    owner=owner,
+                    cloids=cloids,
+                    maker_address=maker_address,
                 )
 
                 # Find our mirrored orders

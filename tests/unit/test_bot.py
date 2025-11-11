@@ -560,7 +560,12 @@ class TestCopyTradingBotOrdersCanceledProcessing:
 
         # Now simulate OrdersCanceled event
         cancel_callback = mock_ws_client.set_orders_canceled_callback.call_args[0][0]
-        await cancel_callback([sample_order_response.order_id], source_wallet)
+        await cancel_callback(
+            [sample_order_response.order_id],
+            ["test-cloid"],
+            source_wallet,
+            [{"order_id": sample_order_response.order_id, "reason": "user_cancelled"}],
+        )
 
         # Should have called cancel_orders
         mock_copier.cancel_orders.assert_called_once_with(["order_456"])
@@ -578,7 +583,12 @@ class TestCopyTradingBotOrdersCanceledProcessing:
 
         # Simulate OrdersCanceled event from unmonitored wallet
         cancel_callback = mock_ws_client.set_orders_canceled_callback.call_args[0][0]
-        await cancel_callback([12345], "0x9999999999999999999999999999999999999999")
+        await cancel_callback(
+            [12345],
+            ["cloid-123"],
+            "0x9999999999999999999999999999999999999999",
+            [{"order_id": 12345, "reason": "user_cancelled"}],
+        )
 
         # Should NOT call cancel_orders
         mock_copier.cancel_orders.assert_not_called()
@@ -597,8 +607,18 @@ class TestCopyTradingBotOrdersCanceledProcessing:
         cancel_callback = mock_ws_client.set_orders_canceled_callback.call_args[0][0]
 
         # Process multiple cancellations
-        await cancel_callback([12345, 67890], source_wallet)
-        await cancel_callback([11111], source_wallet)
+        await cancel_callback(
+            [12345, 67890],
+            ["cloid-1", "cloid-2"],
+            source_wallet,
+            [
+                {"order_id": 12345, "reason": "user_cancelled"},
+                {"order_id": 67890, "reason": "user_cancelled"},
+            ],
+        )
+        await cancel_callback(
+            [11111], ["cloid-3"], source_wallet, [{"order_id": 11111, "reason": "user_cancelled"}]
+        )
 
         stats = bot.get_statistics()
         assert stats["orders_canceled_detected"] == 2
@@ -624,7 +644,12 @@ class TestCopyTradingBotOrdersCanceledProcessing:
 
         # Now cancel it
         cancel_callback = mock_ws_client.set_orders_canceled_callback.call_args[0][0]
-        await cancel_callback([sample_order_response.order_id], source_wallet)
+        await cancel_callback(
+            [sample_order_response.order_id],
+            ["test-cloid"],
+            source_wallet,
+            [{"order_id": sample_order_response.order_id, "reason": "user_cancelled"}],
+        )
 
         # Should be removed from tracking
         assert bot.get_statistics()["tracked_orders"] == 0
@@ -643,7 +668,15 @@ class TestCopyTradingBotOrdersCanceledProcessing:
 
         # Cancel orders that were never mirrored
         cancel_callback = mock_ws_client.set_orders_canceled_callback.call_args[0][0]
-        await cancel_callback([99999, 88888], source_wallet)
+        await cancel_callback(
+            [99999, 88888],
+            ["cloid-999", "cloid-888"],
+            source_wallet,
+            [
+                {"order_id": 99999, "reason": "user_cancelled"},
+                {"order_id": 88888, "reason": "user_cancelled"},
+            ],
+        )
 
         # Should not call cancel_orders (no orders to cancel)
         mock_copier.cancel_orders.assert_not_called()
@@ -694,7 +727,15 @@ class TestCopyTradingBotOrdersCanceledProcessing:
 
         # Cancel both at once
         cancel_callback = mock_ws_client.set_orders_canceled_callback.call_args[0][0]
-        await cancel_callback([100, 200], source_wallet)
+        await cancel_callback(
+            [100, 200],
+            ["cloid-100", "cloid-200"],
+            source_wallet,
+            [
+                {"order_id": 100, "reason": "user_cancelled"},
+                {"order_id": 200, "reason": "user_cancelled"},
+            ],
+        )
 
         # Should have called cancel_orders with both mirrored order IDs
         mock_copier.cancel_orders.assert_called_once()
