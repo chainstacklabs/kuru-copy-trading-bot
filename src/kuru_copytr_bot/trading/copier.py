@@ -5,6 +5,7 @@ from decimal import Decimal
 from src.kuru_copytr_bot.connectors.platforms.kuru import KuruClient
 from src.kuru_copytr_bot.core.enums import OrderType
 from src.kuru_copytr_bot.core.exceptions import (
+    BlockchainConnectionError,
     InsufficientBalanceError,
     InvalidOrderError,
     OrderPlacementError,
@@ -14,6 +15,7 @@ from src.kuru_copytr_bot.models.trade import Trade
 from src.kuru_copytr_bot.risk.calculator import PositionSizeCalculator
 from src.kuru_copytr_bot.risk.validator import TradeValidator
 from src.kuru_copytr_bot.trading.order_tracker import OrderTracker
+from src.kuru_copytr_bot.trading.retry_queue import RetryQueue
 from src.kuru_copytr_bot.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -28,6 +30,7 @@ class TradeCopier:
         calculator: PositionSizeCalculator,
         validator: TradeValidator,
         order_tracker: OrderTracker | None = None,
+        retry_queue: RetryQueue | None = None,
         default_order_type: OrderType = OrderType.LIMIT,
     ):
         """Initialize trade copier.
@@ -37,12 +40,14 @@ class TradeCopier:
             calculator: Position size calculator
             validator: Trade validator
             order_tracker: Optional order tracker for fill tracking
+            retry_queue: Optional retry queue for failed order management
             default_order_type: Default order type (LIMIT or MARKET)
         """
         self.kuru_client = kuru_client
         self.calculator = calculator
         self.validator = validator
         self.order_tracker = order_tracker or OrderTracker()
+        self.retry_queue = retry_queue or RetryQueue()
         self.default_order_type = default_order_type
 
         # Statistics tracking
@@ -53,6 +58,7 @@ class TradeCopier:
         self._failed_orders = 0
         self._rejected_orders = 0
         self._orders_canceled = 0
+        self._retried_orders = 0
 
     def process_trade(self, trade: Trade) -> str | None:
         """Process a single trade from source wallet.
@@ -172,13 +178,23 @@ class TradeCopier:
                 error=str(e),
             )
             return None
-        except OrderPlacementError as e:
-            self._failed_trades += 1
-            logger.error(
-                "Order placement failed",
-                trade_id=trade.id,
-                error=str(e),
-            )
+        except (BlockchainConnectionError, OrderPlacementError, TimeoutError) as e:
+            if self.retry_queue.is_retriable(e):
+                self.retry_queue.enqueue(mirror_trade, e)
+                self.retry_queue.record_failure()
+                logger.warning(
+                    "Trade enqueued for retry",
+                    trade_id=trade.id,
+                    error_type=type(e).__name__,
+                    error=str(e),
+                )
+            else:
+                self._failed_trades += 1
+                logger.error(
+                    "Non-retriable error processing trade",
+                    trade_id=trade.id,
+                    error=str(e),
+                )
             return None
         except Exception as e:
             self._failed_trades += 1
@@ -384,12 +400,123 @@ class TradeCopier:
             )
             return False
 
+    def process_retry_queue(self) -> None:
+        """Process retry queue and attempt failed orders."""
+        if self.retry_queue.is_circuit_open():
+            logger.warning("Circuit breaker open, skipping retry processing")
+            return
+
+        due_retries = self.retry_queue.get_due_retries()
+
+        if not due_retries:
+            return
+
+        logger.info("Processing retry queue", count=len(due_retries))
+
+        for item in due_retries:
+            trade = item["trade"]
+            retry_count = item["retry_count"]
+
+            if not self.retry_queue.should_retry(retry_count):
+                logger.warning(
+                    "Skipping retry, max attempts reached",
+                    trade_id=trade.id,
+                    retry_count=retry_count,
+                )
+                continue
+
+            logger.info(
+                "Retrying trade",
+                trade_id=trade.id,
+                retry_count=retry_count + 1,
+            )
+
+            try:
+                balance = self.kuru_client.get_margin_balance(None)
+
+                calculated_size = self.calculator.calculate(
+                    source_size=trade.size,
+                    available_balance=balance,
+                    price=trade.price,
+                )
+
+                if calculated_size == 0:
+                    logger.info("Calculated size is zero, skipping retry", trade_id=trade.id)
+                    continue
+
+                validation_result = self.validator.validate(
+                    trade=trade,
+                    current_balance=balance,
+                )
+
+                if not validation_result.is_valid:
+                    logger.warning(
+                        "Trade validation failed on retry, skipping",
+                        trade_id=trade.id,
+                        reason=validation_result.reason,
+                    )
+                    continue
+
+                if self.default_order_type == OrderType.LIMIT:
+                    order_id = self.kuru_client.place_limit_order(
+                        market=trade.market,
+                        side=trade.side,
+                        size=calculated_size,
+                        price=trade.price,
+                    )
+                else:
+                    order_id = self.kuru_client.place_market_order(
+                        market=trade.market,
+                        side=trade.side,
+                        size=calculated_size,
+                    )
+
+                self.order_tracker.register_order(order_id=order_id, size=calculated_size)
+                self.retry_queue.record_success()
+                self._successful_trades += 1
+                self._retried_orders += 1
+
+                logger.info(
+                    "Successfully retried trade",
+                    trade_id=trade.id,
+                    order_id=order_id,
+                    retry_count=retry_count + 1,
+                )
+
+            except (BlockchainConnectionError, OrderPlacementError, TimeoutError) as e:
+                if self.retry_queue.is_retriable(e):
+                    self.retry_queue.mark_failed(item)
+                    logger.warning(
+                        "Retry failed, re-enqueueing",
+                        trade_id=trade.id,
+                        retry_count=retry_count + 1,
+                        error=str(e),
+                    )
+                else:
+                    self._failed_trades += 1
+                    logger.error(
+                        "Retry failed with non-retriable error",
+                        trade_id=trade.id,
+                        error=str(e),
+                    )
+
+            except Exception as e:
+                self._failed_trades += 1
+                logger.error(
+                    "Unexpected error during retry",
+                    trade_id=trade.id,
+                    error=str(e),
+                    exc_info=True,
+                )
+
     def get_statistics(self) -> dict[str, int]:
         """Get trade and order statistics.
 
         Returns:
             Dictionary with successful, failed, and rejected counts
         """
+        retry_stats = self.retry_queue.get_statistics()
+
         return {
             "successful_trades": self._successful_trades,
             "failed_trades": self._failed_trades,
@@ -398,6 +525,10 @@ class TradeCopier:
             "failed_orders": self._failed_orders,
             "rejected_orders": self._rejected_orders,
             "orders_canceled": self._orders_canceled,
+            "retried_orders": self._retried_orders,
+            "retry_queue_size": retry_stats["queue_size"],
+            "dead_letter_size": retry_stats["dead_letter_size"],
+            "circuit_open": retry_stats["circuit_open"],
         }
 
     def reset_statistics(self) -> None:
@@ -409,3 +540,4 @@ class TradeCopier:
         self._failed_orders = 0
         self._rejected_orders = 0
         self._orders_canceled = 0
+        self._retried_orders = 0

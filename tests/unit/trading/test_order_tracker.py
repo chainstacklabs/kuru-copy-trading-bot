@@ -1,12 +1,11 @@
 """Unit tests for OrderTracker."""
 
 from decimal import Decimal
-from unittest.mock import MagicMock
 
 import pytest
 
 from src.kuru_copytr_bot.core.enums import OrderStatus
-from src.kuru_copytr_bot.trading.order_tracker import OrderFillState, OrderTracker
+from src.kuru_copytr_bot.trading.order_tracker import OrderTracker
 
 
 class TestOrderTracker:
