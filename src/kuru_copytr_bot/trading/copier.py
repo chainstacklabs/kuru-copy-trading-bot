@@ -69,9 +69,9 @@ class TradeCopier:
         )
 
         try:
-            # Step 1: Get current balance
-            balance = self.kuru_client.get_balance()
-            logger.debug("Retrieved balance", balance=str(balance))
+            # Step 1: Get current margin balance
+            balance = self.kuru_client.get_margin_balance(None)
+            logger.debug("Retrieved margin balance", balance=str(balance))
 
             # Step 2: Calculate position size
             calculated_size = self.calculator.calculate(
@@ -221,9 +221,9 @@ class TradeCopier:
         )
 
         try:
-            # Step 1: Get current balance
-            balance = self.kuru_client.get_balance()
-            logger.debug("Retrieved balance", balance=str(balance))
+            # Step 1: Get current margin balance
+            balance = self.kuru_client.get_margin_balance(None)
+            logger.debug("Retrieved margin balance", balance=str(balance))
 
             # Step 2: Calculate position size
             calculated_size = self.calculator.calculate(

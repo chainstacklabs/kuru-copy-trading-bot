@@ -204,6 +204,42 @@ class KuruClient:
             except Exception as e:
                 raise OrderExecutionError(f"Margin deposit failed: {e}") from e
 
+    def get_margin_balance(self, token: str | None = None, decimals: int = 18) -> Decimal:
+        """Get margin account balance for a token.
+
+        Args:
+            token: Token address (None or 0x0...0 for native token)
+            decimals: Token decimals (default: 18 for native, 6 for USDC)
+
+        Returns:
+            Decimal: Balance in token units
+
+        Raises:
+            BlockchainConnectionError: If contract call fails
+            ValueError: If token address is invalid
+        """
+        if token is None or token == "0x0000000000000000000000000000000000000000":
+            token_address = "0x0000000000000000000000000000000000000000"
+        else:
+            if not self._is_valid_address(token):
+                raise ValueError(f"Invalid token address: {token}")
+            token_address = token
+
+        try:
+            balance_wei = self.blockchain.call_contract_function(
+                contract_address=self.margin_account_address,
+                function_name="getBalance",
+                abi=self.margin_account_abi,
+                args=[self.blockchain.wallet_address, token_address],
+            )
+
+            return Decimal(balance_wei) / Decimal(10**decimals)
+
+        except BlockchainConnectionError:
+            raise
+        except Exception as e:
+            raise BlockchainConnectionError(f"Failed to get margin balance: {e}") from e
+
     def place_limit_order(
         self,
         market: str,
