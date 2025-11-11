@@ -13,15 +13,11 @@ from src.kuru_copytr_bot.config.constants import (
     KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET,
     KURU_ROUTER_ADDRESS_TESTNET,
     KURU_UTILS_ADDRESS_TESTNET,
-    MARGIN_DEPOSIT_EVENT_SIGNATURE,
     MAX_RETRIES,
     MON_USDC_MARKET_ADDRESS,
     MONAD_CHAIN_ID,
     MONAD_TESTNET_CHAIN_ID,
-    ORDER_CANCELLED_EVENT_SIGNATURE,
-    ORDER_PLACED_EVENT_SIGNATURE,
     RETRY_BACKOFF_SECONDS,
-    TRADE_EXECUTED_EVENT_SIGNATURE,
     USDC_ADDRESS_TESTNET,
 )
 
@@ -108,20 +104,6 @@ class TestConstants:
         assert "placeholder" not in KURU_CONTRACT_ADDRESS_TESTNET.lower()
         assert "0xKuru" not in KURU_CONTRACT_ADDRESS_TESTNET
         assert KURU_CONTRACT_ADDRESS_TESTNET != "0x0000000000000000000000000000000000000000"
-
-    def test_event_signatures_are_valid_hex_strings(self):
-        """Event signatures should be valid 66-char hex strings."""
-        assert ORDER_PLACED_EVENT_SIGNATURE.startswith("0x")
-        assert len(ORDER_PLACED_EVENT_SIGNATURE) == 66
-
-        assert TRADE_EXECUTED_EVENT_SIGNATURE.startswith("0x")
-        assert len(TRADE_EXECUTED_EVENT_SIGNATURE) == 66
-
-        assert ORDER_CANCELLED_EVENT_SIGNATURE.startswith("0x")
-        assert len(ORDER_CANCELLED_EVENT_SIGNATURE) == 66
-
-        assert MARGIN_DEPOSIT_EVENT_SIGNATURE.startswith("0x")
-        assert len(MARGIN_DEPOSIT_EVENT_SIGNATURE) == 66
 
     def test_default_gas_limit_is_reasonable(self):
         """Default gas limit should be reasonable (100k-10M)."""

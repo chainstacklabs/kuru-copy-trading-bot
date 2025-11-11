@@ -35,10 +35,14 @@ class Settings(BaseSettings):
     # Blockchain Configuration
     monad_rpc_url: str = Field(..., description="Monad blockchain RPC URL")
     kuru_api_url: str = Field(..., description="Kuru Exchange API URL")
+    kuru_ws_url: str = Field(..., description="Kuru Exchange WebSocket URL")
 
     # Trading Configuration
     source_wallets: str | list[str] = Field(
         ..., description="List of source trader wallet addresses to copy"
+    )
+    market_addresses: str | list[str] = Field(
+        ..., description="List of Kuru market contract addresses to monitor"
     )
     copy_ratio: Decimal = Field(default=Decimal("1.0"), description="Copy ratio (1.0 = 100%)", gt=0)
 
@@ -72,12 +76,6 @@ class Settings(BaseSettings):
     )
 
     # Operational Settings
-    poll_interval_seconds: int = Field(
-        default=5,
-        gt=0,
-        le=3600,
-        description="Polling interval in seconds (how often to check for new transactions)",
-    )
     dry_run: bool = Field(default=False, description="Run in dry-run mode (no actual trades)")
     log_level: str = Field(default="INFO", description="Logging level")
     strict_api_errors: bool = Field(
@@ -101,10 +99,10 @@ class Settings(BaseSettings):
             raise ValueError("Private key must be a valid hexadecimal string") from e
         return v
 
-    @field_validator("source_wallets", mode="before")
+    @field_validator("source_wallets", "market_addresses", mode="before")
     @classmethod
-    def parse_source_wallets(cls, v: str | list[str]) -> list[str]:
-        """Parse source wallets from string or list."""
+    def parse_address_list(cls, v: str | list[str]) -> list[str]:
+        """Parse address list from string or list."""
         if isinstance(v, str):
             # Split comma-separated string and strip whitespace
             return [addr.strip() for addr in v.split(",") if addr.strip()]
@@ -123,12 +121,33 @@ class Settings(BaseSettings):
 
         return v
 
+    @field_validator("market_addresses")
+    @classmethod
+    def validate_market_addresses(cls, v: list[str]) -> list[str]:
+        """Validate market contract addresses."""
+        if not v:
+            raise ValueError("At least one market address is required")
+
+        for addr in v:
+            if not addr.startswith("0x") or len(addr) != 42:
+                raise ValueError(f"Invalid market address format: {addr}")
+
+        return v
+
     @field_validator("monad_rpc_url", "kuru_api_url")
     @classmethod
-    def validate_url(cls, v: str) -> str:
-        """Validate URL format."""
+    def validate_http_url(cls, v: str) -> str:
+        """Validate HTTP/HTTPS URL format."""
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
+        return v
+
+    @field_validator("kuru_ws_url")
+    @classmethod
+    def validate_ws_url(cls, v: str) -> str:
+        """Validate WebSocket URL format."""
+        if not v.startswith(("ws://", "wss://", "http://", "https://")):
+            raise ValueError("WebSocket URL must start with ws://, wss://, http://, or https://")
         return v
 
     @field_validator("log_level")

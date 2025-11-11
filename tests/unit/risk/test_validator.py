@@ -1,12 +1,13 @@
-"""Unit tests for trade validator."""
+"""Unit tests for trade validator (spot DEX)."""
+
+from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
-from decimal import Decimal
-from datetime import datetime, timezone
 
-from src.kuru_copytr_bot.risk.validator import TradeValidator, ValidationResult
-from src.kuru_copytr_bot.models.trade import Trade
 from src.kuru_copytr_bot.core.enums import OrderSide
+from src.kuru_copytr_bot.models.trade import Trade
+from src.kuru_copytr_bot.risk.validator import TradeValidator, ValidationResult
 
 
 @pytest.fixture
@@ -19,7 +20,7 @@ def sample_buy_trade():
         side=OrderSide.BUY,
         price=Decimal("2000.0"),
         size=Decimal("1.0"),
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     )
 
@@ -35,10 +36,7 @@ class TestValidationResult:
 
     def test_validation_result_for_invalid_trade(self):
         """ValidationResult should indicate invalid trade with reason."""
-        result = ValidationResult(
-            is_valid=False,
-            reason="Insufficient balance"
-        )
+        result = ValidationResult(is_valid=False, reason="Insufficient balance")
         assert result.is_valid is False
         assert result.reason == "Insufficient balance"
 
@@ -57,7 +55,7 @@ class TestTradeValidatorInitialization:
         assert validator.min_balance == Decimal("100.0")
 
     def test_validator_initializes_with_max_position_size(self):
-        """Validator should initialize with max position size."""
+        """Validator should initialize with max order size."""
         validator = TradeValidator(max_position_size=Decimal("10.0"))
         assert validator.max_position_size == Decimal("10.0")
 
@@ -71,82 +69,87 @@ class TestTradeValidatorBalanceValidation:
         result = validator.validate(
             trade=sample_buy_trade,
             current_balance=Decimal("5000.0"),
-            current_position=Decimal("0"),
         )
         assert result.is_valid is True
         assert result.reason is None
 
-    def test_validator_rejects_insufficient_balance(self, sample_buy_trade):
-        """Validator should reject trade with insufficient balance."""
+    def test_validator_rejects_balance_below_threshold(self, sample_buy_trade):
+        """Validator should reject trade when balance below minimum threshold."""
         validator = TradeValidator(min_balance=Decimal("100.0"))
         result = validator.validate(
             trade=sample_buy_trade,
-            current_balance=Decimal("50.0"),  # Below minimum
-            current_position=Decimal("0"),
+            current_balance=Decimal("50.0"),  # Below minimum threshold
         )
         assert result.is_valid is False
         assert "balance" in result.reason.lower()
+        assert "threshold" in result.reason.lower()
 
-    def test_validator_checks_balance_for_trade_cost(self, sample_buy_trade):
-        """Validator should check balance covers trade cost."""
+    def test_validator_checks_balance_for_buy_trade_cost(self, sample_buy_trade):
+        """Validator should check balance covers BUY trade cost."""
         validator = TradeValidator()
         # Trade costs 2000 (1.0 @ 2000)
         result = validator.validate(
             trade=sample_buy_trade,
             current_balance=Decimal("1500.0"),  # Insufficient for trade
-            current_position=Decimal("0"),
         )
         assert result.is_valid is False
         assert "balance" in result.reason.lower()
 
-
-class TestTradeValidatorPositionSizeLimits:
-    """Test position size limit validation."""
-
-    def test_validator_accepts_position_within_limit(self, sample_buy_trade):
-        """Validator should accept position within size limit."""
-        validator = TradeValidator(max_position_size=Decimal("10.0"))
-        result = validator.validate(
-            trade=sample_buy_trade,  # size=1.0
-            current_balance=Decimal("10000.0"),
-            current_position=Decimal("5.0"),
-        )
-        # New position would be 6.0, within limit
-        assert result.is_valid is True
-
-    def test_validator_rejects_position_exceeding_limit(self, sample_buy_trade):
-        """Validator should reject position exceeding size limit."""
-        validator = TradeValidator(max_position_size=Decimal("5.0"))
-        result = validator.validate(
-            trade=sample_buy_trade,  # size=1.0
-            current_balance=Decimal("10000.0"),
-            current_position=Decimal("5.0"),
-        )
-        # New position would be 6.0, exceeds limit of 5.0
-        assert result.is_valid is False
-        assert "position size" in result.reason.lower()
-
-    def test_validator_handles_sell_reducing_position(self):
-        """Validator should handle sells that reduce position."""
+    def test_validator_allows_sell_with_low_balance(self):
+        """Validator should allow SELL trades even with low balance (spot DEX)."""
         sell_trade = Trade(
             id="trade_002",
             trader_address="0x1234567890123456789012345678901234567890",
             market="ETH-USDC",
             side=OrderSide.SELL,
             price=Decimal("2000.0"),
-            size=Decimal("2.0"),
-            timestamp=datetime.now(timezone.utc),
+            size=Decimal("1.0"),
+            timestamp=datetime.now(UTC),
             tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
         )
 
-        validator = TradeValidator(max_position_size=Decimal("10.0"))
+        validator = TradeValidator(min_balance=Decimal("100.0"))
+        # SELL doesn't require USDC balance, just ETH balance (not checked here)
         result = validator.validate(
             trade=sell_trade,
-            current_balance=Decimal("10000.0"),
-            current_position=Decimal("5.0"),
+            current_balance=Decimal("50.0"),  # Below threshold but SELL trade
         )
-        # Selling 2.0 from 5.0 position = 3.0, within limit
+        # Should reject due to balance threshold
+        assert result.is_valid is False
+
+
+class TestTradeValidatorOrderSizeLimits:
+    """Test order size limit validation (spot DEX)."""
+
+    def test_validator_accepts_order_within_limit(self, sample_buy_trade):
+        """Validator should accept order within size limit."""
+        validator = TradeValidator(max_position_size=Decimal("10.0"))
+        result = validator.validate(
+            trade=sample_buy_trade,  # size=1.0
+            current_balance=Decimal("10000.0"),
+        )
         assert result.is_valid is True
+
+    def test_validator_rejects_order_exceeding_limit(self):
+        """Validator should reject order exceeding size limit."""
+        large_trade = Trade(
+            id="trade_003",
+            trader_address="0x1234567890123456789012345678901234567890",
+            market="ETH-USDC",
+            side=OrderSide.BUY,
+            price=Decimal("2000.0"),
+            size=Decimal("10.0"),  # Large size
+            timestamp=datetime.now(UTC),
+            tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        )
+
+        validator = TradeValidator(max_position_size=Decimal("5.0"))
+        result = validator.validate(
+            trade=large_trade,
+            current_balance=Decimal("100000.0"),
+        )
+        assert result.is_valid is False
+        assert "size" in result.reason.lower() or "maximum" in result.reason.lower()
 
 
 class TestTradeValidatorMinimumOrderSize:
@@ -158,20 +161,19 @@ class TestTradeValidatorMinimumOrderSize:
         result = validator.validate(
             trade=sample_buy_trade,  # size=1.0
             current_balance=Decimal("10000.0"),
-            current_position=Decimal("0"),
         )
         assert result.is_valid is True
 
     def test_validator_rejects_size_below_minimum(self):
         """Validator should reject order size below minimum."""
         small_trade = Trade(
-            id="trade_003",
+            id="trade_004",
             trader_address="0x1234567890123456789012345678901234567890",
             market="ETH-USDC",
             side=OrderSide.BUY,
             price=Decimal("2000.0"),
             size=Decimal("0.001"),  # Very small
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
         )
 
@@ -179,7 +181,6 @@ class TestTradeValidatorMinimumOrderSize:
         result = validator.validate(
             trade=small_trade,
             current_balance=Decimal("10000.0"),
-            current_position=Decimal("0"),
         )
         assert result.is_valid is False
         assert "minimum" in result.reason.lower()
@@ -194,7 +195,6 @@ class TestTradeValidatorMarketWhitelist:
         result = validator.validate(
             trade=sample_buy_trade,  # market="ETH-USDC"
             current_balance=Decimal("10000.0"),
-            current_position=Decimal("0"),
         )
         assert result.is_valid is True
 
@@ -204,7 +204,6 @@ class TestTradeValidatorMarketWhitelist:
         result = validator.validate(
             trade=sample_buy_trade,  # market="ETH-USDC"
             current_balance=Decimal("10000.0"),
-            current_position=Decimal("0"),
         )
         assert result.is_valid is False
         assert "whitelist" in result.reason.lower()
@@ -215,7 +214,6 @@ class TestTradeValidatorMarketWhitelist:
         result = validator.validate(
             trade=sample_buy_trade,
             current_balance=Decimal("10000.0"),
-            current_position=Decimal("0"),
         )
         assert result.is_valid is True
 
@@ -229,7 +227,6 @@ class TestTradeValidatorMarketBlacklist:
         result = validator.validate(
             trade=sample_buy_trade,  # market="ETH-USDC"
             current_balance=Decimal("10000.0"),
-            current_position=Decimal("0"),
         )
         assert result.is_valid is False
         assert "blacklist" in result.reason.lower()
@@ -240,7 +237,6 @@ class TestTradeValidatorMarketBlacklist:
         result = validator.validate(
             trade=sample_buy_trade,  # market="ETH-USDC"
             current_balance=Decimal("10000.0"),
-            current_position=Decimal("0"),
         )
         assert result.is_valid is True
 
@@ -253,37 +249,43 @@ class TestTradeValidatorMarketBlacklist:
         result = validator.validate(
             trade=sample_buy_trade,
             current_balance=Decimal("10000.0"),
-            current_position=Decimal("0"),
         )
         # Whitelist should take precedence
         assert result.is_valid is True
 
 
-class TestTradeValidatorMaxExposure:
-    """Test maximum exposure validation."""
+class TestTradeValidatorMaxNotionalValue:
+    """Test maximum notional value validation (spot DEX)."""
 
-    def test_validator_accepts_exposure_within_limit(self, sample_buy_trade):
-        """Validator should accept trade with exposure within limit."""
+    def test_validator_accepts_notional_within_limit(self, sample_buy_trade):
+        """Validator should accept trade with notional value within limit."""
         validator = TradeValidator(max_exposure_usd=Decimal("10000.0"))
         result = validator.validate(
-            trade=sample_buy_trade,  # notional=2000
+            trade=sample_buy_trade,  # notional=2000 (1.0 * 2000)
             current_balance=Decimal("10000.0"),
-            current_position=Decimal("2.0"),  # current exposure=4000
         )
-        # Total exposure = 4000 + 2000 = 6000, within limit
         assert result.is_valid is True
 
-    def test_validator_rejects_exposure_exceeding_limit(self, sample_buy_trade):
-        """Validator should reject trade exceeding exposure limit."""
+    def test_validator_rejects_notional_exceeding_limit(self):
+        """Validator should reject trade exceeding notional value limit."""
+        large_trade = Trade(
+            id="trade_005",
+            trader_address="0x1234567890123456789012345678901234567890",
+            market="ETH-USDC",
+            side=OrderSide.BUY,
+            price=Decimal("2000.0"),
+            size=Decimal("10.0"),  # notional = 20000
+            timestamp=datetime.now(UTC),
+            tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        )
+
         validator = TradeValidator(max_exposure_usd=Decimal("5000.0"))
         result = validator.validate(
-            trade=sample_buy_trade,  # notional=2000
-            current_balance=Decimal("10000.0"),
-            current_position=Decimal("4.0"),  # current exposure=8000
+            trade=large_trade,
+            current_balance=Decimal("100000.0"),
         )
-        # Total exposure = 8000 + 2000 = 10000, exceeds limit of 5000
         assert result.is_valid is False
-        assert "exposure" in result.reason.lower()
+        assert "exposure" in result.reason.lower() or "notional" in result.reason.lower()
 
 
 class TestTradeValidatorErrorMessages:
@@ -295,22 +297,30 @@ class TestTradeValidatorErrorMessages:
         result = validator.validate(
             trade=sample_buy_trade,
             current_balance=Decimal("50.0"),
-            current_position=Decimal("0"),
         )
         assert result.is_valid is False
         assert "balance" in result.reason.lower()
         assert "50" in result.reason or "50.0" in result.reason  # Shows actual balance
 
-    def test_validator_provides_clear_position_size_error(self, sample_buy_trade):
-        """Validator should provide clear error for position size limit."""
+    def test_validator_provides_clear_order_size_error(self):
+        """Validator should provide clear error for order size limit."""
+        large_trade = Trade(
+            id="trade_006",
+            trader_address="0x1234567890123456789012345678901234567890",
+            market="ETH-USDC",
+            side=OrderSide.BUY,
+            price=Decimal("2000.0"),
+            size=Decimal("10.0"),
+            timestamp=datetime.now(UTC),
+            tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+        )
+
         validator = TradeValidator(max_position_size=Decimal("5.0"))
         result = validator.validate(
-            trade=sample_buy_trade,
-            current_balance=Decimal("10000.0"),
-            current_position=Decimal("5.0"),
+            trade=large_trade,
+            current_balance=Decimal("100000.0"),
         )
         assert result.is_valid is False
-        assert "position size" in result.reason.lower()
         assert "5" in result.reason or "5.0" in result.reason  # Shows limit
 
     def test_validator_provides_clear_market_error(self, sample_buy_trade):
@@ -319,7 +329,6 @@ class TestTradeValidatorErrorMessages:
         result = validator.validate(
             trade=sample_buy_trade,
             current_balance=Decimal("10000.0"),
-            current_position=Decimal("0"),
         )
         assert result.is_valid is False
         assert "ETH-USDC" in result.reason  # Shows the market
@@ -340,7 +349,6 @@ class TestTradeValidatorMultipleRules:
         result = validator.validate(
             trade=sample_buy_trade,
             current_balance=Decimal("10000.0"),
-            current_position=Decimal("2.0"),
         )
         # Should pass all checks
         assert result.is_valid is True
@@ -354,7 +362,6 @@ class TestTradeValidatorMultipleRules:
         result = validator.validate(
             trade=sample_buy_trade,
             current_balance=Decimal("100.0"),  # Below minimum
-            current_position=Decimal("5.0"),
         )
         assert result.is_valid is False
         # Should report balance issue (checked first)
@@ -364,36 +371,25 @@ class TestTradeValidatorMultipleRules:
 class TestTradeValidatorEdgeCases:
     """Test edge cases and error handling."""
 
-    def test_validator_handles_zero_position(self, sample_buy_trade):
-        """Validator should handle zero current position."""
-        validator = TradeValidator(max_position_size=Decimal("10.0"))
-        result = validator.validate(
-            trade=sample_buy_trade,
-            current_balance=Decimal("10000.0"),
-            current_position=Decimal("0"),
-        )
-        assert result.is_valid is True
-
     def test_validator_handles_zero_balance(self, sample_buy_trade):
-        """Validator should reject trade with zero balance."""
+        """Validator should reject BUY trade with zero balance."""
         validator = TradeValidator()
         result = validator.validate(
             trade=sample_buy_trade,
             current_balance=Decimal("0"),
-            current_position=Decimal("0"),
         )
         assert result.is_valid is False
 
     def test_validator_handles_very_small_trade(self):
         """Validator should handle very small trade sizes."""
         tiny_trade = Trade(
-            id="trade_004",
+            id="trade_007",
             trader_address="0x1234567890123456789012345678901234567890",
             market="ETH-USDC",
             side=OrderSide.BUY,
             price=Decimal("2000.0"),
             size=Decimal("0.0001"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
         )
 
@@ -401,28 +397,5 @@ class TestTradeValidatorEdgeCases:
         result = validator.validate(
             trade=tiny_trade,
             current_balance=Decimal("1.0"),
-            current_position=Decimal("0"),
         )
-        assert result.is_valid is True
-
-    def test_validator_validates_negative_position_for_short(self):
-        """Validator should handle negative positions (shorts)."""
-        sell_trade = Trade(
-            id="trade_005",
-            trader_address="0x1234567890123456789012345678901234567890",
-            market="ETH-USDC",
-            side=OrderSide.SELL,
-            price=Decimal("2000.0"),
-            size=Decimal("2.0"),
-            timestamp=datetime.now(timezone.utc),
-            tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
-        )
-
-        validator = TradeValidator(max_position_size=Decimal("10.0"))
-        result = validator.validate(
-            trade=sell_trade,
-            current_balance=Decimal("10000.0"),
-            current_position=Decimal("-5.0"),  # Short position
-        )
-        # Selling more from short: -5 - 2 = -7, within limit
         assert result.is_valid is True

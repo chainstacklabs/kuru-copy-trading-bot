@@ -2,10 +2,9 @@
 
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import List, Optional
 
-from src.kuru_copytr_bot.models.trade import Trade
 from src.kuru_copytr_bot.core.enums import OrderSide
+from src.kuru_copytr_bot.models.trade import Trade
 
 
 @dataclass
@@ -13,7 +12,7 @@ class ValidationResult:
     """Result of trade validation."""
 
     is_valid: bool
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 class TradeValidator:
@@ -21,12 +20,12 @@ class TradeValidator:
 
     def __init__(
         self,
-        min_balance: Optional[Decimal] = None,
-        max_position_size: Optional[Decimal] = None,
-        min_order_size: Optional[Decimal] = None,
-        market_whitelist: Optional[List[str]] = None,
-        market_blacklist: Optional[List[str]] = None,
-        max_exposure_usd: Optional[Decimal] = None,
+        min_balance: Decimal | None = None,
+        max_position_size: Decimal | None = None,
+        min_order_size: Decimal | None = None,
+        market_whitelist: list[str] | None = None,
+        market_blacklist: list[str] | None = None,
+        max_exposure_usd: Decimal | None = None,
     ):
         """Initialize trade validator.
 
@@ -49,91 +48,65 @@ class TradeValidator:
         self,
         trade: Trade,
         current_balance: Decimal,
-        current_position: Decimal,
     ) -> ValidationResult:
         """Validate a trade against all configured rules.
 
         Args:
             trade: Trade to validate
-            current_balance: Current available balance
-            current_position: Current position size (positive for long, negative for short)
+            current_balance: Current available balance (in quote currency, e.g., USDC)
 
         Returns:
             ValidationResult: Validation result with reason if invalid
         """
-        # Check 1: Minimum balance
-        if self.min_balance is not None:
-            if current_balance < self.min_balance:
-                return ValidationResult(
-                    is_valid=False,
-                    reason=f"Insufficient balance: {current_balance} < minimum {self.min_balance}"
-                )
-
-        # Check 2: Balance covers trade cost
-        trade_cost = trade.notional_value  # price * size
-        if current_balance < trade_cost:
+        # Check 1: Minimum balance threshold
+        if self.min_balance is not None and current_balance < self.min_balance:
             return ValidationResult(
                 is_valid=False,
-                reason=f"Insufficient balance for trade: {current_balance} < {trade_cost}"
+                reason=f"Balance {current_balance} below minimum threshold {self.min_balance}",
             )
 
-        # Check 3: Minimum order size
-        if self.min_order_size is not None:
-            if trade.size < self.min_order_size:
+        # Check 2: Balance covers trade cost (for BUY orders)
+        if trade.side == OrderSide.BUY:
+            trade_cost = trade.notional_value  # price * size
+            if current_balance < trade_cost:
                 return ValidationResult(
                     is_valid=False,
-                    reason=f"Order size {trade.size} below minimum {self.min_order_size}"
+                    reason=f"Insufficient balance for trade: {current_balance} < {trade_cost}",
                 )
 
-        # Check 4: Market whitelist (takes precedence over blacklist)
+        # Check 3: Minimum order size
+        if self.min_order_size is not None and trade.size < self.min_order_size:
+            return ValidationResult(
+                is_valid=False,
+                reason=f"Order size {trade.size} below minimum {self.min_order_size}",
+            )
+
+        # Check 4: Maximum position size (interpret as max single order size for spot)
+        if self.max_position_size is not None and trade.size > self.max_position_size:
+            return ValidationResult(
+                is_valid=False,
+                reason=f"Order size {trade.size} exceeds maximum {self.max_position_size}",
+            )
+
+        # Check 5: Maximum exposure (interpret as max notional value per order for spot)
+        if self.max_exposure_usd is not None:
+            trade_notional = trade.notional_value
+            if trade_notional > self.max_exposure_usd:
+                return ValidationResult(
+                    is_valid=False,
+                    reason=f"Trade notional {trade_notional} exceeds max exposure {self.max_exposure_usd}",
+                )
+
+        # Check 6: Market whitelist (takes precedence over blacklist)
         if self.market_whitelist is not None:
             if trade.market not in self.market_whitelist:
                 return ValidationResult(
-                    is_valid=False,
-                    reason=f"Market {trade.market} not in whitelist"
+                    is_valid=False, reason=f"Market {trade.market} not in whitelist"
                 )
 
-        # Check 5: Market blacklist (if no whitelist)
-        elif self.market_blacklist is not None:
-            if trade.market in self.market_blacklist:
-                return ValidationResult(
-                    is_valid=False,
-                    reason=f"Market {trade.market} is blacklisted"
-                )
-
-        # Check 6: Maximum position size
-        if self.max_position_size is not None:
-            # Calculate new position after trade
-            if trade.side == OrderSide.BUY:
-                new_position = current_position + trade.size
-            else:  # SELL
-                new_position = current_position - trade.size
-
-            # Check if absolute position size exceeds limit
-            if abs(new_position) > self.max_position_size:
-                return ValidationResult(
-                    is_valid=False,
-                    reason=f"Position size would exceed limit: {abs(new_position)} > {self.max_position_size}"
-                )
-
-        # Check 7: Maximum exposure
-        if self.max_exposure_usd is not None:
-            # Calculate current exposure
-            current_exposure = abs(current_position * trade.price)
-
-            # Calculate new exposure after trade
-            if trade.side == OrderSide.BUY:
-                new_position = current_position + trade.size
-            else:
-                new_position = current_position - trade.size
-
-            new_exposure = abs(new_position * trade.price)
-
-            if new_exposure > self.max_exposure_usd:
-                return ValidationResult(
-                    is_valid=False,
-                    reason=f"Exposure would exceed limit: {new_exposure} > {self.max_exposure_usd}"
-                )
+        # Check 7: Market blacklist (if no whitelist)
+        elif self.market_blacklist is not None and trade.market in self.market_blacklist:
+            return ValidationResult(is_valid=False, reason=f"Market {trade.market} is blacklisted")
 
         # All checks passed
         return ValidationResult(is_valid=True, reason=None)

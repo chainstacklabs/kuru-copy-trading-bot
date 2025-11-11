@@ -1,22 +1,18 @@
 """Main entry point for Kuru Copy Trading Bot."""
 
+import asyncio
 import signal
 import sys
-import time
 
 import click
 from dotenv import load_dotenv
 
 from src.kuru_copytr_bot.bot import CopyTradingBot
-from src.kuru_copytr_bot.config.constants import (
-    KURU_CONTRACT_ADDRESS_TESTNET,
-)
 from src.kuru_copytr_bot.config.settings import Settings
 from src.kuru_copytr_bot.connectors.blockchain.monad import MonadClient
 from src.kuru_copytr_bot.connectors.platforms.kuru import KuruClient
+from src.kuru_copytr_bot.connectors.websocket.kuru_ws_client import KuruWebSocketClient
 from src.kuru_copytr_bot.core.enums import OrderType
-from src.kuru_copytr_bot.monitoring.detector import KuruEventDetector
-from src.kuru_copytr_bot.monitoring.monitor import WalletMonitor
 from src.kuru_copytr_bot.risk.calculator import PositionSizeCalculator
 from src.kuru_copytr_bot.risk.validator import TradeValidator
 from src.kuru_copytr_bot.trading.copier import TradeCopier
@@ -57,24 +53,25 @@ class BotRunner:
         logger.debug("Creating Kuru Exchange client")
         kuru_client = KuruClient(
             blockchain=monad_client,
-            contract_address=KURU_CONTRACT_ADDRESS_TESTNET,
+            contract_address=self.settings.market_addresses[
+                0
+            ],  # Will use first market for operations
             api_url=self.settings.kuru_api_url,
         )
 
-        # Initialize wallet monitor
+        # Initialize WebSocket clients for each market
         logger.debug(
-            "Creating wallet monitor",
-            wallet_count=len(self.settings.source_wallets),
+            "Creating WebSocket clients",
+            market_count=len(self.settings.market_addresses),
         )
-        monitor = WalletMonitor(
-            blockchain=monad_client,
-            target_wallets=self.settings.source_wallets,
-            kuru_contract_address=KURU_CONTRACT_ADDRESS_TESTNET,
-        )
-
-        # Initialize event detector
-        logger.debug("Creating event detector")
-        detector = KuruEventDetector()
+        ws_clients = []
+        for market_address in self.settings.market_addresses:
+            ws_client = KuruWebSocketClient(
+                ws_url=self.settings.kuru_ws_url,
+                market_address=market_address,
+            )
+            ws_clients.append((market_address, ws_client))
+            logger.debug("Created WebSocket client", market=market_address)
 
         # Initialize position size calculator
         logger.debug(
@@ -116,81 +113,93 @@ class BotRunner:
         # Initialize bot orchestrator
         logger.debug("Creating bot orchestrator")
         bot = CopyTradingBot(
-            monitor=monitor,
-            detector=detector,
+            ws_clients=ws_clients,
+            source_wallets=self.settings.source_wallets,
             copier=copier,
-            poll_interval=self.settings.poll_interval_seconds,
         )
 
         logger.info("All bot components initialized successfully")
         return bot
 
-    def run(self) -> None:
-        """Run the copy trading bot."""
+    async def run_async(self) -> None:
+        """Run the copy trading bot asynchronously."""
         # Initialize components
         click.echo("Initializing Kuru Copy Trading Bot...")
         self.bot = self.initialize_components()
 
-        # Set up signal handlers for graceful shutdown
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        # Display startup info
+        click.echo(f"Monitoring {len(self.settings.market_addresses)} markets")
+        click.echo(f"Watching {len(self.settings.source_wallets)} source wallets:")
+        for wallet in self.settings.source_wallets:
+            click.echo(f"  - {wallet}")
+        click.echo("\nPress Ctrl+C to stop\n")
 
-        # Start the bot
-        click.echo(f"Starting bot (polling every {self.settings.poll_interval_seconds}s)...")
-        click.echo(f"Monitoring wallets: {', '.join(self.settings.source_wallets)}")
-        click.echo("Press Ctrl+C to stop\n")
-
-        self.bot.start()
         self.running = True
 
-        # Main loop
-        while self.running:
-            try:
-                # Process one cycle
-                self.bot.process_once()
+        # Create a task to run the bot
+        bot_task = asyncio.create_task(self.bot.run())
 
-                # Display statistics periodically
-                stats = self.bot.get_statistics()
-                click.echo(
-                    f"Stats: {stats['transactions_processed']} txs | "
-                    f"{stats['trades_detected']} trades | "
-                    f"{stats['successful_trades']} successful | "
-                    f"{stats['failed_trades']} failed | "
-                    f"{stats['rejected_trades']} rejected"
-                )
+        # Create a task to display stats periodically
+        stats_task = asyncio.create_task(self._display_stats_periodically())
 
-                # Sleep until next poll
-                time.sleep(self.bot.poll_interval)
-
-            except KeyboardInterrupt:
-                break
-            except Exception as e:
-                click.echo(f"Error in main loop: {e}", err=True)
-                time.sleep(self.bot.poll_interval)
-
-        # Graceful shutdown
-        self.stop()
-
-    def stop(self) -> None:
-        """Stop the bot gracefully."""
-        if self.bot and self.running:
-            click.echo("\nStopping bot...")
-            self.bot.stop()
+        # Set up signal handlers for graceful shutdown
+        def signal_handler(sig, frame):
+            """Handle shutdown signals."""
+            logger.info("Shutdown signal received", signal=sig)
             self.running = False
+            # Cancel the bot task
+            bot_task.cancel()
+            stats_task.cancel()
 
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+
+        try:
+            # Wait for bot task to complete (or be cancelled)
+            await asyncio.gather(bot_task, stats_task)
+        except asyncio.CancelledError:
+            logger.info("Bot tasks cancelled")
+        finally:
             # Display final statistics
+            self._display_final_stats()
+
+    async def _display_stats_periodically(self) -> None:
+        """Display statistics periodically."""
+        try:
+            while self.running:
+                await asyncio.sleep(10)  # Update every 10 seconds
+                if self.bot and self.running:
+                    stats = self.bot.get_statistics()
+                    click.echo(
+                        f"\rStats: {stats['trades_detected']} trades | "
+                        f"{stats['successful_trades']} successful | "
+                        f"{stats['failed_trades']} failed | "
+                        f"{stats['rejected_trades']} rejected",
+                        nl=False,
+                    )
+        except asyncio.CancelledError:
+            pass
+
+    def _display_final_stats(self) -> None:
+        """Display final statistics."""
+        if self.bot:
+            click.echo("\n\n=== Final Statistics ===")
             stats = self.bot.get_statistics()
-            click.echo("\n=== Final Statistics ===")
-            click.echo(f"Transactions processed: {stats['transactions_processed']}")
             click.echo(f"Trades detected: {stats['trades_detected']}")
             click.echo(f"Successful trades: {stats['successful_trades']}")
             click.echo(f"Failed trades: {stats['failed_trades']}")
             click.echo(f"Rejected trades: {stats['rejected_trades']}")
             click.echo("\nBot stopped.")
 
-    def _signal_handler(self, signum, frame):
-        """Handle shutdown signals."""
-        self.running = False
+    def run(self) -> None:
+        """Run the bot using asyncio."""
+        try:
+            asyncio.run(self.run_async())
+        except KeyboardInterrupt:
+            logger.info("Keyboard interrupt received")
+        except Exception as e:
+            logger.error("Fatal error in bot runner", error=str(e), exc_info=True)
+            raise
 
 
 @click.command()
@@ -214,8 +223,9 @@ class BotRunner:
 def main(env_file: str, log_level: str, json_logs: bool) -> None:
     """Kuru Copy Trading Bot - Mirror trades from expert wallets on Monad testnet.
 
-    This bot monitors specified source wallets and automatically mirrors their
-    trades on Kuru Exchange with configurable position sizing and risk management.
+    This bot monitors specified source wallets via WebSocket and automatically
+    mirrors their trades on Kuru Exchange with configurable position sizing
+    and risk management.
 
     Configuration is loaded from environment variables or a .env file.
     """

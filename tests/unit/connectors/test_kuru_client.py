@@ -308,9 +308,7 @@ class TestKuruClientLimitOrders:
             assert order_id is not None
             mock_blockchain.send_transaction.assert_called_once()
 
-    def test_kuru_client_does_not_normalize_when_set_to_none(
-        self, kuru_client, mock_blockchain
-    ):
+    def test_kuru_client_does_not_normalize_when_set_to_none(self, kuru_client, mock_blockchain):
         """Client should not normalize price when tick_normalization is none."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
             mock_get_market.return_value = create_test_market_params()
@@ -904,8 +902,7 @@ class TestKuruClientErrorHandling:
         """Client should enforce maximum order size."""
         with patch.object(kuru_client, "get_market_params") as mock_get_market:
             mock_get_market.return_value = create_test_market_params(
-                min_size=Decimal("0.01"),
-                max_size=Decimal("1000.0")
+                min_size=Decimal("0.01"), max_size=Decimal("1000.0")
             )
 
             with pytest.raises(ValueError):
@@ -1250,44 +1247,6 @@ class TestKuruClientTrades:
         trades = kuru_client.get_user_trades(market_address, user_address)
 
         assert trades == []
-
-
-class TestKuruClientPositions:
-    """Test Kuru position queries."""
-
-    @patch("requests.get")
-    def test_kuru_client_gets_positions(self, mock_get, kuru_client):
-        """Client should get current positions."""
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = [
-            {
-                "market": "ETH-USDC",
-                "size": "1.5",
-                "entry_price": "2000.0",
-                "unrealized_pnl": "50.0",
-            }
-        ]
-
-        positions = kuru_client.get_positions()
-
-        assert len(positions) == 1
-        assert positions[0]["market"] == "ETH-USDC"
-        assert isinstance(positions[0]["size"], Decimal)
-
-    @patch("requests.get")
-    def test_kuru_client_filters_positions_by_market(self, mock_get, kuru_client):
-        """Client should filter positions by market."""
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = [
-            {"market": "ETH-USDC", "size": "1.0"},
-        ]
-
-        positions = kuru_client.get_positions(market="ETH-USDC")
-
-        assert len(positions) == 1
-        mock_get.assert_called_with(
-            f"{kuru_client.api_url}/positions", params={"market": "ETH-USDC"}
-        )
 
 
 class TestKuruClientBalance:

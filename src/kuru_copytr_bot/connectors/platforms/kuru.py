@@ -3,7 +3,7 @@
 import json
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import requests
 from web3 import Web3
@@ -32,7 +32,7 @@ class KuruClient:
     """Python wrapper for Kuru Exchange SDK."""
 
     # Standard ERC20 ABI for approve
-    ERC20_APPROVE_ABI = [
+    ERC20_APPROVE_ABI: ClassVar[list[dict[str, Any]]] = [
         {
             "constant": False,
             "inputs": [
@@ -170,7 +170,7 @@ class KuruClient:
                 )
                 return tx_hash
             except Exception as e:
-                raise OrderExecutionError(f"Margin deposit failed: {e}")
+                raise OrderExecutionError(f"Margin deposit failed: {e}") from e
         else:
             # ERC20 token
             balance = self.blockchain.get_token_balance(self.blockchain.wallet_address, token)
@@ -183,7 +183,7 @@ class KuruClient:
             try:
                 self._approve_token(token, amount)
             except Exception as e:
-                raise OrderExecutionError(f"Token approval failed: {e}")
+                raise OrderExecutionError(f"Token approval failed: {e}") from e
 
             # Deposit ERC20 token
             amount_wei = int(amount * Decimal(10**18))
@@ -202,7 +202,7 @@ class KuruClient:
                 )
                 return tx_hash
             except Exception as e:
-                raise OrderExecutionError(f"Margin deposit failed: {e}")
+                raise OrderExecutionError(f"Margin deposit failed: {e}") from e
 
     def place_limit_order(
         self,
@@ -260,7 +260,7 @@ class KuruClient:
         try:
             params = self.get_market_params(market)
         except Exception as e:
-            raise InvalidMarketError(f"Failed to get market params: {e}")
+            raise InvalidMarketError(f"Failed to get market params: {e}") from e
 
         # Validate order size
         if size < params.min_size:
@@ -308,9 +308,9 @@ class KuruClient:
             return order_id
 
         except TransactionFailedError as e:
-            raise OrderExecutionError(f"Failed to place limit order: {e}")
+            raise OrderExecutionError(f"Failed to place limit order: {e}") from e
         except Exception as e:
-            raise OrderExecutionError(f"Unexpected error placing order: {e}")
+            raise OrderExecutionError(f"Unexpected error placing order: {e}") from e
 
     def place_market_order(
         self,
@@ -349,9 +349,9 @@ class KuruClient:
 
         # Get market parameters
         try:
-            params = self.get_market_params(market)
+            self.get_market_params(market)
         except Exception as e:
-            raise InvalidMarketError(f"Failed to get market params: {e}")
+            raise InvalidMarketError(f"Failed to get market params: {e}") from e
 
         # Estimate cost and check balance
         estimated_cost = self.estimate_cost(market, side, size)
@@ -420,15 +420,15 @@ class KuruClient:
                 return tx_hash
 
             # Otherwise, wait for transaction receipt
-            receipt = self.blockchain.wait_for_transaction_receipt(tx_hash)
+            self.blockchain.wait_for_transaction_receipt(tx_hash)
 
             # Market orders execute immediately, return tx hash as order ID
             return tx_hash
 
         except TransactionFailedError as e:
-            raise OrderExecutionError(f"Failed to place market order: {e}")
+            raise OrderExecutionError(f"Failed to place market order: {e}") from e
         except Exception as e:
-            raise OrderExecutionError(f"Unexpected error placing market order: {e}")
+            raise OrderExecutionError(f"Unexpected error placing market order: {e}") from e
 
     def cancel_order(self, order_id: str) -> str:
         """Cancel an order.
@@ -474,10 +474,7 @@ class KuruClient:
                     order_id = order_id[6:]  # Remove "order_" prefix
 
                 # Try parsing as int
-                if order_id.startswith("0x"):
-                    order_id_int = int(order_id, 16)
-                else:
-                    order_id_int = int(order_id)
+                order_id_int = int(order_id, 16) if order_id.startswith("0x") else int(order_id)
                 order_ids_uint40.append(order_id_int)
             except ValueError as e:
                 raise ValueError(f"Invalid order ID format: {order_id}") from e
@@ -494,7 +491,7 @@ class KuruClient:
             )
             return tx_hash
         except Exception as e:
-            raise OrderExecutionError(f"Failed to cancel orders: {e}")
+            raise OrderExecutionError(f"Failed to cancel orders: {e}") from e
 
     def batch_update_orders(
         self,
@@ -569,10 +566,7 @@ class KuruClient:
                     order_id = order_id[6:]
 
                 # Parse as int
-                if order_id.startswith("0x"):
-                    order_id_int = int(order_id, 16)
-                else:
-                    order_id_int = int(order_id)
+                order_id_int = int(order_id, 16) if order_id.startswith("0x") else int(order_id)
                 order_ids_uint40.append(order_id_int)
             except ValueError as e:
                 raise ValueError(f"Invalid order ID format: {order_id}") from e
@@ -602,7 +596,7 @@ class KuruClient:
             return tx_hash
 
         except Exception as e:
-            raise OrderExecutionError(f"Failed to batch update orders: {e}")
+            raise OrderExecutionError(f"Failed to batch update orders: {e}") from e
 
     def get_balance(self, token: str | None = None) -> Decimal:
         """Get balance from blockchain.
@@ -627,7 +621,7 @@ class KuruClient:
                     wallet_address=self.blockchain.wallet_address,
                 )
         except Exception as e:
-            raise BlockchainConnectionError(f"Failed to get balance: {e}")
+            raise BlockchainConnectionError(f"Failed to get balance: {e}") from e
 
     def get_market_params(self, market: str) -> MarketParams:
         """Get market parameters from contract.
@@ -692,7 +686,9 @@ class KuruClient:
             return params
 
         except Exception as e:
-            raise BlockchainConnectionError(f"Failed to fetch market params from contract: {e}")
+            raise BlockchainConnectionError(
+                f"Failed to fetch market params from contract: {e}"
+            ) from e
 
     def get_vault_params(self, market: str) -> dict[str, Any]:
         """Get AMM vault parameters from contract.
@@ -759,7 +755,9 @@ class KuruClient:
             return vault_params
 
         except Exception as e:
-            raise BlockchainConnectionError(f"Failed to fetch vault params from contract: {e}")
+            raise BlockchainConnectionError(
+                f"Failed to fetch vault params from contract: {e}"
+            ) from e
 
     def estimate_cost(
         self,
@@ -1050,34 +1048,6 @@ class KuruClient:
         except requests.exceptions.RequestException:
             return []
 
-    def get_positions(self, market: str | None = None) -> list[dict[str, Any]]:
-        """Get current positions.
-
-        Args:
-            market: Optional market filter
-
-        Returns:
-            List of positions
-        """
-        try:
-            params = {"market": market} if market else {}
-            response = requests.get(f"{self.api_url}/positions", params=params)
-            response.raise_for_status()
-
-            positions = response.json()
-            # Convert numeric fields to Decimal
-            for pos in positions:
-                if "size" in pos:
-                    pos["size"] = Decimal(str(pos["size"]))
-                if "entry_price" in pos:
-                    pos["entry_price"] = Decimal(str(pos["entry_price"]))
-                if "unrealized_pnl" in pos:
-                    pos["unrealized_pnl"] = Decimal(str(pos["unrealized_pnl"]))
-
-            return positions
-        except requests.exceptions.RequestException:
-            return []
-
     def get_orderbook(self, market: str) -> dict[str, Any]:
         """Get current orderbook for a market from contract.
 
@@ -1297,7 +1267,7 @@ class KuruClient:
             return str(tx_hash)
 
         except Exception as e:
-            raise OrderExecutionError(f"Failed to extract order ID from receipt: {e}")
+            raise OrderExecutionError(f"Failed to extract order ID from receipt: {e}") from e
 
     def _approve_token(self, token: str, amount: Decimal) -> str:
         """Approve ERC20 token for spending by MarginAccount contract.

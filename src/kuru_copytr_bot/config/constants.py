@@ -4,30 +4,16 @@ from web3 import Web3
 
 # Monad Blockchain Chain IDs
 # Source: https://docs.monad.xyz/developer-essentials/network-information
-# Verified: 2025-01-09
 MONAD_CHAIN_ID = 41454  # Mainnet (not launched yet)
 MONAD_TESTNET_CHAIN_ID = 10143  # Testnet - Active
 
 # Kuru Contract Addresses
-# Source: https://docs.kuru.io/ - Official Kuru documentation
-# Verified: 2025-01-09
-# Network: Monad Testnet (Chain ID: 10143)
-
-# Main Kuru Protocol Contracts
+# Main Kuru Protocol Contracts (Testnet)
 KURU_ROUTER_ADDRESS_TESTNET = "0xc816865f172d640d93712C68a7E1F83F3fA63235"
-# Explorer: https://testnet.monadscan.com/address/0xc816865f172d640d93712C68a7E1F83F3fA63235
-
 KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET = "0x4B186949F31FCA0aD08497Df9169a6bEbF0e26ef"
-# Explorer: https://testnet.monadscan.com/address/0x4B186949F31FCA0aD08497Df9169a6bEbF0e26ef
-
 KURU_FORWARDER_ADDRESS_TESTNET = "0x350678D87BAa7f513B262B7273ad8Ccec6FF0f78"
-# Explorer: https://testnet.monadscan.com/address/0x350678D87BAa7f513B262B7273ad8Ccec6FF0f78
-
 KURU_DEPLOYER_ADDRESS_TESTNET = "0x67a4e43C7Ce69e24d495A39c43489BC7070f009B"
-# Explorer: https://testnet.monadscan.com/address/0x67a4e43C7Ce69e24d495A39c43489BC7070f009B
-
 KURU_UTILS_ADDRESS_TESTNET = "0x9E50D9202bEc0D046a75048Be8d51bBa93386Ade"
-# Explorer: https://testnet.monadscan.com/address/0x9E50D9202bEc0D046a75048Be8d51bBa93386Ade
 
 # Official Token Addresses (Testnet)
 USDC_ADDRESS_TESTNET = "0xf817257fed379853cDe0fa4F97AB987181B1E5Ea"
@@ -49,17 +35,6 @@ KURU_CONTRACT_ADDRESS_TESTNET = KURU_ROUTER_ADDRESS_TESTNET
 # Mainnet Addresses (not launched yet)
 KURU_CONTRACT_ADDRESS_MAINNET = None  # TBD - Mainnet not launched yet
 
-# Kuru Event Signatures (Keccak256 hashes of event signatures)
-# These are placeholders - actual values should be obtained from Kuru contracts
-ORDER_PLACED_EVENT_SIGNATURE = (
-    "0x" + "0" * 64
-)  # OrderPlaced(address,string,uint256,uint256,uint256,uint8)
-TRADE_EXECUTED_EVENT_SIGNATURE = (
-    "0x" + "1" * 64
-)  # TradeExecuted(address,string,uint256,uint256,uint256,uint8)
-ORDER_CANCELLED_EVENT_SIGNATURE = "0x" + "2" * 64  # OrderCancelled(address,uint256)
-MARGIN_DEPOSIT_EVENT_SIGNATURE = "0x" + "3" * 64  # MarginDeposit(address,address,uint256)
-
 # Gas Configuration
 DEFAULT_GAS_LIMIT = 300_000  # Default gas limit for transactions
 DEFAULT_GAS_PRICE_GWEI = 20  # Default gas price in Gwei (20 Gwei)
@@ -71,10 +46,6 @@ RETRY_BACKOFF_SECONDS = 2  # Initial backoff time in seconds (exponential backof
 # Transaction Confirmation
 CONFIRMATION_BLOCKS = 1  # Number of blocks to wait for confirmation
 TRANSACTION_TIMEOUT_SECONDS = 120  # Timeout for transaction confirmation
-
-# Polling Intervals
-BLOCK_POLLING_INTERVAL_SECONDS = 1  # How often to poll for new blocks
-WALLET_MONITORING_INTERVAL_SECONDS = 2  # How often to check wallet transactions
 
 # Order Configuration
 MIN_ORDER_SIZE_USD = 1.0  # Minimum order size in USD

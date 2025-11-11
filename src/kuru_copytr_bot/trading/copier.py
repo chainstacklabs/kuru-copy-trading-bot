@@ -1,7 +1,5 @@
 """Trade copier for executing mirror trades."""
 
-from decimal import Decimal
-
 from src.kuru_copytr_bot.connectors.platforms.kuru import KuruClient
 from src.kuru_copytr_bot.core.enums import OrderType
 from src.kuru_copytr_bot.core.exceptions import (
@@ -9,6 +7,7 @@ from src.kuru_copytr_bot.core.exceptions import (
     InvalidOrderError,
     OrderPlacementError,
 )
+from src.kuru_copytr_bot.models.order import Order
 from src.kuru_copytr_bot.models.trade import Trade
 from src.kuru_copytr_bot.risk.calculator import PositionSizeCalculator
 from src.kuru_copytr_bot.risk.validator import TradeValidator
@@ -44,59 +43,10 @@ class TradeCopier:
         self._successful_trades = 0
         self._failed_trades = 0
         self._rejected_trades = 0
-
-    def _get_current_position(self, market: str) -> Decimal:
-        """Get current position size for a market.
-
-        Fetches positions from the platform and aggregates them for the given market.
-
-        Args:
-            market: Market identifier (e.g., "ETH-USDC")
-
-        Returns:
-            Position size as Decimal:
-            - Positive for long positions
-            - Negative for short positions
-            - Zero if no position exists
-        """
-        try:
-            positions = self.kuru_client.get_positions(market=market)
-
-            if not positions:
-                logger.debug("No positions found for market", market=market)
-                return Decimal("0")
-
-            # Aggregate all positions for this market
-            total_size = Decimal("0")
-            for pos in positions:
-                size = pos.get("size", Decimal("0"))
-
-                # Handle side field if present (convert SELL to negative size)
-                side = pos.get("side", "").upper()
-                if side in ("SELL", "SHORT"):
-                    size = -abs(size)
-                elif side in ("BUY", "LONG"):
-                    size = abs(size)
-                # If no side field, assume size is already signed
-
-                total_size += size
-
-            logger.debug(
-                "Retrieved position for market",
-                market=market,
-                total_size=str(total_size),
-                position_count=len(positions),
-            )
-
-            return total_size
-
-        except Exception as e:
-            logger.error(
-                "Error fetching position, assuming no position",
-                market=market,
-                error=str(e),
-            )
-            return Decimal("0")
+        self._successful_orders = 0
+        self._failed_orders = 0
+        self._rejected_orders = 0
+        self._orders_canceled = 0
 
     def process_trade(self, trade: Trade) -> str | None:
         """Process a single trade from source wallet.
@@ -151,14 +101,10 @@ class TradeCopier:
                 tx_hash=trade.tx_hash,
             )
 
-            # Step 4: Get current position
-            current_position = self._get_current_position(trade.market)
-
-            # Step 5: Validate trade
+            # Step 4: Validate trade
             validation_result = self.validator.validate(
                 trade=mirror_trade,
                 current_balance=balance,
-                current_position=current_position,
             )
 
             if not validation_result.is_valid:
@@ -254,20 +200,194 @@ class TradeCopier:
 
         return order_ids
 
-    def get_statistics(self) -> dict[str, int]:
-        """Get trade statistics.
+    def process_order(self, order: Order) -> str | None:
+        """Process a limit order from source wallet.
+
+        Args:
+            order: Order detected from source wallet
 
         Returns:
-            Dictionary with successful, failed, and rejected trade counts
+            Order ID if successful, None otherwise
+        """
+        logger.info(
+            "Processing order for copying",
+            order_id=order.order_id,
+            market=order.market,
+            side=order.side.value,
+            size=str(order.size),
+            price=str(order.price),
+        )
+
+        try:
+            # Step 1: Get current balance
+            balance = self.kuru_client.get_balance()
+            logger.debug("Retrieved balance", balance=str(balance))
+
+            # Step 2: Calculate position size
+            calculated_size = self.calculator.calculate(
+                source_size=order.size,
+                available_balance=balance,
+                price=order.price,
+            )
+
+            logger.debug(
+                "Calculated position size",
+                source_size=str(order.size),
+                calculated_size=str(calculated_size),
+            )
+
+            # Skip if calculated size is zero
+            if calculated_size == 0:
+                logger.info("Calculated size is zero, skipping order", order_id=order.order_id)
+                return None
+
+            # Step 3: Create mirror trade for validation
+            # We need to create a Trade object to use the validator
+            from src.kuru_copytr_bot.models.trade import Trade
+
+            mirror_trade = Trade(
+                id=f"mirror_{order.order_id}",
+                trader_address=order.market,  # Use market as placeholder
+                market=order.market,
+                side=order.side,
+                price=order.price,
+                size=calculated_size,
+                timestamp=order.created_at,
+                tx_hash="",  # No tx_hash yet for orders
+            )
+
+            # Step 4: Validate
+            validation_result = self.validator.validate(
+                trade=mirror_trade,
+                current_balance=balance,
+            )
+
+            if not validation_result.is_valid:
+                self._rejected_orders += 1
+                logger.warning(
+                    "Order validation failed, rejecting",
+                    order_id=order.order_id,
+                    reason=validation_result.reason,
+                )
+                return None
+
+            logger.info(
+                "Executing mirror order",
+                market=order.market,
+                side=order.side.value,
+                size=str(calculated_size),
+                price=str(order.price),
+            )
+
+            # Step 5: Place limit order
+            order_id = self.kuru_client.place_limit_order(
+                market=order.market,
+                side=order.side,
+                size=calculated_size,
+                price=order.price,
+                post_only=True,  # Mirror orders should be post-only to match source
+            )
+
+            self._successful_orders += 1
+            logger.info(
+                "Successfully executed mirror order",
+                source_order_id=order.order_id,
+                order_id=order_id,
+            )
+            return order_id
+
+        except InsufficientBalanceError as e:
+            self._failed_orders += 1
+            logger.error(
+                "Insufficient balance for order",
+                order_id=order.order_id,
+                error=str(e),
+            )
+            return None
+        except InvalidOrderError as e:
+            self._failed_orders += 1
+            logger.error(
+                "Invalid order parameters",
+                order_id=order.order_id,
+                error=str(e),
+            )
+            return None
+        except OrderPlacementError as e:
+            self._failed_orders += 1
+            logger.error(
+                "Order placement failed",
+                order_id=order.order_id,
+                error=str(e),
+            )
+            return None
+        except Exception as e:
+            self._failed_orders += 1
+            logger.error(
+                "Unexpected error processing order",
+                order_id=order.order_id,
+                error=str(e),
+                exc_info=True,
+            )
+            return None
+
+    def cancel_orders(self, order_ids: list[str]) -> bool:
+        """Cancel multiple orders.
+
+        Args:
+            order_ids: List of order IDs to cancel
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if not order_ids:
+            logger.debug("No orders to cancel")
+            return True
+
+        logger.info("Canceling orders", order_count=len(order_ids), order_ids=order_ids)
+
+        try:
+            # Use batch cancel for efficiency
+            tx_hash = self.kuru_client.cancel_orders(order_ids)
+
+            self._orders_canceled += len(order_ids)
+            logger.info(
+                "Successfully canceled orders",
+                order_count=len(order_ids),
+                tx_hash=tx_hash,
+            )
+            return True
+
+        except Exception as e:
+            logger.error(
+                "Failed to cancel orders",
+                error=str(e),
+                order_ids=order_ids,
+                exc_info=True,
+            )
+            return False
+
+    def get_statistics(self) -> dict[str, int]:
+        """Get trade and order statistics.
+
+        Returns:
+            Dictionary with successful, failed, and rejected counts
         """
         return {
             "successful_trades": self._successful_trades,
             "failed_trades": self._failed_trades,
             "rejected_trades": self._rejected_trades,
+            "successful_orders": self._successful_orders,
+            "failed_orders": self._failed_orders,
+            "rejected_orders": self._rejected_orders,
+            "orders_canceled": self._orders_canceled,
         }
 
     def reset_statistics(self) -> None:
-        """Reset trade statistics."""
+        """Reset trade and order statistics."""
         self._successful_trades = 0
         self._failed_trades = 0
         self._rejected_trades = 0
+        self._successful_orders = 0
+        self._failed_orders = 0
+        self._rejected_orders = 0
+        self._orders_canceled = 0

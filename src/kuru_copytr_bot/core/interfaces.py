@@ -278,15 +278,3 @@ class PlatformConnector(ABC):
             List[Dict[str, Any]]: List of open orders
         """
         pass
-
-    @abstractmethod
-    async def get_positions(self, market: str | None = None) -> list[dict[str, Any]]:
-        """Get all open positions.
-
-        Args:
-            market: Filter by market (optional)
-
-        Returns:
-            List[Dict[str, Any]]: List of open positions
-        """
-        pass
