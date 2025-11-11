@@ -13,6 +13,7 @@ from src.kuru_copytr_bot.models.order import Order
 from src.kuru_copytr_bot.models.trade import Trade
 from src.kuru_copytr_bot.risk.calculator import PositionSizeCalculator
 from src.kuru_copytr_bot.risk.validator import TradeValidator
+from src.kuru_copytr_bot.trading.order_tracker import OrderTracker
 from src.kuru_copytr_bot.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -26,6 +27,7 @@ class TradeCopier:
         kuru_client: KuruClient,
         calculator: PositionSizeCalculator,
         validator: TradeValidator,
+        order_tracker: OrderTracker | None = None,
         default_order_type: OrderType = OrderType.LIMIT,
     ):
         """Initialize trade copier.
@@ -34,11 +36,13 @@ class TradeCopier:
             kuru_client: Kuru Exchange client for order execution
             calculator: Position size calculator
             validator: Trade validator
+            order_tracker: Optional order tracker for fill tracking
             default_order_type: Default order type (LIMIT or MARKET)
         """
         self.kuru_client = kuru_client
         self.calculator = calculator
         self.validator = validator
+        self.order_tracker = order_tracker or OrderTracker()
         self.default_order_type = default_order_type
 
         # Statistics tracking
@@ -141,6 +145,8 @@ class TradeCopier:
                     side=trade.side,
                     size=calculated_size,
                 )
+
+            self.order_tracker.register_order(order_id=order_id, size=calculated_size)
 
             self._successful_trades += 1
             logger.info(
@@ -291,6 +297,8 @@ class TradeCopier:
                 price=order.price,
                 post_only=True,  # Mirror orders should be post-only to match source
             )
+
+            self.order_tracker.register_order(order_id=order_id, size=calculated_size)
 
             self._successful_orders += 1
             logger.info(

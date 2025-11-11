@@ -44,6 +44,15 @@ def mock_copier():
         }
     )
     copier.reset_statistics = Mock()
+
+    copier.kuru_client = Mock()
+    copier.kuru_client.blockchain = Mock()
+    copier.kuru_client.blockchain.wallet_address = "0x9999999999999999999999999999999999999999"
+
+    copier.order_tracker = Mock()
+    copier.order_tracker.get_fill_rate = Mock(return_value=0.0)
+    copier.order_tracker.get_open_orders = Mock(return_value={})
+
     return copier
 
 
@@ -747,3 +756,202 @@ class TestCopyTradingBotOrdersCanceledProcessing:
 
         # Should be removed from tracking
         assert bot.get_statistics()["tracked_orders"] == 0
+
+
+class TestCopyTradingBotFillTracking:
+    """Test order fill tracking integration."""
+
+    @pytest.mark.asyncio
+    async def test_bot_distinguishes_own_fills_from_source_trades(
+        self, mock_ws_client, mock_copier, sample_trade_response
+    ):
+        """Bot should distinguish between source wallet trades and its own fills."""
+        market_address = "0x4444444444444444444444444444444444444444"
+        source_wallet = "0x1111111111111111111111111111111111111111"
+        bot_wallet = "0x3333333333333333333333333333333333333333"
+
+        mock_copier.kuru_client = Mock()
+        mock_copier.kuru_client.blockchain = Mock()
+        mock_copier.kuru_client.blockchain.wallet_address = bot_wallet
+        mock_copier.order_tracker = Mock()
+
+        _bot = CopyTradingBot(
+            ws_clients=[(market_address, mock_ws_client)],
+            source_wallets=[source_wallet],
+            copier=mock_copier,
+        )
+
+        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+
+        # Trade from source wallet - should process as mirror trade
+        await callback(sample_trade_response)
+        mock_copier.process_trade.assert_called_once()
+        mock_copier.order_tracker.on_fill.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_bot_tracks_own_fills(self, mock_ws_client, mock_copier):
+        """Bot should track its own order fills via order_tracker."""
+        market_address = "0x4444444444444444444444444444444444444444"
+        source_wallet = "0x1111111111111111111111111111111111111111"
+        bot_wallet = "0x3333333333333333333333333333333333333333"
+
+        mock_copier.kuru_client = Mock()
+        mock_copier.kuru_client.blockchain = Mock()
+        mock_copier.kuru_client.blockchain.wallet_address = bot_wallet
+        mock_copier.order_tracker = Mock()
+
+        _bot = CopyTradingBot(
+            ws_clients=[(market_address, mock_ws_client)],
+            source_wallets=[source_wallet],
+            copier=mock_copier,
+        )
+
+        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+
+        # Trade from bot's own wallet - should track fill
+        own_trade_response = TradeResponse(
+            orderid=12345,
+            makeraddress=bot_wallet,  # Bot's own address
+            takeraddress="0x2222222222222222222222222222222222222222",
+            isbuy=True,
+            price="2000.50",
+            filledsize="1.5",
+            transactionhash="0x" + "a" * 64,
+            triggertime=int(datetime.now(UTC).timestamp()),
+        )
+
+        await callback(own_trade_response)
+
+        # Should call order_tracker.on_fill, not process_trade
+        mock_copier.order_tracker.on_fill.assert_called_once()
+        call_args = mock_copier.order_tracker.on_fill.call_args
+        assert call_args[1]["order_id"] == "12345"
+        assert call_args[1]["filled_size"] == Decimal("1.5")
+        mock_copier.process_trade.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_bot_includes_order_tracker_statistics(self, mock_ws_client, mock_copier):
+        """Bot statistics should include order tracker metrics."""
+        market_address = "0x4444444444444444444444444444444444444444"
+        source_wallet = "0x1111111111111111111111111111111111111111"
+        bot_wallet = "0x3333333333333333333333333333333333333333"
+
+        mock_copier.kuru_client = Mock()
+        mock_copier.kuru_client.blockchain = Mock()
+        mock_copier.kuru_client.blockchain.wallet_address = bot_wallet
+        mock_copier.order_tracker = Mock()
+        mock_copier.order_tracker.get_fill_rate.return_value = 0.75
+        mock_copier.order_tracker.get_open_orders.return_value = {
+            "order_1": Mock(),
+            "order_2": Mock(),
+        }
+
+        bot = CopyTradingBot(
+            ws_clients=[(market_address, mock_ws_client)],
+            source_wallets=[source_wallet],
+            copier=mock_copier,
+        )
+
+        stats = bot.get_statistics()
+
+        # Should include order tracker statistics
+        assert stats["fill_rate"] == 0.75
+        assert stats["open_orders"] == 2
+
+    @pytest.mark.asyncio
+    async def test_bot_handles_own_fill_errors_gracefully(self, mock_ws_client, mock_copier):
+        """Bot should handle errors when tracking own fills."""
+        market_address = "0x4444444444444444444444444444444444444444"
+        source_wallet = "0x1111111111111111111111111111111111111111"
+        bot_wallet = "0x3333333333333333333333333333333333333333"
+
+        mock_copier.kuru_client = Mock()
+        mock_copier.kuru_client.blockchain = Mock()
+        mock_copier.kuru_client.blockchain.wallet_address = bot_wallet
+        mock_copier.order_tracker = Mock()
+        mock_copier.order_tracker.on_fill.side_effect = Exception("Tracker error")
+
+        _bot = CopyTradingBot(
+            ws_clients=[(market_address, mock_ws_client)],
+            source_wallets=[source_wallet],
+            copier=mock_copier,
+        )
+
+        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+
+        # Trade from bot's own wallet
+        own_trade_response = TradeResponse(
+            orderid=12345,
+            makeraddress=bot_wallet,
+            takeraddress="0x2222222222222222222222222222222222222222",
+            isbuy=True,
+            price="2000.50",
+            filledsize="1.5",
+            transactionhash="0x" + "a" * 64,
+            triggertime=int(datetime.now(UTC).timestamp()),
+        )
+
+        # Should not raise exception
+        await callback(own_trade_response)
+
+        # Should have attempted to track fill
+        mock_copier.order_tracker.on_fill.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_bot_tracks_own_partial_fills(self, mock_ws_client, mock_copier):
+        """Bot should track multiple partial fills for same order."""
+        market_address = "0x4444444444444444444444444444444444444444"
+        source_wallet = "0x1111111111111111111111111111111111111111"
+        bot_wallet = "0x3333333333333333333333333333333333333333"
+
+        mock_copier.kuru_client = Mock()
+        mock_copier.kuru_client.blockchain = Mock()
+        mock_copier.kuru_client.blockchain.wallet_address = bot_wallet
+        mock_copier.order_tracker = Mock()
+
+        _bot = CopyTradingBot(
+            ws_clients=[(market_address, mock_ws_client)],
+            source_wallets=[source_wallet],
+            copier=mock_copier,
+        )
+
+        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+
+        # First partial fill
+        partial_fill_1 = TradeResponse(
+            orderid=12345,
+            makeraddress=bot_wallet,
+            takeraddress="0x2222222222222222222222222222222222222222",
+            isbuy=True,
+            price="2000.50",
+            filledsize="1.0",
+            transactionhash="0x" + "a" * 64,
+            triggertime=int(datetime.now(UTC).timestamp()),
+        )
+
+        # Second partial fill for same order
+        partial_fill_2 = TradeResponse(
+            orderid=12345,
+            makeraddress=bot_wallet,
+            takeraddress="0x2222222222222222222222222222222222222222",
+            isbuy=True,
+            price="2000.50",
+            filledsize="0.5",
+            transactionhash="0x" + "b" * 64,
+            triggertime=int(datetime.now(UTC).timestamp()),
+        )
+
+        await callback(partial_fill_1)
+        await callback(partial_fill_2)
+
+        # Should have tracked both fills
+        assert mock_copier.order_tracker.on_fill.call_count == 2
+
+        # Verify both calls were for the same order
+        call_1 = mock_copier.order_tracker.on_fill.call_args_list[0]
+        call_2 = mock_copier.order_tracker.on_fill.call_args_list[1]
+
+        assert call_1[1]["order_id"] == "12345"
+        assert call_1[1]["filled_size"] == Decimal("1.0")
+        assert call_2[1]["order_id"] == "12345"
+        assert call_2[1]["filled_size"] == Decimal("0.5")

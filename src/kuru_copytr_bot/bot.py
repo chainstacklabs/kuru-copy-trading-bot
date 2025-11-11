@@ -1,6 +1,7 @@
 """Copy trading bot orchestrator using WebSocket."""
 
 import asyncio
+from decimal import Decimal
 from typing import Any
 
 from src.kuru_copytr_bot.connectors.websocket.kuru_ws_client import KuruWebSocketClient
@@ -31,6 +32,8 @@ class CopyTradingBot:
         self.ws_clients = ws_clients
         self.source_wallets = [addr.lower() for addr in source_wallets]
         self.copier = copier
+
+        self.bot_wallet_address = self.copier.kuru_client.blockchain.wallet_address.lower()
 
         # Running state
         self.is_running = False
@@ -72,8 +75,35 @@ class CopyTradingBot:
                 trade_response: Trade data from WebSocket
             """
             try:
-                # Filter for our source wallets (check maker address)
-                if trade_response.makeraddress.lower() not in self.source_wallets:
+                maker_address = trade_response.makeraddress.lower()
+
+                if maker_address == self.bot_wallet_address:
+                    logger.debug(
+                        "Own fill detected",
+                        order_id=trade_response.orderid,
+                        filled_size=trade_response.filledsize,
+                    )
+
+                    try:
+                        self.copier.order_tracker.on_fill(
+                            order_id=str(trade_response.orderid),
+                            filled_size=Decimal(trade_response.filledsize),
+                        )
+                        logger.info(
+                            "Own fill tracked",
+                            order_id=trade_response.orderid,
+                            filled_size=trade_response.filledsize,
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "Failed to track own fill",
+                            error=str(e),
+                            order_id=trade_response.orderid,
+                            exc_info=True,
+                        )
+                    return
+
+                if maker_address not in self.source_wallets:
                     logger.debug(
                         "Trade from non-monitored wallet, skipping",
                         maker=trade_response.makeraddress,
@@ -81,7 +111,6 @@ class CopyTradingBot:
                     )
                     return
 
-                # Convert TradeResponse to Trade model
                 trade = trade_response.to_trade(market=market_address)
 
                 self._trades_detected += 1
@@ -95,15 +124,12 @@ class CopyTradingBot:
                     tx_hash=trade.tx_hash,
                 )
 
-                # Execute mirror trade
                 try:
                     self.copier.process_trade(trade)
                 except Exception as e:
-                    # Copier handles its own errors internally
                     logger.debug("Copier raised exception (expected)", error=str(e))
 
             except Exception as e:
-                # Failed to process trade
                 logger.error(
                     "Failed to process trade event",
                     error=str(e),
@@ -339,9 +365,11 @@ class CopyTradingBot:
             "tracked_orders": len(self._order_mapping),
         }
 
-        # Include copier statistics
         copier_stats = self.copier.get_statistics()
         stats.update(copier_stats)
+
+        stats["fill_rate"] = self.copier.order_tracker.get_fill_rate()
+        stats["open_orders"] = len(self.copier.order_tracker.get_open_orders())
 
         return stats
 
