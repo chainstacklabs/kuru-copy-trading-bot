@@ -1,6 +1,6 @@
 # Kuru API Reference
 
-> **Note**: This API documentation has been reverse engineered from the [Kuru SDK Python](https://github.com/Kuru-Labs/kuru-sdk-py) repository.
+> **Note**: This API documentation has been compiled from the [Kuru SDK Python](https://github.com/Kuru-Labs/kuru-sdk-py) and [Kuru SDK TypeScript](https://github.com/Kuru-Labs/kuru-sdk) repositories.
 
 Technical API documentation for copy trading bot implementation (or whatever you want to build).
 
@@ -61,9 +61,9 @@ Default: `wss://ws.testnet.kuru.io`
 
 | Event | Trigger | Payload Fields |
 |-------|---------|---------------|
-| `OrderCreated` | New order placed | `order_id`, `cloid`, `owner`, `price`, `size`, `is_buy`, `remaining_size`, `is_canceled` |
-| `Trade` | Order matched/filled | `order_id`, `cloid`, `maker_address`, `taker_address`, `is_buy`, `price`, `filled_size` |
-| `OrdersCanceled` | Orders canceled | `order_ids[]`, `cloids[]`, `maker_address`, `canceled_orders_data[]` |
+| `OrderCreated` | New order placed | `order_id`, `owner`, `price`, `size`, `is_buy`, `block_number`, `transaction_hash`, `trigger_time`, `market_address` |
+| `Trade` | Order matched/filled | `order_id`, `maker_address`, `taker_address`, `is_buy`, `price`, `filled_size`, `updated_size`, `block_number`, `transaction_hash`, `trigger_time` |
+| `OrdersCanceled` | Orders canceled | `order_ids[]`, `maker_address`, `canceled_orders_data[]` (each with `orderid`, `owner`, `size`, `price`, `isbuy`, `remainingsize`, `iscanceled`, `blocknumber`, `transactionhash`, `triggertime`) |
 
 ---
 
@@ -113,14 +113,16 @@ trigger_time: int
 
 ### Trade (Response)
 ```python
-orderid: int
-makeraddress: str
-takeraddress: str
-isbuy: bool
+order_id: int
+maker_address: str
+taker_address: str
+is_buy: bool
 price: str
-filledsize: str
-transactionhash: str
-triggertime: int
+filled_size: str
+updated_size: str       # Remaining size after fill
+block_number: str
+transaction_hash: str
+trigger_time: int
 ```
 
 ### MarketParams
@@ -136,6 +138,18 @@ min_size: str
 max_size: str
 taker_fee_bps: int
 maker_fee_bps: int
+```
+
+### VaultParams (AMM)
+```python
+kuru_amm_vault: str          # Vault contract address
+vault_best_bid: int          # Current best bid price (wei)
+bid_partially_filled_size: int
+vault_best_ask: int          # Current best ask price (wei)
+ask_partially_filled_size: int
+vault_bid_order_size: int
+vault_ask_order_size: int
+spread: int                  # Spread constant
 ```
 
 ### TxOptions
@@ -195,6 +209,7 @@ YAKI-MON:        0xd5c1dc181c359f0199c83045a85cd2556b325de0
 
 ## 8. Error codes
 
+### Common errors
 | Code | Error |
 |------|-------|
 | `bb55fd27` | Insufficient Liquidity |
@@ -208,7 +223,35 @@ YAKI-MON:        0xd5c1dc181c359f0199c83045a85cd2556b325de0
 | `272d3bf7` | Tick Size Error |
 | `f4d678b8` | Insufficient Balance |
 
-See `kuru_sdk/utils.py:4-29` for complete list.
+### Additional errors
+| Code | Error |
+|------|-------|
+| `3cd146b1` | Invalid Spread |
+| `a9269545` | Market Fee Error |
+| `004b65ba` | Market State Error |
+| `ead59376` | Native Asset Not Required |
+| `70d7ec56` | Native Asset Transfer Failed |
+| `a0cdd781` | Only Owner Allowed |
+| `b1460438` | Only Vault Allowed |
+| `0b252431` | Too Much Size Filled |
+| `7939f424` | Transfer From Failed |
+| `cd41a9e3` | Native Asset Mismatch |
+| `e84c4d58` | Only Router Allowed |
+| `e8430787` | Only Verified Markets Allowed |
+| `8579befe` | Zero Address Not Allowed |
+| `130e7978` | Base And Quote Asset Same |
+| `9db8d5b1` | Invalid Market |
+| `d09b273e` | No Markets Passed |
+| `d226f9d4` | Insufficient Liquidity Minted |
+| `b9873846` | Insufficient Quote Token |
+| `40accb6f` | Deposit Uses Stale Quote |
+| `05d13eef` | Vault Deposit Price Crosses OrderBook |
+| `d8415400` | Vault Liquidity Insufficient |
+| `98de0cd0` | Vault Deposit Uses Invalid Price |
+| `bb2b4138` | Incorrect Order Type Passed |
+| `6a2628d9` | New Size Exceeds Partially Filled Size |
+
+See SDK `src/utils/errors.json` for complete list.
 
 ---
 
