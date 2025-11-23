@@ -1,4 +1,4 @@
-"""Tests for copy trading bot orchestrator (WebSocket-based)."""
+"""Tests for copy trading bot orchestrator (blockchain event-based)."""
 
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -13,16 +13,16 @@ from src.kuru_copytr_bot.models.trade import Trade, TradeResponse
 
 
 @pytest.fixture
-def mock_ws_client():
-    """Mock WebSocket client."""
-    client = AsyncMock()
-    client.connect = AsyncMock()
-    client.disconnect = AsyncMock()
-    client.is_connected = True
-    client.set_trade_callback = Mock()
-    client.set_order_created_callback = Mock()
-    client.set_orders_canceled_callback = Mock()
-    return client
+def mock_event_subscriber():
+    """Mock blockchain event subscriber."""
+    subscriber = AsyncMock()
+    subscriber.connect = AsyncMock()
+    subscriber.disconnect = AsyncMock()
+    subscriber.is_connected = True
+    subscriber.set_trade_callback = Mock()
+    subscriber.set_order_created_callback = Mock()
+    subscriber.set_orders_canceled_callback = Mock()
+    return subscriber
 
 
 @pytest.fixture
@@ -107,54 +107,56 @@ def sample_order_response():
 class TestCopyTradingBotInitialization:
     """Test bot initialization."""
 
-    def test_bot_initializes_with_required_components(self, mock_ws_client, mock_copier):
+    def test_bot_initializes_with_required_components(self, mock_event_subscriber, mock_copier):
         """Bot should initialize with required components."""
         market_address = "0x4444444444444444444444444444444444444444"
         source_wallets = ["0x1111111111111111111111111111111111111111"]
 
         bot = CopyTradingBot(
-            ws_clients=[(market_address, mock_ws_client)],
+            event_subscribers=[(market_address, mock_event_subscriber)],
             source_wallets=source_wallets,
             copier=mock_copier,
         )
 
-        assert len(bot.ws_clients) == 1
-        assert bot.ws_clients[0][0] == market_address
+        assert len(bot.event_subscribers) == 1
+        assert bot.event_subscribers[0][0] == market_address
         assert bot.source_wallets == [w.lower() for w in source_wallets]
         assert bot.copier == mock_copier
 
     def test_bot_initializes_with_multiple_markets(self, mock_copier):
-        """Bot should initialize with multiple market WebSocket clients."""
-        ws_client1 = AsyncMock()
-        ws_client1.set_trade_callback = Mock()
-        ws_client2 = AsyncMock()
-        ws_client2.set_trade_callback = Mock()
+        """Bot should initialize with multiple market event subscribers."""
+        subscriber1 = AsyncMock()
+        subscriber1.set_trade_callback = Mock()
+        subscriber2 = AsyncMock()
+        subscriber2.set_trade_callback = Mock()
 
         market1 = "0x4444444444444444444444444444444444444444"
         market2 = "0x5555555555555555555555555555555555555555"
 
         bot = CopyTradingBot(
-            ws_clients=[(market1, ws_client1), (market2, ws_client2)],
+            event_subscribers=[(market1, subscriber1), (market2, subscriber2)],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
 
-        assert len(bot.ws_clients) == 2
-        assert bot.ws_clients[0][0] == market1
-        assert bot.ws_clients[1][0] == market2
+        assert len(bot.event_subscribers) == 2
+        assert bot.event_subscribers[0][0] == market1
+        assert bot.event_subscribers[1][0] == market2
 
-    def test_bot_registers_trade_callbacks(self, mock_ws_client, mock_copier):
-        """Bot should register trade callbacks with WebSocket clients."""
+    def test_bot_registers_trade_callbacks(self, mock_event_subscriber, mock_copier):
+        """Bot should register trade callbacks with event subscribers."""
         CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
 
         # Should have called set_trade_callback
-        mock_ws_client.set_trade_callback.assert_called_once()
+        mock_event_subscriber.set_trade_callback.assert_called_once()
         # Verify the callback is callable
-        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_trade_callback.call_args[0][0]
         assert callable(callback)
 
 
@@ -162,46 +164,13 @@ class TestCopyTradingBotLifecycle:
     """Test bot lifecycle management."""
 
     @pytest.mark.asyncio
-    async def test_bot_starts_and_connects_websockets(self, mock_ws_client, mock_copier):
-        """Bot should connect all WebSocket clients when started."""
+    async def test_bot_starts_and_connects_event_subscribers(
+        self, mock_event_subscriber, mock_copier
+    ):
+        """Bot should connect all event subscribers when started."""
         bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
-            source_wallets=["0x1111111111111111111111111111111111111111"],
-            copier=mock_copier,
-        )
-
-        await bot.start()
-
-        mock_ws_client.connect.assert_called_once()
-        assert bot.is_running is True
-
-    @pytest.mark.asyncio
-    async def test_bot_stops_and_disconnects_websockets(self, mock_ws_client, mock_copier):
-        """Bot should disconnect all WebSocket clients when stopped."""
-        bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
-            source_wallets=["0x1111111111111111111111111111111111111111"],
-            copier=mock_copier,
-        )
-
-        await bot.start()
-        await bot.stop()
-
-        mock_ws_client.disconnect.assert_called_once()
-        assert bot.is_running is False
-
-    @pytest.mark.asyncio
-    async def test_bot_connects_multiple_websockets(self, mock_copier):
-        """Bot should connect all WebSocket clients in parallel."""
-        ws_client1 = AsyncMock()
-        ws_client1.set_trade_callback = Mock()
-        ws_client2 = AsyncMock()
-        ws_client2.set_trade_callback = Mock()
-
-        bot = CopyTradingBot(
-            ws_clients=[
-                ("0x4444444444444444444444444444444444444444", ws_client1),
-                ("0x5555555555555555555555555555555555555555", ws_client2),
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
             ],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
@@ -209,8 +178,49 @@ class TestCopyTradingBotLifecycle:
 
         await bot.start()
 
-        ws_client1.connect.assert_called_once()
-        ws_client2.connect.assert_called_once()
+        mock_event_subscriber.connect.assert_called_once()
+        assert bot.is_running is True
+
+    @pytest.mark.asyncio
+    async def test_bot_stops_and_disconnects_event_subscribers(
+        self, mock_event_subscriber, mock_copier
+    ):
+        """Bot should disconnect all event subscribers when stopped."""
+        bot = CopyTradingBot(
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
+            source_wallets=["0x1111111111111111111111111111111111111111"],
+            copier=mock_copier,
+        )
+
+        await bot.start()
+        await bot.stop()
+
+        mock_event_subscriber.disconnect.assert_called_once()
+        assert bot.is_running is False
+
+    @pytest.mark.asyncio
+    async def test_bot_connects_multiple_event_subscribers(self, mock_copier):
+        """Bot should connect all event subscribers in parallel."""
+        subscriber1 = AsyncMock()
+        subscriber1.set_trade_callback = Mock()
+        subscriber2 = AsyncMock()
+        subscriber2.set_trade_callback = Mock()
+
+        bot = CopyTradingBot(
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", subscriber1),
+                ("0x5555555555555555555555555555555555555555", subscriber2),
+            ],
+            source_wallets=["0x1111111111111111111111111111111111111111"],
+            copier=mock_copier,
+        )
+
+        await bot.start()
+
+        subscriber1.connect.assert_called_once()
+        subscriber2.connect.assert_called_once()
 
 
 class TestCopyTradingBotTradeProcessing:
@@ -218,22 +228,22 @@ class TestCopyTradingBotTradeProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_processes_trade_from_monitored_wallet(
-        self, mock_ws_client, mock_copier, sample_trade_response
+        self, mock_event_subscriber, mock_copier, sample_trade_response
     ):
         """Bot should process trades from monitored source wallets."""
         market_address = "0x4444444444444444444444444444444444444444"
         source_wallet = "0x1111111111111111111111111111111111111111"
 
         CopyTradingBot(
-            ws_clients=[(market_address, mock_ws_client)],
+            event_subscribers=[(market_address, mock_event_subscriber)],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
         # Get the registered callback
-        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_trade_callback.call_args[0][0]
 
-        # Simulate Trade event from WebSocket
+        # Simulate Trade event from blockchain event
         await callback(sample_trade_response)
 
         # Should process the trade
@@ -244,7 +254,7 @@ class TestCopyTradingBotTradeProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_ignores_trade_from_unmonitored_wallet(
-        self, mock_ws_client, mock_copier, sample_trade_response
+        self, mock_event_subscriber, mock_copier, sample_trade_response
     ):
         """Bot should ignore trades from wallets not in source_wallets."""
         market_address = "0x4444444444444444444444444444444444444444"
@@ -252,13 +262,13 @@ class TestCopyTradingBotTradeProcessing:
         source_wallet = "0x9999999999999999999999999999999999999999"
 
         CopyTradingBot(
-            ws_clients=[(market_address, mock_ws_client)],
+            event_subscribers=[(market_address, mock_event_subscriber)],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
         # Get the registered callback
-        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_trade_callback.call_args[0][0]
 
         # Simulate Trade event from unmonitored wallet
         await callback(sample_trade_response)
@@ -268,16 +278,18 @@ class TestCopyTradingBotTradeProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_tracks_trades_detected(
-        self, mock_ws_client, mock_copier, sample_trade_response
+        self, mock_event_subscriber, mock_copier, sample_trade_response
     ):
         """Bot should track number of trades detected."""
         bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_trade_callback.call_args[0][0]
 
         # Process multiple trades
         await callback(sample_trade_response)
@@ -288,18 +300,18 @@ class TestCopyTradingBotTradeProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_converts_trade_response_to_trade_model(
-        self, mock_ws_client, mock_copier, sample_trade_response
+        self, mock_event_subscriber, mock_copier, sample_trade_response
     ):
         """Bot should convert TradeResponse to Trade model with market address."""
         market_address = "0x4444444444444444444444444444444444444444"
 
         CopyTradingBot(
-            ws_clients=[(market_address, mock_ws_client)],
+            event_subscribers=[(market_address, mock_event_subscriber)],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_trade_callback.call_args[0][0]
         await callback(sample_trade_response)
 
         # Verify Trade model passed to copier
@@ -316,18 +328,20 @@ class TestCopyTradingBotErrorHandling:
 
     @pytest.mark.asyncio
     async def test_bot_handles_copier_errors_gracefully(
-        self, mock_ws_client, mock_copier, sample_trade_response
+        self, mock_event_subscriber, mock_copier, sample_trade_response
     ):
         """Bot should handle copier errors without crashing."""
         mock_copier.process_trade.side_effect = Exception("Execution error")
 
         bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_trade_callback.call_args[0][0]
 
         # Should not raise exception
         await callback(sample_trade_response)
@@ -337,15 +351,17 @@ class TestCopyTradingBotErrorHandling:
         assert stats["trades_detected"] == 1
 
     @pytest.mark.asyncio
-    async def test_bot_handles_trade_conversion_errors(self, mock_ws_client, mock_copier):
+    async def test_bot_handles_trade_conversion_errors(self, mock_event_subscriber, mock_copier):
         """Bot should handle errors in trade conversion gracefully."""
         CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_trade_callback.call_args[0][0]
 
         # Malformed trade response
         bad_trade_response = TradeResponse(
@@ -369,7 +385,7 @@ class TestCopyTradingBotErrorHandling:
 class TestCopyTradingBotStatistics:
     """Test statistics tracking."""
 
-    def test_bot_includes_copier_statistics(self, mock_ws_client, mock_copier):
+    def test_bot_includes_copier_statistics(self, mock_event_subscriber, mock_copier):
         """Bot should include copier statistics in get_statistics()."""
         mock_copier.get_statistics.return_value = {
             "successful_trades": 5,
@@ -378,7 +394,9 @@ class TestCopyTradingBotStatistics:
         }
 
         bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
@@ -390,15 +408,19 @@ class TestCopyTradingBotStatistics:
         assert stats["trades_detected"] == 0  # Bot's own stat
 
     @pytest.mark.asyncio
-    async def test_bot_resets_statistics(self, mock_ws_client, mock_copier, sample_trade_response):
+    async def test_bot_resets_statistics(
+        self, mock_event_subscriber, mock_copier, sample_trade_response
+    ):
         """Bot should reset statistics including copier stats."""
         bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_trade_callback.call_args[0][0]
         await callback(sample_trade_response)
 
         # Reset statistics
@@ -414,22 +436,22 @@ class TestCopyTradingBotOrderCreatedProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_processes_order_from_monitored_wallet(
-        self, mock_ws_client, mock_copier, sample_order_response
+        self, mock_event_subscriber, mock_copier, sample_order_response
     ):
         """Bot should process OrderCreated events from monitored source wallets."""
         market_address = "0x4444444444444444444444444444444444444444"
         source_wallet = "0x1111111111111111111111111111111111111111"
 
         CopyTradingBot(
-            ws_clients=[(market_address, mock_ws_client)],
+            event_subscribers=[(market_address, mock_event_subscriber)],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
         # Get the registered callback
-        callback = mock_ws_client.set_order_created_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_order_created_callback.call_args[0][0]
 
-        # Simulate OrderCreated event from WebSocket
+        # Simulate OrderCreated event from blockchain event
         await callback(sample_order_response)
 
         # Should process the order
@@ -437,7 +459,7 @@ class TestCopyTradingBotOrderCreatedProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_ignores_order_from_unmonitored_wallet(
-        self, mock_ws_client, mock_copier, sample_order_response
+        self, mock_event_subscriber, mock_copier, sample_order_response
     ):
         """Bot should ignore OrderCreated events from wallets not in source_wallets."""
         market_address = "0x4444444444444444444444444444444444444444"
@@ -445,13 +467,13 @@ class TestCopyTradingBotOrderCreatedProcessing:
         source_wallet = "0x9999999999999999999999999999999999999999"
 
         CopyTradingBot(
-            ws_clients=[(market_address, mock_ws_client)],
+            event_subscribers=[(market_address, mock_event_subscriber)],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
         # Get the registered callback
-        callback = mock_ws_client.set_order_created_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_order_created_callback.call_args[0][0]
 
         # Simulate OrderCreated event from unmonitored wallet
         await callback(sample_order_response)
@@ -461,16 +483,18 @@ class TestCopyTradingBotOrderCreatedProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_tracks_orders_detected(
-        self, mock_ws_client, mock_copier, sample_order_response
+        self, mock_event_subscriber, mock_copier, sample_order_response
     ):
         """Bot should track number of orders detected."""
         bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_order_created_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_order_created_callback.call_args[0][0]
 
         # Process multiple orders
         await callback(sample_order_response)
@@ -481,16 +505,18 @@ class TestCopyTradingBotOrderCreatedProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_tracks_order_mapping(
-        self, mock_ws_client, mock_copier, sample_order_response
+        self, mock_event_subscriber, mock_copier, sample_order_response
     ):
         """Bot should track mapping between source and mirrored orders."""
         bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_order_created_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_order_created_callback.call_args[0][0]
 
         # Process order
         await callback(sample_order_response)
@@ -503,18 +529,20 @@ class TestCopyTradingBotOrderCreatedProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_handles_order_processing_errors(
-        self, mock_ws_client, mock_copier, sample_order_response
+        self, mock_event_subscriber, mock_copier, sample_order_response
     ):
         """Bot should handle order processing errors gracefully."""
         mock_copier.process_order.side_effect = Exception("Processing error")
 
         bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_order_created_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_order_created_callback.call_args[0][0]
 
         # Should not raise exception
         await callback(sample_order_response)
@@ -525,18 +553,20 @@ class TestCopyTradingBotOrderCreatedProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_does_not_track_failed_orders(
-        self, mock_ws_client, mock_copier, sample_order_response
+        self, mock_event_subscriber, mock_copier, sample_order_response
     ):
         """Bot should not track orders that failed to mirror."""
         mock_copier.process_order.return_value = None  # Failed
 
         bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_order_created_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_order_created_callback.call_args[0][0]
 
         # Process order
         await callback(sample_order_response)
@@ -552,23 +582,25 @@ class TestCopyTradingBotOrdersCanceledProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_cancels_mirrored_orders(
-        self, mock_ws_client, mock_copier, sample_order_response
+        self, mock_event_subscriber, mock_copier, sample_order_response
     ):
         """Bot should cancel mirrored orders when source trader cancels."""
         source_wallet = "0x1111111111111111111111111111111111111111"
 
         CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
         # First, create an order so we have something to cancel
-        order_callback = mock_ws_client.set_order_created_callback.call_args[0][0]
+        order_callback = mock_event_subscriber.set_order_created_callback.call_args[0][0]
         await order_callback(sample_order_response)
 
         # Now simulate OrdersCanceled event
-        cancel_callback = mock_ws_client.set_orders_canceled_callback.call_args[0][0]
+        cancel_callback = mock_event_subscriber.set_orders_canceled_callback.call_args[0][0]
         await cancel_callback(
             [sample_order_response.order_id],
             ["test-cloid"],
@@ -583,17 +615,19 @@ class TestCopyTradingBotOrdersCanceledProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_ignores_cancellations_from_unmonitored_wallet(
-        self, mock_ws_client, mock_copier
+        self, mock_event_subscriber, mock_copier
     ):
         """Bot should ignore OrdersCanceled events from wallets not in source_wallets."""
         CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=["0x1111111111111111111111111111111111111111"],
             copier=mock_copier,
         )
 
         # Simulate OrdersCanceled event from unmonitored wallet
-        cancel_callback = mock_ws_client.set_orders_canceled_callback.call_args[0][0]
+        cancel_callback = mock_event_subscriber.set_orders_canceled_callback.call_args[0][0]
         await cancel_callback(
             [12345],
             ["cloid-123"],
@@ -605,17 +639,19 @@ class TestCopyTradingBotOrdersCanceledProcessing:
         mock_copier.cancel_orders.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_bot_tracks_cancellations_detected(self, mock_ws_client, mock_copier):
+    async def test_bot_tracks_cancellations_detected(self, mock_event_subscriber, mock_copier):
         """Bot should track number of order cancellations detected."""
         source_wallet = "0x1111111111111111111111111111111111111111"
 
         bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
-        cancel_callback = mock_ws_client.set_orders_canceled_callback.call_args[0][0]
+        cancel_callback = mock_event_subscriber.set_orders_canceled_callback.call_args[0][0]
 
         # Process multiple cancellations
         await cancel_callback(
@@ -636,25 +672,27 @@ class TestCopyTradingBotOrdersCanceledProcessing:
 
     @pytest.mark.asyncio
     async def test_bot_removes_canceled_orders_from_tracking(
-        self, mock_ws_client, mock_copier, sample_order_response
+        self, mock_event_subscriber, mock_copier, sample_order_response
     ):
         """Bot should remove canceled orders from tracking map."""
         source_wallet = "0x1111111111111111111111111111111111111111"
 
         bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
         # First, create an order
-        order_callback = mock_ws_client.set_order_created_callback.call_args[0][0]
+        order_callback = mock_event_subscriber.set_order_created_callback.call_args[0][0]
         await order_callback(sample_order_response)
 
         assert bot.get_statistics()["tracked_orders"] == 1
 
         # Now cancel it
-        cancel_callback = mock_ws_client.set_orders_canceled_callback.call_args[0][0]
+        cancel_callback = mock_event_subscriber.set_orders_canceled_callback.call_args[0][0]
         await cancel_callback(
             [sample_order_response.order_id],
             ["test-cloid"],
@@ -667,18 +705,22 @@ class TestCopyTradingBotOrdersCanceledProcessing:
         assert sample_order_response.order_id not in bot._order_mapping
 
     @pytest.mark.asyncio
-    async def test_bot_handles_cancellation_of_unmapped_orders(self, mock_ws_client, mock_copier):
+    async def test_bot_handles_cancellation_of_unmapped_orders(
+        self, mock_event_subscriber, mock_copier
+    ):
         """Bot should handle cancellation of orders not in tracking map."""
         source_wallet = "0x1111111111111111111111111111111111111111"
 
         CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
         # Cancel orders that were never mirrored
-        cancel_callback = mock_ws_client.set_orders_canceled_callback.call_args[0][0]
+        cancel_callback = mock_event_subscriber.set_orders_canceled_callback.call_args[0][0]
         await cancel_callback(
             [99999, 88888],
             ["cloid-999", "cloid-888"],
@@ -693,17 +735,19 @@ class TestCopyTradingBotOrdersCanceledProcessing:
         mock_copier.cancel_orders.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_bot_handles_batch_cancellations(self, mock_ws_client, mock_copier):
+    async def test_bot_handles_batch_cancellations(self, mock_event_subscriber, mock_copier):
         """Bot should handle cancellation of multiple orders at once."""
         source_wallet = "0x1111111111111111111111111111111111111111"
 
         bot = CopyTradingBot(
-            ws_clients=[("0x4444444444444444444444444444444444444444", mock_ws_client)],
+            event_subscribers=[
+                ("0x4444444444444444444444444444444444444444", mock_event_subscriber)
+            ],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
-        order_callback = mock_ws_client.set_order_created_callback.call_args[0][0]
+        order_callback = mock_event_subscriber.set_order_created_callback.call_args[0][0]
 
         # Create multiple orders
         order1 = OrderResponse(
@@ -737,7 +781,7 @@ class TestCopyTradingBotOrdersCanceledProcessing:
         assert bot.get_statistics()["tracked_orders"] == 2
 
         # Cancel both at once
-        cancel_callback = mock_ws_client.set_orders_canceled_callback.call_args[0][0]
+        cancel_callback = mock_event_subscriber.set_orders_canceled_callback.call_args[0][0]
         await cancel_callback(
             [100, 200],
             ["cloid-100", "cloid-200"],
@@ -763,7 +807,7 @@ class TestCopyTradingBotFillTracking:
 
     @pytest.mark.asyncio
     async def test_bot_distinguishes_own_fills_from_source_trades(
-        self, mock_ws_client, mock_copier, sample_trade_response
+        self, mock_event_subscriber, mock_copier, sample_trade_response
     ):
         """Bot should distinguish between source wallet trades and its own fills."""
         market_address = "0x4444444444444444444444444444444444444444"
@@ -776,12 +820,12 @@ class TestCopyTradingBotFillTracking:
         mock_copier.order_tracker = Mock()
 
         _bot = CopyTradingBot(
-            ws_clients=[(market_address, mock_ws_client)],
+            event_subscribers=[(market_address, mock_event_subscriber)],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_trade_callback.call_args[0][0]
 
         # Trade from source wallet - should process as mirror trade
         await callback(sample_trade_response)
@@ -789,7 +833,7 @@ class TestCopyTradingBotFillTracking:
         mock_copier.order_tracker.on_fill.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_bot_tracks_own_fills(self, mock_ws_client, mock_copier):
+    async def test_bot_tracks_own_fills(self, mock_event_subscriber, mock_copier):
         """Bot should track its own order fills via order_tracker."""
         market_address = "0x4444444444444444444444444444444444444444"
         source_wallet = "0x1111111111111111111111111111111111111111"
@@ -801,12 +845,12 @@ class TestCopyTradingBotFillTracking:
         mock_copier.order_tracker = Mock()
 
         _bot = CopyTradingBot(
-            ws_clients=[(market_address, mock_ws_client)],
+            event_subscribers=[(market_address, mock_event_subscriber)],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_trade_callback.call_args[0][0]
 
         # Trade from bot's own wallet - should track fill
         own_trade_response = TradeResponse(
@@ -830,7 +874,7 @@ class TestCopyTradingBotFillTracking:
         mock_copier.process_trade.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_bot_includes_order_tracker_statistics(self, mock_ws_client, mock_copier):
+    async def test_bot_includes_order_tracker_statistics(self, mock_event_subscriber, mock_copier):
         """Bot statistics should include order tracker metrics."""
         market_address = "0x4444444444444444444444444444444444444444"
         source_wallet = "0x1111111111111111111111111111111111111111"
@@ -847,7 +891,7 @@ class TestCopyTradingBotFillTracking:
         }
 
         bot = CopyTradingBot(
-            ws_clients=[(market_address, mock_ws_client)],
+            event_subscribers=[(market_address, mock_event_subscriber)],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
@@ -859,7 +903,7 @@ class TestCopyTradingBotFillTracking:
         assert stats["open_orders"] == 2
 
     @pytest.mark.asyncio
-    async def test_bot_handles_own_fill_errors_gracefully(self, mock_ws_client, mock_copier):
+    async def test_bot_handles_own_fill_errors_gracefully(self, mock_event_subscriber, mock_copier):
         """Bot should handle errors when tracking own fills."""
         market_address = "0x4444444444444444444444444444444444444444"
         source_wallet = "0x1111111111111111111111111111111111111111"
@@ -872,12 +916,12 @@ class TestCopyTradingBotFillTracking:
         mock_copier.order_tracker.on_fill.side_effect = Exception("Tracker error")
 
         _bot = CopyTradingBot(
-            ws_clients=[(market_address, mock_ws_client)],
+            event_subscribers=[(market_address, mock_event_subscriber)],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_trade_callback.call_args[0][0]
 
         # Trade from bot's own wallet
         own_trade_response = TradeResponse(
@@ -898,7 +942,7 @@ class TestCopyTradingBotFillTracking:
         mock_copier.order_tracker.on_fill.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_bot_tracks_own_partial_fills(self, mock_ws_client, mock_copier):
+    async def test_bot_tracks_own_partial_fills(self, mock_event_subscriber, mock_copier):
         """Bot should track multiple partial fills for same order."""
         market_address = "0x4444444444444444444444444444444444444444"
         source_wallet = "0x1111111111111111111111111111111111111111"
@@ -910,12 +954,12 @@ class TestCopyTradingBotFillTracking:
         mock_copier.order_tracker = Mock()
 
         _bot = CopyTradingBot(
-            ws_clients=[(market_address, mock_ws_client)],
+            event_subscribers=[(market_address, mock_event_subscriber)],
             source_wallets=[source_wallet],
             copier=mock_copier,
         )
 
-        callback = mock_ws_client.set_trade_callback.call_args[0][0]
+        callback = mock_event_subscriber.set_trade_callback.call_args[0][0]
 
         # First partial fill
         partial_fill_1 = TradeResponse(

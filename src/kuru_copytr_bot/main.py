@@ -255,7 +255,7 @@ class BotRunner:
 def main(env_file: str, log_level: str, json_logs: bool) -> None:
     """Kuru Copy Trading Bot - Mirror trades from expert wallets on Monad testnet.
 
-    This bot monitors specified source wallets via WebSocket and automatically
+    This bot monitors specified source wallets via blockchain events and automatically
     mirrors their trades on Kuru Exchange with configurable position sizing
     and risk management.
 

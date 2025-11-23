@@ -1,4 +1,4 @@
-"""Copy trading bot orchestrator using WebSocket."""
+"""Copy trading bot orchestrator using blockchain event subscriptions."""
 
 import asyncio
 from decimal import Decimal
@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 
 class CopyTradingBot:
-    """Orchestrates copy trading workflow using WebSocket for real-time events."""
+    """Orchestrates copy trading workflow using blockchain events for real-time updates."""
 
     def __init__(
         self,
@@ -80,10 +80,10 @@ class CopyTradingBot:
         """
 
         async def on_trade(trade_response: TradeResponse):
-            """Handle Trade event from WebSocket.
+            """Handle Trade event from blockchain.
 
             Args:
-                trade_response: Trade data from WebSocket
+                trade_response: Trade data from blockchain event
             """
             try:
                 maker_address = trade_response.makeraddress.lower()
@@ -171,10 +171,10 @@ class CopyTradingBot:
         """
 
         async def on_order_created(order_response: OrderResponse):
-            """Handle OrderCreated event from WebSocket.
+            """Handle OrderCreated event from blockchain.
 
             Args:
-                order_response: Order data from WebSocket
+                order_response: Order data from blockchain event
             """
             try:
                 owner_address = order_response.owner.lower()
@@ -254,7 +254,7 @@ class CopyTradingBot:
             maker_address: str,
             canceled_orders_data: list[dict],
         ):
-            """Handle OrdersCanceled event from WebSocket.
+            """Handle OrdersCanceled event from blockchain.
 
             Args:
                 order_ids: List of canceled order IDs

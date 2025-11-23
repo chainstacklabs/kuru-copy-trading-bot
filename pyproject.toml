@@ -88,6 +88,7 @@ module = [
     "websockets.*",
     "structlog.*",
     "socketio.*",
+    "tenacity.*",
 ]
 ignore_missing_imports = true
 

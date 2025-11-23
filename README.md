@@ -6,7 +6,7 @@ Copy trading bot for Kuru Exchange on Monad blockchain. Monitors target wallets 
 
 ## Features
 
-- Real-time WebSocket event monitoring
+- Real-time blockchain event monitoring via RPC WebSocket
 - Configurable position sizing with copy ratio
 - Risk management (balance checks, position limits, market filters)
 
@@ -29,7 +29,6 @@ WALLET_PRIVATE_KEY=0x...
 
 # Kuru Exchange
 KURU_API_URL=https://api.testnet.kuru.io
-KURU_WS_URL=wss://ws.testnet.kuru.io
 
 # Source wallets to copy (comma-separated)
 SOURCE_WALLETS=0x1111...,0x2222...
@@ -72,11 +71,12 @@ Press `Ctrl+C` to stop. Final statistics will be displayed.
 ## Architecture
 
 ```
-┌──────────────────┐
-│ WebSocket Client │  Listens to real-time Trade events from Kuru
-└────────┬─────────┘
-         │ (Trade event)
-         ▼
+┌────────────────────────┐
+│ Blockchain Event       │  Subscribes to OrderBook contract events
+│ Subscriber (RPC WSS)   │  via eth_subscribe on market address
+└──────────┬─────────────┘
+           │ (OrderCreated / Trade event)
+           ▼
 ┌─────────────────┐
 │  Event Filter   │  Filters trades from monitored source wallets
 └────────┬────────┘
@@ -102,15 +102,14 @@ Press `Ctrl+C` to stop. Final statistics will be displayed.
 ```
 src/kuru_copytr_bot/
 ├── main.py              # Entry point (async)
-├── bot.py               # Main orchestrator (WebSocket event handling)
+├── bot.py               # Main orchestrator (event handling)
 ├── models/              # Data models (Trade, Order, Market, etc.)
 ├── core/                # Interfaces and exceptions
 ├── trading/             # Trade copying and execution
 ├── risk/                # Position sizing and validation
 ├── connectors/
-│   ├── blockchain/      # Monad blockchain client (Web3.py)
-│   ├── platforms/       # Kuru Exchange REST API client
-│   └── websocket/       # Kuru WebSocket client (Socket.IO)
+│   ├── blockchain/      # Monad blockchain client + event subscriber
+│   └── platforms/       # Kuru Exchange REST API client
 ├── utils/               # Logging and helpers
 └── config/              # Settings and constants
 
@@ -150,9 +149,9 @@ uv run pre-commit install
 
 ## Requirements
 
-- Python 3.13+
+- Python 3.10+
 - uv package manager
-- Monad testnet RPC access
+- Monad testnet RPC access (WSS endpoint for event subscriptions)
 - Private key with MON tokens for gas
 
 ## License

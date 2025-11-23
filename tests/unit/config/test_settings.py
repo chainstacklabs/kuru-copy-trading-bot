@@ -17,7 +17,6 @@ class TestSettingsConfiguration:
         monkeypatch.setenv("WALLET_PRIVATE_KEY", "0x" + "a" * 64)
         monkeypatch.setenv("MONAD_RPC_URL", "https://testnet.monad.xyz")
         monkeypatch.setenv("KURU_API_URL", "https://api.kuru.io")
-        monkeypatch.setenv("KURU_WS_URL", "wss://ws.testnet.kuru.io")
         monkeypatch.setenv("SOURCE_WALLETS", "0x1234567890123456789012345678901234567890")
         monkeypatch.setenv("MARKET_ADDRESSES", "0x4444444444444444444444444444444444444444")
 
@@ -26,7 +25,6 @@ class TestSettingsConfiguration:
         assert settings.wallet_private_key == "0x" + "a" * 64
         assert settings.monad_rpc_url == "https://testnet.monad.xyz"
         assert settings.kuru_api_url == "https://api.kuru.io"
-        assert settings.kuru_ws_url == "wss://ws.testnet.kuru.io"
         assert "0x1234567890123456789012345678901234567890" in settings.source_wallets
         assert "0x4444444444444444444444444444444444444444" in settings.market_addresses
 
