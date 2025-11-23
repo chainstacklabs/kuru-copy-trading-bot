@@ -54,16 +54,27 @@ Contract: `Orderbook` at `market_address`
 
 ---
 
-## 4. WebSocket - real-time updates
+## 4. Blockchain events - real-time updates
 
-URL: `{websocket_url}?marketAddress={market_address}` (Socket.IO)
-Default: `wss://ws.testnet.kuru.io`
+Subscribe to on-chain events via RPC WebSocket connection to the blockchain node.
+
+Contract: `Orderbook` at `market_address`
 
 | Event | Trigger | Payload Fields |
 |-------|---------|---------------|
-| `OrderCreated` | New order placed | `order_id`, `owner`, `price`, `size`, `is_buy`, `block_number`, `transaction_hash`, `trigger_time`, `market_address` |
-| `Trade` | Order matched/filled | `order_id`, `maker_address`, `taker_address`, `is_buy`, `price`, `filled_size`, `updated_size`, `block_number`, `transaction_hash`, `trigger_time` |
-| `OrdersCanceled` | Orders canceled | `order_ids[]`, `maker_address`, `canceled_orders_data[]` (each with `orderid`, `owner`, `size`, `price`, `isbuy`, `remainingsize`, `iscanceled`, `blocknumber`, `transactionhash`, `triggertime`) |
+| `OrderCreated` | New order placed | `order_id`, `owner_address`, `size`, `price`, `is_buy` |
+| `Trade` | Order matched/filled | `order_id`, `is_buy`, `price`, `updated_size`, `taker_address`, `filled_size` |
+
+**Subscription Example** (using web3.py):
+```python
+# Subscribe to OrderCreated events
+event_filter = contract.events.OrderCreated.create_filter(from_block='latest')
+
+# Subscribe to Trade events
+event_filter = contract.events.Trade.create_filter(from_block='latest')
+```
+
+**Note**: Use blockchain RPC with WebSocket support (e.g., `wss://monad-testnet.drpc.org`) for real-time event streaming.
 
 ---
 
@@ -166,8 +177,7 @@ nonce: int = None
 
 ### Testnet
 - **REST API**: https://api.testnet.kuru.io
-- **WebSocket**: wss://ws.testnet.kuru.io
-- **Blockchain RPC**: Available at https://chainlist.org/chain/10143
+- **Blockchain RPC**: Available at https://chainlist.org/chain/10143 (use WSS endpoint for event subscriptions)
 
 ### Testnet contract addresses
 
@@ -203,7 +213,7 @@ YAKI-MON:        0xd5c1dc181c359f0199c83045a85cd2556b325de0
 ### Authentication
 - **Transactions**: Signed with private key (EIP-1559 Type 2)
 - **REST API**: No authentication required for reads
-- **WebSocket**: Market address filter only
+- **Blockchain Events**: No authentication, filter by contract address
 
 ---
 
@@ -258,7 +268,7 @@ See SDK `src/utils/errors.json` for complete list.
 ## Copy trading bot flow
 
 ### Monitor target trader
-1. **WebSocket**: Subscribe to `OrderCreated`, `Trade`, `OrdersCanceled` events filtered by target trader address
+1. **Blockchain Events**: Subscribe to `OrderCreated`, `Trade` events on the market contract, filter by target trader address
 2. **REST API**: Poll `/orders/user/{target_address}` for initial state
 3. **REST API**: Fetch `/trades/user/{target_address}` for historical trades
 
@@ -266,18 +276,18 @@ See SDK `src/utils/errors.json` for complete list.
 1. Parse incoming `OrderCreated` event or REST order data
 2. Calculate position size (apply copy ratio)
 3. **Smart Contract**: Call `addBuyOrder()` or `addSellOrder()` with adjusted parameters
-4. Store `cloid` for order tracking
-5. **WebSocket**: Listen for own `Trade` events to confirm fill
+4. Store order mapping for tracking
+5. **Blockchain Events**: Listen for own `Trade` events to confirm fill
 
 ### Cancel mirrored orders
-1. **WebSocket**: Detect `OrdersCanceled` event for target trader
+1. **Blockchain Events**: Detect order cancellation for target trader
 2. Map target `order_id` to own `order_id` via tracking database
 3. **Smart Contract**: Call `batchCancelOrders([order_ids])`
 
 ### Query order status
-1. **REST API**: GET `/orders/client` with `cloids[]` to fetch current order status
+1. **REST API**: GET `/orders/client` with order IDs to fetch current order status
 2. **Smart Contract**: Call `get_l2_book()` to check order book state
-3. **WebSocket**: Monitor `Trade` events for fill updates
+3. **Blockchain Events**: Monitor `Trade` events for fill updates
 
 ---
 
