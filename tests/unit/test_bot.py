@@ -1,6 +1,6 @@
 """Tests for copy trading bot orchestrator (WebSocket-based)."""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import AsyncMock, Mock
 
@@ -67,7 +67,7 @@ def sample_trade_response():
         price="2000.50",
         filledsize="1.5",
         transactionhash="0x" + "a" * 64,
-        triggertime=int(datetime.now(UTC).timestamp()),
+        triggertime=int(datetime.now(timezone.utc).timestamp()),
     )
 
 
@@ -81,7 +81,7 @@ def sample_trade():
         side=OrderSide.BUY,
         price=Decimal("2000.0"),
         size=Decimal("5.0"),
-        timestamp=datetime.now(UTC),
+        timestamp=datetime.now(timezone.utc),
         tx_hash="0x" + "a" * 64,
     )
 
@@ -99,7 +99,7 @@ def sample_order_response():
         is_buy=True,
         is_canceled=False,
         transaction_hash="0x" + "b" * 64,
-        trigger_time=int(datetime.now(UTC).timestamp()),
+        trigger_time=int(datetime.now(timezone.utc).timestamp()),
         cloid="test-cloid-123",
     )
 
@@ -356,7 +356,7 @@ class TestCopyTradingBotErrorHandling:
             price="invalid_price",  # This will cause conversion error
             filledsize="1.5",
             transactionhash="0x" + "a" * 64,
-            triggertime=int(datetime.now(UTC).timestamp()),
+            triggertime=int(datetime.now(timezone.utc).timestamp()),
         )
 
         # Should not raise exception
@@ -716,7 +716,7 @@ class TestCopyTradingBotOrdersCanceledProcessing:
             is_buy=True,
             is_canceled=False,
             transaction_hash="0x" + "c" * 64,
-            trigger_time=int(datetime.now(UTC).timestamp()),
+            trigger_time=int(datetime.now(timezone.utc).timestamp()),
         )
         order2 = OrderResponse(
             order_id=200,
@@ -728,7 +728,7 @@ class TestCopyTradingBotOrdersCanceledProcessing:
             is_buy=True,
             is_canceled=False,
             transaction_hash="0x" + "d" * 64,
-            trigger_time=int(datetime.now(UTC).timestamp()),
+            trigger_time=int(datetime.now(timezone.utc).timestamp()),
         )
 
         await order_callback(order1)
@@ -817,7 +817,7 @@ class TestCopyTradingBotFillTracking:
             price="2000.50",
             filledsize="1.5",
             transactionhash="0x" + "a" * 64,
-            triggertime=int(datetime.now(UTC).timestamp()),
+            triggertime=int(datetime.now(timezone.utc).timestamp()),
         )
 
         await callback(own_trade_response)
@@ -888,7 +888,7 @@ class TestCopyTradingBotFillTracking:
             price="2000.50",
             filledsize="1.5",
             transactionhash="0x" + "a" * 64,
-            triggertime=int(datetime.now(UTC).timestamp()),
+            triggertime=int(datetime.now(timezone.utc).timestamp()),
         )
 
         # Should not raise exception
@@ -926,7 +926,7 @@ class TestCopyTradingBotFillTracking:
             price="2000.50",
             filledsize="1.0",
             transactionhash="0x" + "a" * 64,
-            triggertime=int(datetime.now(UTC).timestamp()),
+            triggertime=int(datetime.now(timezone.utc).timestamp()),
         )
 
         # Second partial fill for same order
@@ -938,7 +938,7 @@ class TestCopyTradingBotFillTracking:
             price="2000.50",
             filledsize="0.5",
             transactionhash="0x" + "b" * 64,
-            triggertime=int(datetime.now(UTC).timestamp()),
+            triggertime=int(datetime.now(timezone.utc).timestamp()),
         )
 
         await callback(partial_fill_1)

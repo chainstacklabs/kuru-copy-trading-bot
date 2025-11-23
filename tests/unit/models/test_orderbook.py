@@ -1,12 +1,12 @@
 """Unit tests for orderbook data models."""
 
-from decimal import Decimal
 from datetime import datetime
+from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
 
-from src.kuru_copytr_bot.models.orderbook import PriceLevel, L2Book
+from src.kuru_copytr_bot.models.orderbook import L2Book, PriceLevel
 
 
 class TestPriceLevel:

@@ -1,7 +1,5 @@
 """Sample Kuru event log fixtures for testing."""
 
-from decimal import Decimal
-
 # OrderPlaced event log
 SAMPLE_EVENT_ORDER_PLACED = {
     "address": "0xKuruContractAddress000000000000000000000",
@@ -53,8 +51,7 @@ SAMPLE_EVENT_ORDER_CANCELLED = {
         "0xOrderCancelledEventSignature00000000000000000000000000000000000000",
         "0x0000000000000000000000001234567890123456789012345678901234567890",  # trader address
     ],
-    "data": "0x"
-    + "0000000000000000000000000000000000000000000000000000000000000001",  # order ID
+    "data": "0x" + "0000000000000000000000000000000000000000000000000000000000000001",  # order ID
     "blockNumber": 1000001,
     "transactionHash": "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     "transactionIndex": 8,

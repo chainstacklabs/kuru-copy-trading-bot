@@ -3,17 +3,17 @@
 import asyncio
 import functools
 import time
-from typing import Callable, TypeVar, Any, Tuple, Type
+from collections.abc import Callable
+from typing import Any, TypeVar
 
-
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 def retry(
     max_attempts: int = 3,
     backoff: float = 0.1,
     exponential: bool = False,
-    exceptions: Tuple[Type[Exception], ...] = (Exception,),
+    exceptions: tuple[type[Exception], ...] = (Exception,),
 ):
     """Retry a function call on failure with configurable backoff.
 
@@ -33,6 +33,7 @@ def retry(
             response = requests.get("https://api.example.com")
             return response.json()
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> T:
@@ -49,10 +50,7 @@ def retry(
 
                     # Don't sleep after the last attempt
                     if attempt < attempts - 1:
-                        if exponential:
-                            sleep_time = backoff * (2 ** attempt)
-                        else:
-                            sleep_time = backoff
+                        sleep_time = backoff * (2**attempt) if exponential else backoff
 
                         # Handle negative backoff (treat as 0)
                         sleep_time = max(0, sleep_time)
@@ -69,6 +67,7 @@ def retry(
 
         # For async functions, create an async wrapper
         if asyncio.iscoroutinefunction(func):
+
             @functools.wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> T:
                 last_exception = None
@@ -84,10 +83,7 @@ def retry(
 
                         # Don't sleep after the last attempt
                         if attempt < attempts - 1:
-                            if exponential:
-                                sleep_time = backoff * (2 ** attempt)
-                            else:
-                                sleep_time = backoff
+                            sleep_time = backoff * (2**attempt) if exponential else backoff
 
                             # Handle negative backoff (treat as 0)
                             sleep_time = max(0, sleep_time)
@@ -128,6 +124,7 @@ def async_timeout(seconds: float):
                 async with session.get(url) as response:
                     return await response.json()
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> T:
@@ -136,7 +133,7 @@ def async_timeout(seconds: float):
 
             try:
                 return await asyncio.wait_for(func(*args, **kwargs), timeout=timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Re-raise timeout error
                 raise
 

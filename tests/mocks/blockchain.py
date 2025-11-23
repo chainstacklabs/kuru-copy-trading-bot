@@ -1,7 +1,7 @@
 """Mock blockchain client for testing."""
 
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any
 from unittest.mock import MagicMock
 
 
@@ -52,9 +52,9 @@ class MockBlockchainClient:
         self.connected = True
 
         # Track calls for testing
-        self.transactions_sent: List[Dict[str, Any]] = []
-        self.receipts_requested: List[str] = []
-        self.events_parsed: List[Dict[str, Any]] = []
+        self.transactions_sent: list[dict[str, Any]] = []
+        self.receipts_requested: list[str] = []
+        self.events_parsed: list[dict[str, Any]] = []
 
     def is_connected(self) -> bool:
         """Check if connected to blockchain."""
@@ -75,7 +75,7 @@ class MockBlockchainClient:
         to: str,
         data: str = "0x",
         value: int = 0,
-        gas: Optional[int] = None,
+        gas: int | None = None,
     ) -> str:
         """Send a transaction to the blockchain."""
         tx = {
@@ -90,7 +90,7 @@ class MockBlockchainClient:
         # Return mock transaction hash
         return f"0xmocktx{len(self.transactions_sent):064x}"
 
-    def get_transaction_receipt(self, tx_hash: str) -> Dict[str, Any]:
+    def get_transaction_receipt(self, tx_hash: str) -> dict[str, Any]:
         """Get transaction receipt."""
         self.receipts_requested.append(tx_hash)
 
@@ -105,9 +105,9 @@ class MockBlockchainClient:
 
     def parse_event_logs(
         self,
-        logs: List[Dict[str, Any]],
-        event_abi: Dict[str, Any],
-    ) -> List[Dict[str, Any]]:
+        logs: list[dict[str, Any]],
+        event_abi: dict[str, Any],
+    ) -> list[dict[str, Any]]:
         """Parse event logs from transaction receipt."""
         self.events_parsed.extend(logs)
 
@@ -129,9 +129,9 @@ class MockBlockchainClient:
 
     def get_latest_transactions(
         self,
-        addresses: List[str],
+        addresses: list[str],
         from_block: int,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get latest transactions for addresses."""
         # Return empty list by default
         return []
@@ -140,6 +140,6 @@ class MockBlockchainClient:
         self,
         tx_hash: str,
         timeout: int = 120,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Wait for transaction receipt with timeout."""
         return self.get_transaction_receipt(tx_hash)

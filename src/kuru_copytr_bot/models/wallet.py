@@ -1,17 +1,18 @@
 """Wallet model."""
 
 from decimal import Decimal
-from typing import Dict
+
 from pydantic import BaseModel, Field, field_validator
-from pydantic_core import ValidationError as CoreValidationError, InitErrorDetails
+from pydantic_core import InitErrorDetails
+from pydantic_core import ValidationError as CoreValidationError
 
 
 class Wallet(BaseModel):
     """Represents a wallet with token balances and allowances."""
 
     address: str = Field(..., description="Wallet address")
-    balances: Dict[str, Decimal] = Field(default_factory=dict, description="Token balances")
-    allowances: Dict[str, Decimal] = Field(default_factory=dict, description="Token allowances")
+    balances: dict[str, Decimal] = Field(default_factory=dict, description="Token balances")
+    allowances: dict[str, Decimal] = Field(default_factory=dict, description="Token allowances")
     margin_balance: Decimal = Field(..., description="Available margin balance", ge=0)
 
     @field_validator("address")
@@ -48,7 +49,9 @@ class Wallet(BaseModel):
                         type="value_error",
                         loc=("balances", token),
                         input=amount,
-                        ctx={"error": f"Insufficient balance for {token}: {current} - {amount} < 0"},
+                        ctx={
+                            "error": f"Insufficient balance for {token}: {current} - {amount} < 0"
+                        },
                     )
                 ],
             )
@@ -87,7 +90,7 @@ class Wallet(BaseModel):
         """Check if wallet has sufficient margin."""
         return self.margin_balance >= amount
 
-    def calculate_total_value(self, prices: Dict[str, Decimal]) -> Decimal:
+    def calculate_total_value(self, prices: dict[str, Decimal]) -> Decimal:
         """Calculate total value of all balances in USD."""
         total = Decimal("0")
         for token, balance in self.balances.items():

@@ -1,11 +1,11 @@
 """Tests for utility decorators."""
 
-import pytest
 import asyncio
 import time
-from unittest.mock import Mock, call
 
-from src.kuru_copytr_bot.utils.decorators import retry, async_timeout
+import pytest
+
+from src.kuru_copytr_bot.utils.decorators import async_timeout, retry
 
 
 class TestRetryDecorator:
@@ -66,7 +66,7 @@ class TestRetryDecorator:
             call_count += 1
             raise Exception("Failure")
 
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Failure"):
             failing_func()
 
         # Default should be 3 attempts
@@ -74,6 +74,7 @@ class TestRetryDecorator:
 
     def test_retry_decorator_preserves_function_args(self):
         """@retry should preserve function arguments."""
+
         @retry(max_attempts=2, backoff=0.01)
         def func_with_args(a, b, c=None):
             if a < 0:
@@ -85,6 +86,7 @@ class TestRetryDecorator:
 
     def test_retry_decorator_preserves_function_kwargs(self):
         """@retry should preserve keyword arguments."""
+
         @retry(max_attempts=2, backoff=0.01)
         def func_with_kwargs(name, age=None):
             return f"{name} is {age}"
@@ -134,7 +136,9 @@ class TestRetryDecorator:
         with pytest.raises(TypeError, match="Non-retryable error"):
             func_with_specific_exception()
 
-        assert call_count == 2  # First call raised ValueError (retried), second raised TypeError (not retried)
+        assert (
+            call_count == 2
+        )  # First call raised ValueError (retried), second raised TypeError (not retried)
 
     def test_retry_decorator_without_backoff(self):
         """@retry should work with zero backoff."""
@@ -154,6 +158,7 @@ class TestRetryDecorator:
 
     def test_retry_decorator_preserves_return_value(self):
         """@retry should preserve the return value."""
+
         @retry(max_attempts=2, backoff=0.01)
         def returns_dict():
             return {"status": "ok", "data": [1, 2, 3]}
@@ -163,6 +168,7 @@ class TestRetryDecorator:
 
     def test_retry_decorator_with_none_return(self):
         """@retry should handle None return values."""
+
         @retry(max_attempts=2, backoff=0.01)
         def returns_none():
             return None
@@ -177,6 +183,7 @@ class TestAsyncTimeoutDecorator:
     @pytest.mark.asyncio
     async def test_async_timeout_decorator_succeeds_within_timeout(self):
         """@async_timeout should succeed if function completes in time."""
+
         @async_timeout(seconds=1.0)
         async def fast_func():
             await asyncio.sleep(0.01)
@@ -188,6 +195,7 @@ class TestAsyncTimeoutDecorator:
     @pytest.mark.asyncio
     async def test_async_timeout_decorator_raises_on_timeout(self):
         """@async_timeout should raise TimeoutError on timeout."""
+
         @async_timeout(seconds=0.05)
         async def slow_func():
             await asyncio.sleep(1.0)
@@ -199,6 +207,7 @@ class TestAsyncTimeoutDecorator:
     @pytest.mark.asyncio
     async def test_async_timeout_decorator_preserves_args(self):
         """@async_timeout should preserve function arguments."""
+
         @async_timeout(seconds=1.0)
         async def func_with_args(a, b):
             await asyncio.sleep(0.01)
@@ -210,6 +219,7 @@ class TestAsyncTimeoutDecorator:
     @pytest.mark.asyncio
     async def test_async_timeout_decorator_preserves_kwargs(self):
         """@async_timeout should preserve keyword arguments."""
+
         @async_timeout(seconds=1.0)
         async def func_with_kwargs(name, age=None):
             await asyncio.sleep(0.01)
@@ -221,6 +231,7 @@ class TestAsyncTimeoutDecorator:
     @pytest.mark.asyncio
     async def test_async_timeout_decorator_with_immediate_return(self):
         """@async_timeout should work with immediate returns."""
+
         @async_timeout(seconds=1.0)
         async def immediate_func():
             return "immediate"
@@ -231,6 +242,7 @@ class TestAsyncTimeoutDecorator:
     @pytest.mark.asyncio
     async def test_async_timeout_decorator_with_exception(self):
         """@async_timeout should not mask exceptions from the function."""
+
         @async_timeout(seconds=1.0)
         async def func_that_raises():
             await asyncio.sleep(0.01)
@@ -242,6 +254,7 @@ class TestAsyncTimeoutDecorator:
     @pytest.mark.asyncio
     async def test_async_timeout_decorator_with_very_short_timeout(self):
         """@async_timeout should timeout very quickly with short timeout."""
+
         @async_timeout(seconds=0.001)
         async def slow_func():
             await asyncio.sleep(0.1)
@@ -253,6 +266,7 @@ class TestAsyncTimeoutDecorator:
     @pytest.mark.asyncio
     async def test_async_timeout_decorator_preserves_none_return(self):
         """@async_timeout should handle None return values."""
+
         @async_timeout(seconds=1.0)
         async def returns_none():
             await asyncio.sleep(0.01)
@@ -264,6 +278,7 @@ class TestAsyncTimeoutDecorator:
     @pytest.mark.asyncio
     async def test_async_timeout_decorator_multiple_calls(self):
         """@async_timeout should work correctly for multiple calls."""
+
         @async_timeout(seconds=0.1)
         async def func():
             await asyncio.sleep(0.01)
@@ -302,6 +317,7 @@ class TestDecoratorCombinations:
 
     def test_retry_preserves_function_name(self):
         """@retry should preserve the original function name."""
+
         @retry(max_attempts=2, backoff=0.01)
         def my_function():
             return "result"
@@ -312,6 +328,7 @@ class TestDecoratorCombinations:
     @pytest.mark.asyncio
     async def test_async_timeout_preserves_function_name(self):
         """@async_timeout should preserve the original function name."""
+
         @async_timeout(seconds=1.0)
         async def my_async_function():
             return "result"
@@ -324,6 +341,7 @@ class TestEdgeCases:
 
     def test_retry_with_zero_max_attempts(self):
         """@retry should handle edge case of zero max attempts."""
+
         @retry(max_attempts=0, backoff=0.01)
         def func():
             return "success"
@@ -357,6 +375,7 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_async_timeout_with_zero_timeout(self):
         """@async_timeout should handle zero timeout."""
+
         @async_timeout(seconds=0)
         async def func():
             await asyncio.sleep(0.01)
@@ -369,13 +388,14 @@ class TestEdgeCases:
     @pytest.mark.asyncio
     async def test_async_timeout_with_negative_timeout(self):
         """@async_timeout should handle negative timeout."""
+
         @async_timeout(seconds=-1)
         async def func():
             return "immediate"
 
         # Negative timeout should be treated as 0 or very short
         # Might succeed or timeout depending on implementation
-        try:
-            result = await func()
-        except asyncio.TimeoutError:
-            pass  # Also acceptable
+        import contextlib
+
+        with contextlib.suppress(TimeoutError):
+            await func()

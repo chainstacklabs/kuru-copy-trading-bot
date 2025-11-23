@@ -2,7 +2,7 @@
 
 import re
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -10,7 +10,7 @@ from pydantic_core import InitErrorDetails
 from pydantic_core import ValidationError as CoreValidationError
 
 from ..core.enums import OrderSide, OrderStatus, OrderType
-from ..core.exceptions import InvalidStateTransition
+from ..core.exceptions import InvalidStateTransitionError
 
 
 class OrderResponse(BaseModel):
@@ -53,7 +53,7 @@ class OrderResponse(BaseModel):
         side = OrderSide.BUY if self.is_buy else OrderSide.SELL
 
         # Convert timestamp to datetime
-        created_at = datetime.fromtimestamp(self.trigger_time, tz=UTC)
+        created_at = datetime.fromtimestamp(self.trigger_time, tz=timezone.utc)
 
         return Order(
             order_id=str(self.order_id),
@@ -168,12 +168,12 @@ class Order(BaseModel):
         }
 
         if new_status not in valid_transitions.get(self.status, set()):
-            raise InvalidStateTransition(
+            raise InvalidStateTransitionError(
                 f"Cannot transition from {self.status.value} to {new_status.value}"
             )
 
         self.status = new_status
-        self.updated_at = datetime.now(UTC)
+        self.updated_at = datetime.now(timezone.utc)
 
     def add_fill(self, fill_size: Decimal) -> None:
         """Add a fill to the order."""
@@ -196,7 +196,7 @@ class Order(BaseModel):
             )
 
         self.filled_size = new_filled_size
-        self.updated_at = datetime.now(UTC)
+        self.updated_at = datetime.now(timezone.utc)
 
         # Update status based on fill
         if self.is_fully_filled:

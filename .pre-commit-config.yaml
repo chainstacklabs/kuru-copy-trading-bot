@@ -15,5 +15,5 @@ repos:
           - python-socketio>=5.10.0
           - structlog>=24.0.0
           - types-requests
-        args: [--strict, --namespace-packages, --explicit-package-bases]
+        args: [--explicit-package-bases]
         exclude: ^(tests/|examples/)

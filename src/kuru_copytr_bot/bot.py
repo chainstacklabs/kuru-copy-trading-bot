@@ -4,7 +4,9 @@ import asyncio
 from decimal import Decimal
 from typing import Any
 
-from src.kuru_copytr_bot.connectors.websocket.kuru_ws_client import KuruWebSocketClient
+from src.kuru_copytr_bot.connectors.blockchain.event_subscriber import (
+    BlockchainEventSubscriber,
+)
 from src.kuru_copytr_bot.models.order import OrderResponse
 from src.kuru_copytr_bot.models.trade import TradeResponse
 from src.kuru_copytr_bot.trading.copier import TradeCopier
@@ -18,20 +20,29 @@ class CopyTradingBot:
 
     def __init__(
         self,
-        ws_clients: list[tuple[str, KuruWebSocketClient]],
-        source_wallets: list[str],
-        copier: TradeCopier,
+        event_subscribers: list[tuple[str, BlockchainEventSubscriber]] | None = None,
+        source_wallets: list[str] | None = None,
+        copier: TradeCopier | None = None,
+        track_all_market_orders: bool = False,
     ):
         """Initialize copy trading bot.
 
         Args:
-            ws_clients: List of (market_address, WebSocketClient) tuples
+            event_subscribers: List of (market_address, BlockchainEventSubscriber) tuples
             source_wallets: List of source wallet addresses to monitor
             copier: Trade copier for executing mirror trades
+            track_all_market_orders: If True, track all orders on market (not just source wallets)
         """
-        self.ws_clients = ws_clients
-        self.source_wallets = [addr.lower() for addr in source_wallets]
+        self.event_subscribers = event_subscribers or []
+        self.source_wallets = [addr.lower() for addr in (source_wallets or [])]
         self.copier = copier
+        self.track_all_market_orders = track_all_market_orders
+
+        if not copier:
+            raise ValueError("copier is required")
+
+        if not event_subscribers:
+            raise ValueError("event_subscribers is required")
 
         self.bot_wallet_address = self.copier.kuru_client.blockchain.wallet_address.lower()
 
@@ -47,14 +58,14 @@ class CopyTradingBot:
         # This allows us to cancel our orders when source trader cancels theirs
         self._order_mapping: dict[int, str] = {}
 
-        # Set up WebSocket callbacks
-        for market_address, ws_client in self.ws_clients:
+        # Set up event subscriber callbacks
+        for market_address, subscriber in self.event_subscribers:
             # Create closures to capture market_address
-            ws_client.set_order_created_callback(
+            subscriber.set_order_created_callback(
                 self._create_order_created_callback(market_address)
             )
-            ws_client.set_trade_callback(self._create_trade_callback(market_address))
-            ws_client.set_orders_canceled_callback(
+            subscriber.set_trade_callback(self._create_trade_callback(market_address))
+            subscriber.set_orders_canceled_callback(
                 self._create_orders_canceled_callback(market_address)
             )
 
@@ -103,13 +114,23 @@ class CopyTradingBot:
                         )
                     return
 
-                if maker_address not in self.source_wallets:
+                # Skip wallet filtering if tracking all market orders
+                if not self.track_all_market_orders and maker_address not in self.source_wallets:
                     logger.debug(
                         "Trade from non-monitored wallet, skipping",
                         maker=trade_response.makeraddress,
                         order_id=trade_response.orderid,
                     )
                     return
+
+                # Log when tracking all market orders
+                if self.track_all_market_orders:
+                    wallet_type = "SOURCE" if maker_address in self.source_wallets else "OTHER"
+                    logger.debug(
+                        f"[MARKET-WIDE TRACKING] Trade from {wallet_type} wallet",
+                        maker=trade_response.makeraddress,
+                        order_id=trade_response.orderid,
+                    )
 
                 trade = trade_response.to_trade(market=market_address)
 
@@ -156,14 +177,25 @@ class CopyTradingBot:
                 order_response: Order data from WebSocket
             """
             try:
-                # Filter for our source wallets (check owner address)
-                if order_response.owner.lower() not in self.source_wallets:
+                owner_address = order_response.owner.lower()
+
+                # Skip wallet filtering if tracking all market orders
+                if not self.track_all_market_orders and owner_address not in self.source_wallets:
                     logger.debug(
                         "Order from non-monitored wallet, skipping",
                         owner=order_response.owner,
                         order_id=order_response.order_id,
                     )
                     return
+
+                # Log when tracking all market orders
+                if self.track_all_market_orders:
+                    wallet_type = "SOURCE" if owner_address in self.source_wallets else "OTHER"
+                    logger.debug(
+                        f"[MARKET-WIDE TRACKING] Order from {wallet_type} wallet",
+                        owner=order_response.owner,
+                        order_id=order_response.order_id,
+                    )
 
                 # Convert OrderResponse to Order model
                 order = order_response.to_order()
@@ -231,14 +263,25 @@ class CopyTradingBot:
                 canceled_orders_data: Additional cancellation data
             """
             try:
-                # Filter for our source wallets
-                if maker_address.lower() not in self.source_wallets:
+                maker_lower = maker_address.lower()
+
+                # Skip wallet filtering if tracking all market orders
+                if not self.track_all_market_orders and maker_lower not in self.source_wallets:
                     logger.debug(
                         "Orders canceled by non-monitored wallet, skipping",
                         maker_address=maker_address,
                         order_count=len(order_ids),
                     )
                     return
+
+                # Log when tracking all market orders
+                if self.track_all_market_orders:
+                    wallet_type = "SOURCE" if maker_lower in self.source_wallets else "OTHER"
+                    logger.debug(
+                        f"[MARKET-WIDE TRACKING] Orders canceled by {wallet_type} wallet",
+                        maker_address=maker_address,
+                        order_count=len(order_ids),
+                    )
 
                 self._orders_canceled_detected += 1
                 logger.info(
@@ -300,18 +343,18 @@ class CopyTradingBot:
         return on_orders_canceled
 
     async def start(self) -> None:
-        """Start the copy trading bot and connect all WebSockets."""
+        """Start the copy trading bot and connect all event subscribers."""
         logger.info(
             "Starting copy trading bot",
-            markets=len(self.ws_clients),
+            markets=len(self.event_subscribers),
             source_wallets=len(self.source_wallets),
         )
 
-        # Connect all WebSocket clients
+        # Connect all event subscribers
         connect_tasks = []
-        for market_address, ws_client in self.ws_clients:
-            logger.debug("Connecting to WebSocket", market=market_address)
-            connect_tasks.append(ws_client.connect())
+        for market_address, subscriber in self.event_subscribers:
+            logger.debug("Connecting blockchain event subscriber", market=market_address)
+            connect_tasks.append(subscriber.connect())
 
         # Connect all in parallel
         await asyncio.gather(*connect_tasks)
@@ -320,14 +363,14 @@ class CopyTradingBot:
         logger.info("Copy trading bot started successfully")
 
     async def stop(self) -> None:
-        """Stop the copy trading bot and disconnect all WebSockets."""
+        """Stop the copy trading bot and disconnect all event subscribers."""
         logger.info("Stopping copy trading bot")
 
-        # Disconnect all WebSocket clients
+        # Disconnect all event subscribers
         disconnect_tasks = []
-        for market_address, ws_client in self.ws_clients:
-            logger.debug("Disconnecting from WebSocket", market=market_address)
-            disconnect_tasks.append(ws_client.disconnect())
+        for market_address, subscriber in self.event_subscribers:
+            logger.debug("Disconnecting blockchain event subscriber", market=market_address)
+            disconnect_tasks.append(subscriber.disconnect())
 
         # Disconnect all in parallel
         await asyncio.gather(*disconnect_tasks)

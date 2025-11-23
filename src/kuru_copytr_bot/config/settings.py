@@ -35,7 +35,6 @@ class Settings(BaseSettings):
     # Blockchain Configuration
     monad_rpc_url: str = Field(..., description="Monad blockchain RPC URL")
     kuru_api_url: str = Field(..., description="Kuru Exchange API URL")
-    kuru_ws_url: str = Field(..., description="Kuru Exchange WebSocket URL")
 
     # Trading Configuration
     source_wallets: str | list[str] = Field(
@@ -77,6 +76,13 @@ class Settings(BaseSettings):
 
     # Operational Settings
     dry_run: bool = Field(default=False, description="Run in dry-run mode (no actual trades)")
+    dry_run_track_all_market_orders: bool = Field(
+        default=False,
+        description=(
+            "In dry-run mode, track ALL orders on the market (not just source wallets). "
+            "Useful for testing the bot's monitoring and parsing capabilities."
+        ),
+    )
     log_level: str = Field(default="INFO", description="Logging level")
     strict_api_errors: bool = Field(
         default=False,
@@ -142,14 +148,6 @@ class Settings(BaseSettings):
             raise ValueError("URL must start with http:// or https://")
         return v
 
-    @field_validator("kuru_ws_url")
-    @classmethod
-    def validate_ws_url(cls, v: str) -> str:
-        """Validate WebSocket URL format."""
-        if not v.startswith(("ws://", "wss://", "http://", "https://")):
-            raise ValueError("WebSocket URL must start with ws://, wss://, http://, or https://")
-        return v
-
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
@@ -177,7 +175,7 @@ class Settings(BaseSettings):
             return Decimal(str(v))
         return v
 
-    @field_validator("dry_run", mode="before")
+    @field_validator("dry_run", "dry_run_track_all_market_orders", mode="before")
     @classmethod
     def parse_bool(cls, v) -> bool:
         """Parse string to boolean."""

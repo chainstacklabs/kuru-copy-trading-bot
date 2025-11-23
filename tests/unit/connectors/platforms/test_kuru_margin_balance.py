@@ -21,20 +21,22 @@ def mock_blockchain():
 @pytest.fixture
 def kuru_client(mock_blockchain):
     """Create a KuruClient instance for testing."""
-    with patch("src.kuru_copytr_bot.connectors.platforms.kuru.Path"):
-        with patch(
+    with (
+        patch("src.kuru_copytr_bot.connectors.platforms.kuru.Path"),
+        patch(
             "builtins.open",
             MagicMock(
                 return_value=MagicMock(
                     __enter__=MagicMock(return_value=MagicMock(read=MagicMock(return_value="[]")))
                 )
             ),
-        ):
-            return KuruClient(
-                blockchain=mock_blockchain,
-                api_url="https://testnet-api.kuru.io",
-                contract_address="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            )
+        ),
+    ):
+        return KuruClient(
+            blockchain=mock_blockchain,
+            api_url="https://testnet-api.kuru.io",
+            contract_address="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        )
 
 
 class TestGetMarginBalance:
@@ -77,7 +79,9 @@ class TestGetMarginBalance:
         """Test fetching USDC-like token with 6 decimals."""
         mock_blockchain.call_contract_function.return_value = 1000000
 
-        balance = kuru_client.get_margin_balance("0xcccccccccccccccccccccccccccccccccccccccc", decimals=6)
+        balance = kuru_client.get_margin_balance(
+            "0xcccccccccccccccccccccccccccccccccccccccc", decimals=6
+        )
 
         assert balance == Decimal("1.0")
         mock_blockchain.call_contract_function.assert_called_once()
@@ -100,7 +104,9 @@ class TestGetMarginBalance:
 
     def test_get_margin_balance_connection_error(self, kuru_client, mock_blockchain):
         """Test handling connection errors."""
-        mock_blockchain.call_contract_function.side_effect = BlockchainConnectionError("Network error")
+        mock_blockchain.call_contract_function.side_effect = BlockchainConnectionError(
+            "Network error"
+        )
 
         with pytest.raises(BlockchainConnectionError):
             kuru_client.get_margin_balance(None)

@@ -1,8 +1,7 @@
 """Mock Kuru client for testing."""
 
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
-from unittest.mock import MagicMock
+from typing import Any
 
 
 class MockKuruClient:
@@ -18,10 +17,10 @@ class MockKuruClient:
         self.api_url = api_url
 
         # Track calls for testing
-        self.deposits: List[Dict[str, Any]] = []
-        self.orders_placed: List[Dict[str, Any]] = []
-        self.orders_cancelled: List[str] = []
-        self.market_params_fetched: List[str] = []
+        self.deposits: list[dict[str, Any]] = []
+        self.orders_placed: list[dict[str, Any]] = []
+        self.orders_cancelled: list[str] = []
+        self.market_params_fetched: list[str] = []
 
         # Mock order ID counter
         self._order_counter = 1
@@ -66,7 +65,7 @@ class MockKuruClient:
         market: str,
         side: str,
         size: Decimal,
-        slippage: Optional[Decimal] = None,
+        slippage: Decimal | None = None,
     ) -> str:
         """Place an IOC market order."""
         order = {
@@ -90,14 +89,14 @@ class MockKuruClient:
         # Return mock transaction hash
         return f"0xmockcancel{len(self.orders_cancelled):060x}"
 
-    def cancel_orders(self, order_ids: List[str]) -> str:
+    def cancel_orders(self, order_ids: list[str]) -> str:
         """Cancel multiple orders."""
         self.orders_cancelled.extend(order_ids)
 
         # Return mock transaction hash
         return f"0xmockcancelbatch{len(order_ids):056x}"
 
-    def get_order_status(self, order_id: str) -> Dict[str, Any]:
+    def get_order_status(self, order_id: str) -> dict[str, Any]:
         """Get order status."""
         # Return mock order status
         return {
@@ -107,7 +106,7 @@ class MockKuruClient:
             "remaining_size": Decimal("1.0"),
         }
 
-    def get_market_params(self, market: str) -> Dict[str, Any]:
+    def get_market_params(self, market: str) -> dict[str, Any]:
         """Get market parameters."""
         self.market_params_fetched.append(market)
 
@@ -140,12 +139,12 @@ class MockKuruClient:
         """Get available margin balance."""
         return Decimal("10000.0")
 
-    def get_open_orders(self, market: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_open_orders(self, market: str | None = None) -> list[dict[str, Any]]:
         """Get open orders."""
         # Return empty list by default
         return []
 
-    def get_positions(self, market: Optional[str] = None) -> List[Dict[str, Any]]:
+    def get_positions(self, market: str | None = None) -> list[dict[str, Any]]:
         """Get current positions."""
         # Return empty list by default
         return []

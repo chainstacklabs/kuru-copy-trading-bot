@@ -50,18 +50,20 @@ class MonadClient(BlockchainConnector):
         },
     ]
 
-    def __init__(self, rpc_url: str, private_key: str):
+    def __init__(self, rpc_url: str, private_key: str, dry_run: bool = False):
         """Initialize Monad client.
 
         Args:
             rpc_url: Monad RPC endpoint URL
             private_key: Private key for signing transactions
+            dry_run: If True, transactions are logged but not sent to blockchain
 
         Raises:
             BlockchainConnectionError: If connection fails
         """
         self.rpc_url = rpc_url
         self.private_key = private_key
+        self.dry_run = dry_run
 
         # Initialize Web3
         try:
@@ -79,6 +81,9 @@ class MonadClient(BlockchainConnector):
             self.wallet_address = self.account.address
         except Exception as e:
             raise ValueError(f"Invalid private key: {e}") from e
+
+        # Counter for dry run transaction hashes
+        self._dry_run_tx_counter = 0
 
     def is_connected(self) -> bool:
         """Check if connected to blockchain.
@@ -234,6 +239,20 @@ class MonadClient(BlockchainConnector):
             else:
                 tx["gas"] = gas
 
+            # DRY RUN MODE: Log transaction instead of sending it
+            if self.dry_run:
+                self._dry_run_tx_counter += 1
+                fake_tx_hash = f"0xdryrun{self._dry_run_tx_counter:056x}"
+                logger.info(
+                    "[DRY RUN] Transaction simulated (not sent to blockchain)",
+                    to=to,
+                    value=value,
+                    data=data[:66] + "..." if len(data) > 66 else data,
+                    gas=tx["gas"],
+                    fake_tx_hash=fake_tx_hash,
+                )
+                return fake_tx_hash
+
             # Send transaction with retry
             tx_hash = _send_with_retry(tx)
 
@@ -295,6 +314,17 @@ class MonadClient(BlockchainConnector):
             BlockchainConnectionError: If connection fails
             TimeoutError: If timeout is reached
         """
+        # DRY RUN MODE: Return fake receipt immediately
+        if self.dry_run and tx_hash.startswith("0xdryrun"):
+            logger.debug("[DRY RUN] Returning fake transaction receipt", tx_hash=tx_hash)
+            return {
+                "transactionHash": tx_hash,
+                "status": 1,
+                "blockNumber": 0,
+                "logs": [],
+                "gasUsed": 0,
+            }
+
         start_time = time.time()
         poll_interval = 1  # seconds
 

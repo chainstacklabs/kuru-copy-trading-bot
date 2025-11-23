@@ -9,8 +9,9 @@ These tests connect to the real Kuru testnet and require:
 Run with: pytest tests/integration/test_margin_balance_flow.py -m integration
 """
 
-import pytest
 from decimal import Decimal
+
+import pytest
 
 from src.kuru_copytr_bot.config.constants import KURU_CONTRACT_ADDRESS_TESTNET
 from src.kuru_copytr_bot.config.settings import Settings

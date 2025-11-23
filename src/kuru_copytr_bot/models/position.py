@@ -1,8 +1,10 @@
 """Position model."""
 
 from decimal import Decimal
+
 from pydantic import BaseModel, Field
-from pydantic_core import ValidationError as CoreValidationError, InitErrorDetails
+from pydantic_core import InitErrorDetails
+from pydantic_core import ValidationError as CoreValidationError
 
 
 class Position(BaseModel):
@@ -83,7 +85,9 @@ class Position(BaseModel):
                         type="value_error",
                         loc=("size",),
                         input=size,
-                        ctx={"error": f"Cannot reduce by {size}, position size is only {self.size}"},
+                        ctx={
+                            "error": f"Cannot reduce by {size}, position size is only {self.size}"
+                        },
                     )
                 ],
             )

@@ -1,6 +1,6 @@
 """Trade model."""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
@@ -35,7 +35,7 @@ class TradeResponse(BaseModel):
         side = OrderSide.BUY if self.isbuy else OrderSide.SELL
 
         # Convert timestamp to datetime
-        timestamp = datetime.fromtimestamp(self.triggertime, tz=UTC)
+        timestamp = datetime.fromtimestamp(self.triggertime, tz=timezone.utc)
 
         return Trade(
             id=str(self.orderid),

@@ -9,9 +9,11 @@ from dotenv import load_dotenv
 
 from src.kuru_copytr_bot.bot import CopyTradingBot
 from src.kuru_copytr_bot.config.settings import Settings
+from src.kuru_copytr_bot.connectors.blockchain.event_subscriber import (
+    BlockchainEventSubscriber,
+)
 from src.kuru_copytr_bot.connectors.blockchain.monad import MonadClient
 from src.kuru_copytr_bot.connectors.platforms.kuru import KuruClient
-from src.kuru_copytr_bot.connectors.websocket.kuru_ws_client import KuruWebSocketClient
 from src.kuru_copytr_bot.core.enums import OrderType
 from src.kuru_copytr_bot.risk.calculator import PositionSizeCalculator
 from src.kuru_copytr_bot.risk.validator import TradeValidator
@@ -43,10 +45,15 @@ class BotRunner:
         logger.info("Initializing bot components")
 
         # Initialize blockchain connector
-        logger.debug("Creating Monad blockchain client", rpc_url=self.settings.monad_rpc_url)
+        logger.debug(
+            "Creating Monad blockchain client",
+            rpc_url=self.settings.monad_rpc_url,
+            dry_run=self.settings.dry_run,
+        )
         monad_client = MonadClient(
             rpc_url=self.settings.monad_rpc_url,
             private_key=self.settings.wallet_private_key,
+            dry_run=self.settings.dry_run,
         )
 
         # Initialize Kuru Exchange client
@@ -59,19 +66,27 @@ class BotRunner:
             api_url=self.settings.kuru_api_url,
         )
 
-        # Initialize WebSocket clients for each market
-        logger.debug(
-            "Creating WebSocket clients",
-            market_count=len(self.settings.market_addresses),
+        # Initialize blockchain event subscribers for each market
+        # Convert HTTP RPC URL to WebSocket URL
+        rpc_ws_url = self.settings.monad_rpc_url.replace("https://", "wss://").replace(
+            "http://", "ws://"
         )
-        ws_clients = []
+
+        logger.debug(
+            "Creating blockchain event subscribers",
+            market_count=len(self.settings.market_addresses),
+            rpc_ws_url=rpc_ws_url,
+        )
+
+        event_subscribers = []
         for market_address in self.settings.market_addresses:
-            ws_client = KuruWebSocketClient(
-                ws_url=self.settings.kuru_ws_url,
+            subscriber = BlockchainEventSubscriber(
+                rpc_ws_url=rpc_ws_url,
                 market_address=market_address,
+                orderbook_abi=kuru_client.orderbook_abi,
             )
-            ws_clients.append((market_address, ws_client))
-            logger.debug("Created WebSocket client", market=market_address)
+            event_subscribers.append((market_address, subscriber))
+            logger.debug("Created blockchain event subscriber", market=market_address)
 
         # Initialize position size calculator
         logger.debug(
@@ -111,11 +126,15 @@ class BotRunner:
         )
 
         # Initialize bot orchestrator
-        logger.debug("Creating bot orchestrator")
+        logger.debug(
+            "Creating bot orchestrator",
+            track_all_market_orders=self.settings.dry_run_track_all_market_orders,
+        )
         bot = CopyTradingBot(
-            ws_clients=ws_clients,
+            event_subscribers=event_subscribers,
             source_wallets=self.settings.source_wallets,
             copier=copier,
+            track_all_market_orders=self.settings.dry_run_track_all_market_orders,
         )
 
         logger.info("All bot components initialized successfully")
@@ -129,9 +148,22 @@ class BotRunner:
 
         # Display startup info
         click.echo(f"Monitoring {len(self.settings.market_addresses)} markets")
-        click.echo(f"Watching {len(self.settings.source_wallets)} source wallets:")
-        for wallet in self.settings.source_wallets:
-            click.echo(f"  - {wallet}")
+
+        if self.settings.dry_run:
+            click.echo("\n*** DRY RUN MODE ENABLED - No actual trades will be executed ***\n")
+
+        click.echo("*** BLOCKCHAIN EVENT SUBSCRIPTION - Listening to contract events via RPC ***\n")
+
+        if self.settings.dry_run_track_all_market_orders:
+            click.echo("*** MARKET-WIDE TRACKING ENABLED - Monitoring ALL orders on market ***")
+            click.echo(f"Reference wallets ({len(self.settings.source_wallets)}):")
+            for wallet in self.settings.source_wallets:
+                click.echo(f"  - {wallet}")
+        else:
+            click.echo(f"Watching {len(self.settings.source_wallets)} source wallets:")
+            for wallet in self.settings.source_wallets:
+                click.echo(f"  - {wallet}")
+
         click.echo("\nPress Ctrl+C to stop\n")
 
         self.running = True

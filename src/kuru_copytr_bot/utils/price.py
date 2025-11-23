@@ -1,6 +1,6 @@
 """Price normalization utilities for order placement."""
 
-from decimal import Decimal, ROUND_DOWN, ROUND_UP
+from decimal import ROUND_DOWN, ROUND_UP, Decimal
 from typing import Literal
 
 

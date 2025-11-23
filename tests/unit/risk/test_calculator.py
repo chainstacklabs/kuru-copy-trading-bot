@@ -1,7 +1,8 @@
 """Unit tests for position size calculator."""
 
-import pytest
 from decimal import Decimal
+
+import pytest
 
 from src.kuru_copytr_bot.risk.calculator import PositionSizeCalculator
 

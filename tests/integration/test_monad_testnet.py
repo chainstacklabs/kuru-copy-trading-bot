@@ -8,8 +8,9 @@ These tests connect to the real Monad testnet and require:
 Run with: pytest tests/integration/test_monad_testnet.py -m integration
 """
 
-import pytest
 from decimal import Decimal
+
+import pytest
 
 from src.kuru_copytr_bot.config.settings import Settings
 from src.kuru_copytr_bot.connectors.blockchain.monad import MonadClient
@@ -144,15 +145,15 @@ class TestMonadTestnetErrorHandling:
     def test_invalid_rpc_url_raises_error(self):
         """Should raise error when connecting to invalid RPC URL."""
         with pytest.raises(BlockchainConnectionError):
-            client = MonadClient(
+            MonadClient(
                 rpc_url="https://invalid-rpc-url-that-does-not-exist.com",
                 private_key="0x" + "a" * 64,
             )
 
     def test_invalid_private_key_raises_error(self):
         """Should raise error with invalid private key."""
-        with pytest.raises(Exception):  # Should raise some validation error
-            client = MonadClient(
+        with pytest.raises(ValueError, match=""):
+            MonadClient(
                 rpc_url="https://testnet.monad.xyz",
                 private_key="invalid_key",
             )

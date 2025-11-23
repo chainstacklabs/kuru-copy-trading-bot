@@ -1,6 +1,6 @@
 """Unit tests for trade validator (spot DEX)."""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
@@ -21,7 +21,7 @@ def sample_buy_trade():
         side=OrderSide.BUY,
         price=Decimal("2000.0"),
         size=Decimal("1.0"),
-        timestamp=datetime.now(UTC),
+        timestamp=datetime.now(timezone.utc),
         tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
     )
 
@@ -105,7 +105,7 @@ class TestTradeValidatorBalanceValidation:
             side=OrderSide.SELL,
             price=Decimal("2000.0"),
             size=Decimal("1.0"),
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
         )
 
@@ -140,7 +140,7 @@ class TestTradeValidatorOrderSizeLimits:
             side=OrderSide.BUY,
             price=Decimal("2000.0"),
             size=Decimal("10.0"),  # Large size
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
         )
 
@@ -174,7 +174,7 @@ class TestTradeValidatorMinimumOrderSize:
             side=OrderSide.BUY,
             price=Decimal("2000.0"),
             size=Decimal("0.001"),  # Very small
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
         )
 
@@ -276,7 +276,7 @@ class TestTradeValidatorMaxNotionalValue:
             side=OrderSide.BUY,
             price=Decimal("2000.0"),
             size=Decimal("10.0"),  # notional = 20000
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
         )
 
@@ -312,7 +312,7 @@ class TestTradeValidatorErrorMessages:
             side=OrderSide.BUY,
             price=Decimal("2000.0"),
             size=Decimal("10.0"),
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
         )
 
@@ -390,7 +390,7 @@ class TestTradeValidatorEdgeCases:
             side=OrderSide.BUY,
             price=Decimal("2000.0"),
             size=Decimal("0.0001"),
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             tx_hash="0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
         )
 
@@ -417,8 +417,8 @@ class TestTradeValidatorOrderValidation:
             size=Decimal("1.0"),
             filled_size=Decimal("0.0"),
             market="ETH-USDC",
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
     @pytest.fixture
@@ -433,8 +433,8 @@ class TestTradeValidatorOrderValidation:
             size=Decimal("0.5"),
             filled_size=Decimal("0.0"),
             market="ETH-USDC",
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
     def test_validator_validates_order_successfully(self, sample_buy_order):
@@ -478,8 +478,8 @@ class TestTradeValidatorOrderValidation:
             size=Decimal("0.001"),
             filled_size=Decimal("0.0"),
             market="ETH-USDC",
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
         validator = TradeValidator(min_order_size=Decimal("0.01"))
@@ -501,8 +501,8 @@ class TestTradeValidatorOrderValidation:
             size=Decimal("100.0"),
             filled_size=Decimal("0.0"),
             market="ETH-USDC",
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
         validator = TradeValidator(max_position_size=Decimal("10.0"))
@@ -544,8 +544,8 @@ class TestTradeValidatorOrderValidation:
             size=Decimal("10.0"),  # Notional: 20000
             filled_size=Decimal("0.0"),
             market="ETH-USDC",
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
         validator = TradeValidator(max_exposure_usd=Decimal("10000.0"))

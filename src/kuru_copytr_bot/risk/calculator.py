@@ -1,7 +1,6 @@
 """Position size calculator for copy trading."""
 
-from decimal import Decimal, ROUND_DOWN
-from typing import Optional
+from decimal import ROUND_DOWN, Decimal
 
 
 class PositionSizeCalculator:
@@ -10,10 +9,10 @@ class PositionSizeCalculator:
     def __init__(
         self,
         copy_ratio: Decimal,
-        max_position_size: Optional[Decimal] = None,
-        min_order_size: Optional[Decimal] = None,
-        tick_size: Optional[Decimal] = None,
-        margin_requirement: Optional[Decimal] = None,
+        max_position_size: Decimal | None = None,
+        min_order_size: Decimal | None = None,
+        tick_size: Decimal | None = None,
+        margin_requirement: Decimal | None = None,
         respect_balance: bool = False,
         enforce_minimum: bool = True,
     ):
@@ -50,7 +49,7 @@ class PositionSizeCalculator:
         self,
         source_size: Decimal,
         available_balance: Decimal,
-        price: Optional[Decimal] = None,
+        price: Decimal | None = None,
     ) -> Decimal:
         """Calculate target position size based on source and constraints.
 
@@ -104,16 +103,14 @@ class PositionSizeCalculator:
         # Step 4: Round to tick size if specified
         if self.tick_size is not None:
             target_size = (target_size / self.tick_size).quantize(
-                Decimal("1"),
-                rounding=ROUND_DOWN
+                Decimal("1"), rounding=ROUND_DOWN
             ) * self.tick_size
 
         # Step 5: Enforce minimum order size
-        if self.min_order_size is not None:
-            if target_size < self.min_order_size:
-                if self.enforce_minimum:
-                    target_size = self.min_order_size
-                else:
-                    return Decimal("0")
+        if self.min_order_size is not None and target_size < self.min_order_size:
+            if self.enforce_minimum:
+                target_size = self.min_order_size
+            else:
+                return Decimal("0")
 
         return target_size

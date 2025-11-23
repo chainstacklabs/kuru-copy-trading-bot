@@ -1,11 +1,12 @@
 """Tests for Wallet model."""
 
-import pytest
 from decimal import Decimal
+
+import pytest
+from pydantic import ValidationError
 
 # These imports will fail initially - that's expected for TDD
 from src.kuru_copytr_bot.models.wallet import Wallet
-from pydantic import ValidationError
 
 
 class TestWalletModel:

@@ -1,6 +1,6 @@
 """Tests for TradeCopier retry queue integration."""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import Mock
 
@@ -55,7 +55,7 @@ def sample_trade():
         side=OrderSide.BUY,
         price=Decimal("2000.0"),
         size=Decimal("5.0"),
-        timestamp=datetime.now(UTC),
+        timestamp=datetime.now(timezone.utc),
         tx_hash="0x" + "a" * 64,
     )
 

@@ -3,18 +3,18 @@
 import pytest
 
 from src.kuru_copytr_bot.core.exceptions import (
-    KuruCopyTradingBotException,
-    InvalidStateTransition,
     BlockchainConnectionError,
-    TransactionFailedError,
-    InsufficientGasError,
-    InsufficientBalanceError,
-    OrderExecutionError,
-    TradeValidationError,
-    InvalidMarketError,
     ConfigurationError,
+    InsufficientBalanceError,
+    InsufficientGasError,
+    InvalidMarketError,
     InvalidOrderError,
+    InvalidStateTransitionError,
+    KuruCopyTradingBotError,
+    OrderExecutionError,
     OrderPlacementError,
+    TradeValidationError,
+    TransactionFailedError,
 )
 
 
@@ -23,42 +23,42 @@ class TestBaseException:
 
     def test_base_exception_can_be_raised(self):
         """Should be able to raise base exception."""
-        with pytest.raises(KuruCopyTradingBotException):
-            raise KuruCopyTradingBotException("Base error")
+        with pytest.raises(KuruCopyTradingBotError):
+            raise KuruCopyTradingBotError("Base error")
 
     def test_base_exception_message(self):
         """Should preserve error message."""
         message = "Custom error message"
-        with pytest.raises(KuruCopyTradingBotException, match=message):
-            raise KuruCopyTradingBotException(message)
+        with pytest.raises(KuruCopyTradingBotError, match=message):
+            raise KuruCopyTradingBotError(message)
 
     def test_base_exception_is_exception_subclass(self):
         """Should be a subclass of Exception."""
-        assert issubclass(KuruCopyTradingBotException, Exception)
+        assert issubclass(KuruCopyTradingBotError, Exception)
 
     def test_base_exception_with_no_message(self):
         """Should work with no message."""
-        with pytest.raises(KuruCopyTradingBotException):
-            raise KuruCopyTradingBotException()
+        with pytest.raises(KuruCopyTradingBotError):
+            raise KuruCopyTradingBotError()
 
 
-class TestInvalidStateTransition:
+class TestInvalidStateTransitionError:
     """Test invalid state transition exception."""
 
     def test_invalid_state_transition_can_be_raised(self):
-        """Should be able to raise InvalidStateTransition."""
-        with pytest.raises(InvalidStateTransition):
-            raise InvalidStateTransition("Invalid state")
+        """Should be able to raise InvalidStateTransitionError."""
+        with pytest.raises(InvalidStateTransitionError):
+            raise InvalidStateTransitionError("Invalid state")
 
     def test_invalid_state_transition_is_bot_exception(self):
-        """Should be a subclass of KuruCopyTradingBotException."""
-        assert issubclass(InvalidStateTransition, KuruCopyTradingBotException)
+        """Should be a subclass of KuruCopyTradingBotError."""
+        assert issubclass(InvalidStateTransitionError, KuruCopyTradingBotError)
 
     def test_invalid_state_transition_message(self):
         """Should preserve error message."""
         message = "Cannot transition from IDLE to TRADING"
-        with pytest.raises(InvalidStateTransition, match=message):
-            raise InvalidStateTransition(message)
+        with pytest.raises(InvalidStateTransitionError, match=message):
+            raise InvalidStateTransitionError(message)
 
 
 class TestBlockchainConnectionError:
@@ -70,8 +70,8 @@ class TestBlockchainConnectionError:
             raise BlockchainConnectionError("Connection failed")
 
     def test_blockchain_connection_error_is_bot_exception(self):
-        """Should be a subclass of KuruCopyTradingBotException."""
-        assert issubclass(BlockchainConnectionError, KuruCopyTradingBotException)
+        """Should be a subclass of KuruCopyTradingBotError."""
+        assert issubclass(BlockchainConnectionError, KuruCopyTradingBotError)
 
     def test_blockchain_connection_error_message(self):
         """Should preserve error message."""
@@ -96,8 +96,8 @@ class TestTransactionFailedError:
             raise TransactionFailedError("Transaction failed")
 
     def test_transaction_failed_error_is_bot_exception(self):
-        """Should be a subclass of KuruCopyTradingBotException."""
-        assert issubclass(TransactionFailedError, KuruCopyTradingBotException)
+        """Should be a subclass of KuruCopyTradingBotError."""
+        assert issubclass(TransactionFailedError, KuruCopyTradingBotError)
 
     def test_transaction_failed_error_message(self):
         """Should preserve error message."""
@@ -115,8 +115,8 @@ class TestInsufficientGasError:
             raise InsufficientGasError("Insufficient gas")
 
     def test_insufficient_gas_error_is_bot_exception(self):
-        """Should be a subclass of KuruCopyTradingBotException."""
-        assert issubclass(InsufficientGasError, KuruCopyTradingBotException)
+        """Should be a subclass of KuruCopyTradingBotError."""
+        assert issubclass(InsufficientGasError, KuruCopyTradingBotError)
 
     def test_insufficient_gas_error_message(self):
         """Should preserve error message."""
@@ -134,8 +134,8 @@ class TestInsufficientBalanceError:
             raise InsufficientBalanceError("Insufficient balance")
 
     def test_insufficient_balance_error_is_bot_exception(self):
-        """Should be a subclass of KuruCopyTradingBotException."""
-        assert issubclass(InsufficientBalanceError, KuruCopyTradingBotException)
+        """Should be a subclass of KuruCopyTradingBotError."""
+        assert issubclass(InsufficientBalanceError, KuruCopyTradingBotError)
 
     def test_insufficient_balance_error_message(self):
         """Should preserve error message."""
@@ -153,8 +153,8 @@ class TestOrderExecutionError:
             raise OrderExecutionError("Order execution failed")
 
     def test_order_execution_error_is_bot_exception(self):
-        """Should be a subclass of KuruCopyTradingBotException."""
-        assert issubclass(OrderExecutionError, KuruCopyTradingBotException)
+        """Should be a subclass of KuruCopyTradingBotError."""
+        assert issubclass(OrderExecutionError, KuruCopyTradingBotError)
 
     def test_order_execution_error_message(self):
         """Should preserve error message."""
@@ -172,8 +172,8 @@ class TestTradeValidationError:
             raise TradeValidationError("Validation failed")
 
     def test_trade_validation_error_is_bot_exception(self):
-        """Should be a subclass of KuruCopyTradingBotException."""
-        assert issubclass(TradeValidationError, KuruCopyTradingBotException)
+        """Should be a subclass of KuruCopyTradingBotError."""
+        assert issubclass(TradeValidationError, KuruCopyTradingBotError)
 
     def test_trade_validation_error_message(self):
         """Should preserve error message."""
@@ -191,8 +191,8 @@ class TestInvalidMarketError:
             raise InvalidMarketError("Invalid market")
 
     def test_invalid_market_error_is_bot_exception(self):
-        """Should be a subclass of KuruCopyTradingBotException."""
-        assert issubclass(InvalidMarketError, KuruCopyTradingBotException)
+        """Should be a subclass of KuruCopyTradingBotError."""
+        assert issubclass(InvalidMarketError, KuruCopyTradingBotError)
 
     def test_invalid_market_error_message(self):
         """Should preserve error message."""
@@ -210,8 +210,8 @@ class TestConfigurationError:
             raise ConfigurationError("Configuration invalid")
 
     def test_configuration_error_is_bot_exception(self):
-        """Should be a subclass of KuruCopyTradingBotException."""
-        assert issubclass(ConfigurationError, KuruCopyTradingBotException)
+        """Should be a subclass of KuruCopyTradingBotError."""
+        assert issubclass(ConfigurationError, KuruCopyTradingBotError)
 
     def test_configuration_error_message(self):
         """Should preserve error message."""
@@ -229,8 +229,8 @@ class TestInvalidOrderError:
             raise InvalidOrderError("Invalid order")
 
     def test_invalid_order_error_is_bot_exception(self):
-        """Should be a subclass of KuruCopyTradingBotException."""
-        assert issubclass(InvalidOrderError, KuruCopyTradingBotException)
+        """Should be a subclass of KuruCopyTradingBotError."""
+        assert issubclass(InvalidOrderError, KuruCopyTradingBotError)
 
     def test_invalid_order_error_message(self):
         """Should preserve error message."""
@@ -248,8 +248,8 @@ class TestOrderPlacementError:
             raise OrderPlacementError("Order placement failed")
 
     def test_order_placement_error_is_bot_exception(self):
-        """Should be a subclass of KuruCopyTradingBotException."""
-        assert issubclass(OrderPlacementError, KuruCopyTradingBotException)
+        """Should be a subclass of KuruCopyTradingBotError."""
+        assert issubclass(OrderPlacementError, KuruCopyTradingBotError)
 
     def test_order_placement_error_message(self):
         """Should preserve error message."""
@@ -264,7 +264,7 @@ class TestExceptionHierarchy:
     def test_all_exceptions_inherit_from_base(self):
         """All custom exceptions should inherit from base exception."""
         exceptions = [
-            InvalidStateTransition,
+            InvalidStateTransitionError,
             BlockchainConnectionError,
             TransactionFailedError,
             InsufficientGasError,
@@ -278,13 +278,13 @@ class TestExceptionHierarchy:
         ]
 
         for exc_class in exceptions:
-            assert issubclass(exc_class, KuruCopyTradingBotException)
+            assert issubclass(exc_class, KuruCopyTradingBotError)
             assert issubclass(exc_class, Exception)
 
     def test_exceptions_can_be_caught_as_base_exception(self):
         """All custom exceptions can be caught as base exception."""
         exceptions_to_test = [
-            InvalidStateTransition("test"),
+            InvalidStateTransitionError("test"),
             BlockchainConnectionError("test"),
             TransactionFailedError("test"),
             InsufficientGasError("test"),
@@ -298,13 +298,13 @@ class TestExceptionHierarchy:
         ]
 
         for exc in exceptions_to_test:
-            with pytest.raises(KuruCopyTradingBotException):
+            with pytest.raises(KuruCopyTradingBotError):
                 raise exc
 
     def test_exceptions_have_different_types(self):
         """Each exception should have a unique type."""
         exceptions = [
-            InvalidStateTransition,
+            InvalidStateTransitionError,
             BlockchainConnectionError,
             TransactionFailedError,
             InsufficientGasError,

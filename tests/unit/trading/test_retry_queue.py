@@ -1,7 +1,7 @@
 """Unit tests for RetryQueue."""
 
 import time
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
@@ -27,7 +27,7 @@ def sample_trade():
         side=OrderSide.BUY,
         price=Decimal("2000.0"),
         size=Decimal("5.0"),
-        timestamp=datetime.now(UTC),
+        timestamp=datetime.now(timezone.utc),
         tx_hash="0x" + "a" * 64,
     )
 
@@ -293,7 +293,7 @@ class TestRetryQueueDueItems:
             side=OrderSide.SELL,
             price=Decimal("50000.0"),
             size=Decimal("0.5"),
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(timezone.utc),
             tx_hash="0x" + "b" * 64,
         )
 

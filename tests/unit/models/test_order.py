@@ -1,14 +1,16 @@
 """Tests for Order model."""
 
-import pytest
 from datetime import datetime, timezone
 from decimal import Decimal
 
+import pytest
+from pydantic import ValidationError
+
+from src.kuru_copytr_bot.core.enums import OrderSide, OrderStatus, OrderType
+from src.kuru_copytr_bot.core.exceptions import InvalidStateTransitionError
+
 # These imports will fail initially - that's expected for TDD
 from src.kuru_copytr_bot.models.order import Order, OrderResponse
-from src.kuru_copytr_bot.core.enums import OrderSide, OrderType, OrderStatus
-from src.kuru_copytr_bot.core.exceptions import InvalidStateTransition
-from pydantic import ValidationError
 
 
 class TestOrderModel:
@@ -122,7 +124,7 @@ class TestOrderModel:
             updated_at=datetime.now(timezone.utc),
         )
 
-        with pytest.raises(InvalidStateTransition):
+        with pytest.raises(InvalidStateTransitionError):
             order.transition_to(OrderStatus.CANCELLED)
 
     def test_order_cannot_transition_from_cancelled_to_open(self):
@@ -140,7 +142,7 @@ class TestOrderModel:
             updated_at=datetime.now(timezone.utc),
         )
 
-        with pytest.raises(InvalidStateTransition):
+        with pytest.raises(InvalidStateTransitionError):
             order.transition_to(OrderStatus.OPEN)
 
     def test_order_partial_fill_updates_filled_size(self):

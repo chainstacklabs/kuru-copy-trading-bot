@@ -1,11 +1,12 @@
 """Tests for Position model."""
 
-import pytest
 from decimal import Decimal
+
+import pytest
+from pydantic import ValidationError
 
 # These imports will fail initially - that's expected for TDD
 from src.kuru_copytr_bot.models.position import Position
-from pydantic import ValidationError
 
 
 class TestPositionModel:
@@ -127,7 +128,9 @@ class TestPositionModel:
 
         # New average entry: (10*2000 + 5*2100) / 15 = 30500 / 15 = 2033.33...
         assert position.size == Decimal("15.0")
-        expected_avg = (Decimal("10.0") * Decimal("2000.00") + Decimal("5.0") * Decimal("2100.00")) / Decimal("15.0")
+        expected_avg = (
+            Decimal("10.0") * Decimal("2000.00") + Decimal("5.0") * Decimal("2100.00")
+        ) / Decimal("15.0")
         assert position.entry_price == expected_avg
 
     def test_position_add_to_short_position(self):
@@ -145,7 +148,9 @@ class TestPositionModel:
 
         assert position.size == Decimal("-15.0")
         # Average: (-10*2000 + -5*1900) / -15 = -29500 / -15 = 1966.67
-        expected_avg = (Decimal("-10.0") * Decimal("2000.00") + Decimal("-5.0") * Decimal("1900.00")) / Decimal("-15.0")
+        expected_avg = (
+            Decimal("-10.0") * Decimal("2000.00") + Decimal("-5.0") * Decimal("1900.00")
+        ) / Decimal("-15.0")
         assert position.entry_price == expected_avg
 
     def test_position_reduce_long_position(self):

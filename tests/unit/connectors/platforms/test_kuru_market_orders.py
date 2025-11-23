@@ -7,7 +7,7 @@ import pytest
 
 from src.kuru_copytr_bot.connectors.platforms.kuru import KuruClient
 from src.kuru_copytr_bot.core.enums import OrderSide
-from src.kuru_copytr_bot.core.exceptions import InvalidMarketError, OrderExecutionError
+from src.kuru_copytr_bot.core.exceptions import InvalidMarketError
 
 
 @pytest.fixture
@@ -28,38 +28,44 @@ def mock_blockchain():
 @pytest.fixture
 def kuru_client(mock_blockchain):
     """Create a KuruClient instance for testing."""
-    with patch("src.kuru_copytr_bot.connectors.platforms.kuru.Path"):
-        with patch(
+    with (
+        patch("src.kuru_copytr_bot.connectors.platforms.kuru.Path"),
+        patch(
             "builtins.open",
             MagicMock(
                 return_value=MagicMock(
                     __enter__=MagicMock(return_value=MagicMock(read=MagicMock(return_value="[]")))
                 )
             ),
-        ):
-            client = KuruClient(
-                blockchain=mock_blockchain,
-                api_url="https://testnet-api.kuru.io",
-                contract_address="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ),
+    ):
+        client = KuruClient(
+            blockchain=mock_blockchain,
+            api_url="https://testnet-api.kuru.io",
+            contract_address="0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        )
+        client._market_cache = {
+            "MON-USDC": MagicMock(
+                price_precision=1000000,
+                size_precision=100000,
+                base_asset="0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                base_asset_decimals=18,
+                quote_asset="0xcccccccccccccccccccccccccccccccccccccccc",
+                quote_asset_decimals=6,
+                tick_size=Decimal("0.01"),
+                min_size=Decimal("0.001"),
+                max_size=Decimal("1000"),
             )
-            client._market_cache = {
-                "MON-USDC": MagicMock(
-                    price_precision=1000000,
-                    size_precision=100000,
-                    base_asset="0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-                    base_asset_decimals=18,
-                    quote_asset="0xcccccccccccccccccccccccccccccccccccccccc",
-                    quote_asset_decimals=6,
-                    tick_size=Decimal("0.01"),
-                    min_size=Decimal("0.001"),
-                    max_size=Decimal("1000"),
-                )
-            }
-            mock_function = MagicMock()
-            mock_function.build_transaction.return_value = {"data": "0xabcdef"}
-            client.orderbook_contract.functions.placeAndExecuteMarketBuy = MagicMock(return_value=mock_function)
-            client.orderbook_contract.functions.placeAndExecuteMarketSell = MagicMock(return_value=mock_function)
-            return client
+        }
+        mock_function = MagicMock()
+        mock_function.build_transaction.return_value = {"data": "0xabcdef"}
+        client.orderbook_contract.functions.placeAndExecuteMarketBuy = MagicMock(
+            return_value=mock_function
+        )
+        client.orderbook_contract.functions.placeAndExecuteMarketSell = MagicMock(
+            return_value=mock_function
+        )
+        return client
 
 
 class TestMarketOrderNoBalanceCheck:
@@ -90,7 +96,9 @@ class TestMarketOrderNoBalanceCheck:
     def test_place_market_order_invalid_market(self, kuru_client, mock_blockchain):
         """Test handling of market without params."""
         with pytest.raises(InvalidMarketError):
-            kuru_client.place_market_order(market="INVALID-MARKET", side=OrderSide.BUY, size=Decimal("1.0"))
+            kuru_client.place_market_order(
+                market="INVALID-MARKET", side=OrderSide.BUY, size=Decimal("1.0")
+            )
 
     def test_place_market_order_validates_size(self, kuru_client):
         """Test market order validates size."""

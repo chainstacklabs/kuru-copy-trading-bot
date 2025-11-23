@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -34,9 +33,7 @@ class PriceLevel(BaseModel):
             raise ValueError("size must be positive")
         return v
 
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True
-    )
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class L2Book(BaseModel):
@@ -63,7 +60,7 @@ class L2Book(BaseModel):
         return v
 
     @property
-    def best_bid(self) -> Optional[Decimal]:
+    def best_bid(self) -> Decimal | None:
         """Get the best (highest) bid price.
 
         Returns:
@@ -74,7 +71,7 @@ class L2Book(BaseModel):
         return self.bids[0].price
 
     @property
-    def best_ask(self) -> Optional[Decimal]:
+    def best_ask(self) -> Decimal | None:
         """Get the best (lowest) ask price.
 
         Returns:
@@ -85,7 +82,7 @@ class L2Book(BaseModel):
         return self.asks[0].price
 
     @property
-    def spread(self) -> Optional[Decimal]:
+    def spread(self) -> Decimal | None:
         """Calculate the spread between best bid and ask.
 
         Returns:
@@ -100,7 +97,7 @@ class L2Book(BaseModel):
         return best_ask - best_bid
 
     @property
-    def mid_price(self) -> Optional[Decimal]:
+    def mid_price(self) -> Decimal | None:
         """Calculate the mid price between best bid and ask.
 
         Returns:
@@ -114,6 +111,4 @@ class L2Book(BaseModel):
 
         return (best_bid + best_ask) / Decimal("2")
 
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True
-    )
+    model_config = ConfigDict(arbitrary_types_allowed=True)

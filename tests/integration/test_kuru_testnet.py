@@ -9,8 +9,9 @@ These tests connect to the real Kuru testnet and require:
 Run with: pytest tests/integration/test_kuru_testnet.py -m integration
 """
 
-import pytest
 from decimal import Decimal
+
+import pytest
 
 from src.kuru_copytr_bot.config.settings import Settings
 from src.kuru_copytr_bot.connectors.blockchain.monad import MonadClient
@@ -44,6 +45,7 @@ class TestKuruTestnetConnection:
         """Create KuruClient connected to testnet."""
         # Assuming Kuru contract address is in settings or constants
         from src.kuru_copytr_bot.config.constants import KURU_CONTRACT_ADDRESS_TESTNET
+
         return KuruClient(
             blockchain=blockchain,
             api_url=settings.kuru_api_url,
@@ -101,6 +103,7 @@ class TestKuruTestnetOrders:
     def kuru_client(self, blockchain, settings):
         """Create KuruClient connected to testnet."""
         from src.kuru_copytr_bot.config.constants import KURU_CONTRACT_ADDRESS_TESTNET
+
         return KuruClient(
             blockchain=blockchain,
             api_url=settings.kuru_api_url,
@@ -218,6 +221,7 @@ class TestKuruTestnetDataQueries:
     def kuru_client(self, blockchain, settings):
         """Create KuruClient connected to testnet."""
         from src.kuru_copytr_bot.config.constants import KURU_CONTRACT_ADDRESS_TESTNET
+
         return KuruClient(
             blockchain=blockchain,
             api_url=settings.kuru_api_url,
@@ -280,6 +284,7 @@ class TestKuruTestnetErrorHandling:
     def kuru_client(self, blockchain, settings):
         """Create KuruClient connected to testnet."""
         from src.kuru_copytr_bot.config.constants import KURU_CONTRACT_ADDRESS_TESTNET
+
         return KuruClient(
             blockchain=blockchain,
             api_url=settings.kuru_api_url,

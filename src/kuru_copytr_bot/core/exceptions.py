@@ -1,73 +1,73 @@
 """Core exceptions for the Kuru copy trading bot."""
 
 
-class KuruCopyTradingBotException(Exception):
+class KuruCopyTradingBotError(Exception):
     """Base exception for all bot errors."""
 
     pass
 
 
-class InvalidStateTransition(KuruCopyTradingBotException):
+class InvalidStateTransitionError(KuruCopyTradingBotError):
     """Raised when an invalid state transition is attempted."""
 
     pass
 
 
-class BlockchainConnectionError(KuruCopyTradingBotException):
+class BlockchainConnectionError(KuruCopyTradingBotError):
     """Raised when blockchain connection fails."""
 
     pass
 
 
-class TransactionFailedError(KuruCopyTradingBotException):
+class TransactionFailedError(KuruCopyTradingBotError):
     """Raised when a transaction fails."""
 
     pass
 
 
-class InsufficientGasError(KuruCopyTradingBotException):
+class InsufficientGasError(KuruCopyTradingBotError):
     """Raised when there's insufficient gas for a transaction."""
 
     pass
 
 
-class InsufficientBalanceError(KuruCopyTradingBotException):
+class InsufficientBalanceError(KuruCopyTradingBotError):
     """Raised when there's insufficient balance for an operation."""
 
     pass
 
 
-class OrderExecutionError(KuruCopyTradingBotException):
+class OrderExecutionError(KuruCopyTradingBotError):
     """Raised when order execution fails."""
 
     pass
 
 
-class TradeValidationError(KuruCopyTradingBotException):
+class TradeValidationError(KuruCopyTradingBotError):
     """Raised when trade validation fails."""
 
     pass
 
 
-class InvalidMarketError(KuruCopyTradingBotException):
+class InvalidMarketError(KuruCopyTradingBotError):
     """Raised when an invalid or unknown market is specified."""
 
     pass
 
 
-class ConfigurationError(KuruCopyTradingBotException):
+class ConfigurationError(KuruCopyTradingBotError):
     """Raised when configuration is invalid."""
 
     pass
 
 
-class InvalidOrderError(KuruCopyTradingBotException):
+class InvalidOrderError(KuruCopyTradingBotError):
     """Raised when order parameters are invalid."""
 
     pass
 
 
-class OrderPlacementError(KuruCopyTradingBotException):
+class OrderPlacementError(KuruCopyTradingBotError):
     """Raised when order placement fails."""
 
     pass

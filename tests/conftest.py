@@ -1,37 +1,38 @@
 """Pytest configuration and shared fixtures."""
 
-import pytest
 from decimal import Decimal
-from typing import Any, Dict
+from typing import Any
 
-from tests.mocks.blockchain import MockBlockchainClient, MockWeb3Provider
-from tests.mocks.kuru import MockKuruClient
-from tests.fixtures.trades import (
-    SAMPLE_TRADE_BUY,
-    SAMPLE_TRADE_SELL,
-    ALL_VALID_TRADES,
-    ALL_INVALID_TRADES,
-)
-from tests.fixtures.transactions import (
-    SAMPLE_TRANSACTION_KURU,
-    SAMPLE_TRANSACTION_RECEIPT,
-    ALL_TRANSACTIONS,
-    ALL_RECEIPTS,
-)
+import pytest
+
 from tests.fixtures.events import (
+    ALL_MALFORMED_EVENTS,
+    ALL_VALID_EVENTS,
     SAMPLE_EVENT_ORDER_PLACED,
     SAMPLE_EVENT_TRADE_EXECUTED,
-    ALL_VALID_EVENTS,
-    ALL_MALFORMED_EVENTS,
 )
 from tests.fixtures.markets import (
-    SAMPLE_MARKET_ETH_USDC,
     ALL_ACTIVE_MARKETS,
     MARKETS_BY_ID,
+    SAMPLE_MARKET_ETH_USDC,
 )
-
+from tests.fixtures.trades import (
+    ALL_INVALID_TRADES,
+    ALL_VALID_TRADES,
+    SAMPLE_TRADE_BUY,
+    SAMPLE_TRADE_SELL,
+)
+from tests.fixtures.transactions import (
+    ALL_RECEIPTS,
+    ALL_TRANSACTIONS,
+    SAMPLE_TRANSACTION_KURU,
+    SAMPLE_TRANSACTION_RECEIPT,
+)
+from tests.mocks.blockchain import MockBlockchainClient, MockWeb3Provider
+from tests.mocks.kuru import MockKuruClient
 
 # ===== Pytest Markers =====
+
 
 def pytest_configure(config: Any) -> None:
     """Register custom pytest markers."""
@@ -41,6 +42,7 @@ def pytest_configure(config: Any) -> None:
 
 
 # ===== Mock Client Fixtures =====
+
 
 @pytest.fixture
 def mock_web3() -> MockWeb3Provider:
@@ -62,14 +64,15 @@ def mock_kuru(mock_blockchain: MockBlockchainClient) -> MockKuruClient:
 
 # ===== Trade Fixtures =====
 
+
 @pytest.fixture
-def sample_trade_buy() -> Dict[str, Any]:
+def sample_trade_buy() -> dict[str, Any]:
     """Sample BUY trade."""
     return SAMPLE_TRADE_BUY.copy()
 
 
 @pytest.fixture
-def sample_trade_sell() -> Dict[str, Any]:
+def sample_trade_sell() -> dict[str, Any]:
     """Sample SELL trade."""
     return SAMPLE_TRADE_SELL.copy()
 
@@ -88,14 +91,15 @@ def all_invalid_trades() -> list:
 
 # ===== Transaction Fixtures =====
 
+
 @pytest.fixture
-def sample_transaction_kuru() -> Dict[str, Any]:
+def sample_transaction_kuru() -> dict[str, Any]:
     """Sample Kuru transaction."""
     return SAMPLE_TRANSACTION_KURU.copy()
 
 
 @pytest.fixture
-def sample_transaction_receipt() -> Dict[str, Any]:
+def sample_transaction_receipt() -> dict[str, Any]:
     """Sample transaction receipt with logs."""
     return SAMPLE_TRANSACTION_RECEIPT.copy()
 
@@ -114,14 +118,15 @@ def all_receipts() -> list:
 
 # ===== Event Fixtures =====
 
+
 @pytest.fixture
-def sample_event_order_placed() -> Dict[str, Any]:
+def sample_event_order_placed() -> dict[str, Any]:
     """Sample OrderPlaced event."""
     return SAMPLE_EVENT_ORDER_PLACED.copy()
 
 
 @pytest.fixture
-def sample_event_trade_executed() -> Dict[str, Any]:
+def sample_event_trade_executed() -> dict[str, Any]:
     """Sample TradeExecuted event."""
     return SAMPLE_EVENT_TRADE_EXECUTED.copy()
 
@@ -140,8 +145,9 @@ def all_malformed_events() -> list:
 
 # ===== Market Fixtures =====
 
+
 @pytest.fixture
-def sample_market() -> Dict[str, Any]:
+def sample_market() -> dict[str, Any]:
     """Sample market parameters (ETH-USDC)."""
     return SAMPLE_MARKET_ETH_USDC.copy()
 
@@ -153,15 +159,16 @@ def all_active_markets() -> list:
 
 
 @pytest.fixture
-def markets_by_id() -> Dict[str, Dict[str, Any]]:
+def markets_by_id() -> dict[str, dict[str, Any]]:
     """Dictionary of markets by ID."""
     return {k: v.copy() for k, v in MARKETS_BY_ID.items()}
 
 
 # ===== Test Settings Fixtures =====
 
+
 @pytest.fixture
-def test_settings() -> Dict[str, Any]:
+def test_settings() -> dict[str, Any]:
     """Mock settings for testing."""
     return {
         "private_key": "0xtest_private_key_1234567890abcdef1234567890abcdef1234567890abcd",
