@@ -644,8 +644,8 @@ class KuruClient:
             else:
                 # Get ERC20 token balance
                 return self.blockchain.get_token_balance(
+                    address=self.blockchain.wallet_address,
                     token_address=token,
-                    wallet_address=self.blockchain.wallet_address,
                 )
         except Exception as e:
             raise BlockchainConnectionError(f"Failed to get balance: {e}") from e

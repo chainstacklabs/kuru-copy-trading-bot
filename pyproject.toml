@@ -62,21 +62,54 @@ ignore = [
     "E501",   # line too long (handled by formatter)
 ]
 
-# Mypy configuration - relaxed to avoid overcomplicating code
+# Mypy configuration - balanced: catch real bugs, skip strict typing requirements
 [tool.mypy]
 python_version = "3.10"
 explicit_package_bases = true
-ignore_missing_imports = true
-# Only catch basic errors, not strict type checking
-check_untyped_defs = false
+# Check untyped code for errors but don't require type annotations everywhere
+check_untyped_defs = true
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
+# Warnings
 warn_return_any = false
-warn_unused_ignores = false
-# Disable strict optional checking
+warn_unused_ignores = true
+warn_redundant_casts = true
+# Allow some flexibility with None/Optional
 strict_optional = false
-# Disable attribute and argument checking for flexibility with duck typing
-disable_error_code = ["attr-defined", "arg-type", "call-arg", "return-value", "assignment", "union-attr", "call-overload", "var-annotated", "misc"]
+
+# Third-party libraries without type stubs
+[[tool.mypy.overrides]]
+module = [
+    "web3.*",
+    "eth_account.*",
+    "dotenv.*",
+    "pydantic_settings.*",
+    "click.*",
+    "websockets.*",
+    "structlog.*",
+    "socketio.*",
+]
+ignore_missing_imports = true
+
+# MonadClient has many web3 type mismatches that work at runtime
+[[tool.mypy.overrides]]
+module = "src.kuru_copytr_bot.connectors.blockchain.monad"
+disable_error_code = ["arg-type", "call-overload", "return-value", "union-attr"]
+
+# Decorator return types are complex - work correctly at runtime
+[[tool.mypy.overrides]]
+module = "src.kuru_copytr_bot.utils.decorators"
+disable_error_code = ["arg-type", "return-value"]
+
+# KuruClient has some MarketParams type issues - works at runtime
+[[tool.mypy.overrides]]
+module = "src.kuru_copytr_bot.connectors.platforms.kuru"
+disable_error_code = ["return-value", "assignment", "var-annotated"]
+
+# Main CLI has Settings type issues with pydantic - works at runtime
+[[tool.mypy.overrides]]
+module = "src.kuru_copytr_bot.main"
+disable_error_code = ["arg-type", "call-arg"]
 
 # Pytest configuration
 [tool.pytest.ini_options]

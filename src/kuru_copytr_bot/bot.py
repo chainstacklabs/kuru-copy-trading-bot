@@ -401,7 +401,7 @@ class CopyTradingBot:
         Returns:
             Dictionary with bot and copier statistics
         """
-        stats = {
+        stats: dict[str, Any] = {
             "trades_detected": self._trades_detected,
             "orders_detected": self._orders_detected,
             "orders_canceled_detected": self._orders_canceled_detected,

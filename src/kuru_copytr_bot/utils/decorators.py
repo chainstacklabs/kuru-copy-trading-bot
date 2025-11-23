@@ -63,7 +63,7 @@ def retry(
                 raise last_exception
 
             # This should not be reached, but return None as fallback
-            return None  # type: ignore
+            return None
 
         # For async functions, create an async wrapper
         if asyncio.iscoroutinefunction(func):
@@ -96,9 +96,9 @@ def retry(
                     raise last_exception
 
                 # This should not be reached, but return None as fallback
-                return None  # type: ignore
+                return None
 
-            return async_wrapper  # type: ignore
+            return async_wrapper
 
         return wrapper
 
@@ -137,6 +137,6 @@ def async_timeout(seconds: float):
                 # Re-raise timeout error
                 raise
 
-        return wrapper  # type: ignore
+        return wrapper
 
     return decorator

@@ -1,12 +1,19 @@
 """Blockchain event subscriber using eth_subscribe for real-time contract events."""
 
+from __future__ import annotations
+
 import asyncio
 import json
-from collections.abc import Callable
-from typing import Any
+import time
+from typing import TYPE_CHECKING, Any
 
 from web3 import Web3
 from websockets import connect
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
+    from websockets.asyncio.client import ClientConnection
 
 from src.kuru_copytr_bot.models.order import OrderResponse
 from src.kuru_copytr_bot.models.trade import TradeResponse
@@ -42,8 +49,8 @@ class BlockchainEventSubscriber:
         self.orderbook_abi = orderbook_abi
 
         # WebSocket connection
-        self.ws = None
-        self.subscription_id = None
+        self.ws: ClientConnection | None = None
+        self.subscription_id: str | None = None
         self.running = False
 
         # Web3 instance for event parsing (no provider needed)
@@ -72,11 +79,11 @@ class BlockchainEventSubscriber:
                 hash=signature_hash,
             )
 
-        # Callbacks
-        self.on_order_created_callback: Callable[[OrderResponse], None] | None = None
-        self.on_trade_callback: Callable[[TradeResponse], None] | None = None
+        # Callbacks (async)
+        self.on_order_created_callback: Callable[[OrderResponse], Awaitable[None]] | None = None
+        self.on_trade_callback: Callable[[TradeResponse], Awaitable[None]] | None = None
         self.on_orders_canceled_callback: (
-            Callable[[list[int], list[str], str, list[dict[str, Any]]], None] | None
+            Callable[[list[int], list[str], str, list[dict[str, Any]]], Awaitable[None]] | None
         ) = None
 
     async def connect(self) -> None:
@@ -152,7 +159,8 @@ class BlockchainEventSubscriber:
         """Listen for incoming log events."""
         try:
             while self.running and self.ws:
-                message = await self.ws.recv()
+                raw_message = await self.ws.recv()
+                message = raw_message if isinstance(raw_message, str) else raw_message.decode()
                 await self._process_message(message)
         except Exception as e:
             if self.running:
@@ -229,6 +237,8 @@ class BlockchainEventSubscriber:
                 remaining_size=str(args["remainingSize"] / 10**18),
                 is_buy=args["isBuy"],
                 is_canceled=args.get("isCanceled", False),
+                transaction_hash=log_entry["transactionHash"],
+                trigger_time=int(time.time()),  # Use current time if not in event
                 cloid=args.get("cloid"),
             )
 
@@ -262,13 +272,15 @@ class BlockchainEventSubscriber:
             # Create TradeResponse from event args
             trade_response = TradeResponse(
                 orderid=args["orderId"],
+                market_address=self.market_address,
                 makeraddress=args["makerAddress"],
                 takeraddress=args.get("takerAddress", ""),
                 isbuy=args["isBuy"],
                 price=str(args["price"] / 1_000_000),  # Convert from price precision
                 filledsize=str(args["filledSize"] / 10**18),  # Convert from wei
                 transactionhash=log_entry["transactionHash"],
-                triggertime=0,  # Not available in log
+                triggertime=int(time.time()),  # Use current time if not in event
+                cloid=args.get("cloid"),
             )
 
             logger.info(
@@ -316,17 +328,19 @@ class BlockchainEventSubscriber:
         except Exception as e:
             logger.error("orders_canceled_parse_error", error=str(e), log=log_entry)
 
-    def set_order_created_callback(self, callback: Callable[[OrderResponse], None]) -> None:
+    def set_order_created_callback(
+        self, callback: Callable[[OrderResponse], Awaitable[None]]
+    ) -> None:
         """Set callback for OrderCreated events."""
         self.on_order_created_callback = callback
 
-    def set_trade_callback(self, callback: Callable[[TradeResponse], None]) -> None:
+    def set_trade_callback(self, callback: Callable[[TradeResponse], Awaitable[None]]) -> None:
         """Set callback for Trade events."""
         self.on_trade_callback = callback
 
     def set_orders_canceled_callback(
         self,
-        callback: Callable[[list[int], list[str], str, list[dict[str, Any]]], None],
+        callback: Callable[[list[int], list[str], str, list[dict[str, Any]]], Awaitable[None]],
     ) -> None:
         """Set callback for OrdersCanceled events."""
         self.on_orders_canceled_callback = callback
@@ -334,4 +348,4 @@ class BlockchainEventSubscriber:
     @property
     def is_connected(self) -> bool:
         """Check if connected to blockchain."""
-        return self.ws is not None and not self.ws.closed
+        return self.ws is not None and self.running

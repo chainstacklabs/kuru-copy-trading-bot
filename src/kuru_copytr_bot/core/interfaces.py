@@ -8,6 +8,9 @@ from typing import Any
 class BlockchainConnector(ABC):
     """Interface for blockchain interactions."""
 
+    # Wallet address associated with this connector (implementations must set this)
+    wallet_address: str
+
     @abstractmethod
     def is_connected(self) -> bool:
         """Check if connected to blockchain.
