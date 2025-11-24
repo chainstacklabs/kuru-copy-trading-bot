@@ -26,7 +26,7 @@ class MockKuruClient:
         self._order_counter = 1
 
     def deposit_margin(self, token: str, amount: Decimal) -> str:
-        """Deposit tokens to margin account."""
+        """Deposit tokens to margin account (LEGACY - bot doesn't use margin)."""
         deposit = {
             "token": token,
             "amount": amount,
@@ -67,7 +67,7 @@ class MockKuruClient:
         size: Decimal,
         slippage: Decimal | None = None,
     ) -> str:
-        """Place an IOC market order."""
+        """Place an IOC market order (LEGACY - bot uses limit orders only)."""
         order = {
             "market": market,
             "side": side,
@@ -136,7 +136,7 @@ class MockKuruClient:
         return size * mock_price
 
     def get_margin_balance(self) -> Decimal:
-        """Get available margin balance."""
+        """Get available margin balance (LEGACY - bot doesn't use margin)."""
         return Decimal("10000.0")
 
     def get_open_orders(self, market: str | None = None) -> list[dict[str, Any]]:

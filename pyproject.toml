@@ -118,14 +118,14 @@ testpaths = ["tests"]
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=src/kuru_copytr_bot",
-    "--cov-report=term-missing",
-    "--cov-report=html",
 ]
 markers = [
     "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "unit: marks tests as unit tests (fast, no external dependencies)",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
+asyncio_mode = "auto"
 
 # Coverage configuration
 [tool.coverage.run]
