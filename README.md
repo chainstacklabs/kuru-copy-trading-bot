@@ -13,7 +13,7 @@ Copy trading bot for Kuru Exchange on Monad blockchain. Monitors target wallets 
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/kuru-copy-trading-bot.git
+git clone https://github.com/chainstacklabs/kuru-copy-trading-bot
 cd kuru-copy-trading-bot
 uv sync
 ```
