@@ -157,9 +157,12 @@ class BotRunner:
 
         if self.settings.dry_run_track_all_market_orders:
             click.echo("*** MARKET-WIDE TRACKING ENABLED - Monitoring ALL orders on market ***")
-            click.echo(f"Reference wallets ({len(self.settings.source_wallets)}):")
-            for wallet in self.settings.source_wallets:
-                click.echo(f"  - {wallet}")
+            if self.settings.source_wallets:
+                click.echo(f"Reference wallets ({len(self.settings.source_wallets)}):")
+                for wallet in self.settings.source_wallets:
+                    click.echo(f"  - {wallet}")
+            else:
+                click.echo("No reference wallets configured (tracking all market activity)")
         else:
             click.echo(f"Watching {len(self.settings.source_wallets)} source wallets:")
             for wallet in self.settings.source_wallets:
@@ -176,7 +179,7 @@ class BotRunner:
         stats_task = asyncio.create_task(self._display_stats_periodically())
 
         # Set up signal handlers for graceful shutdown
-        def signal_handler(sig, frame):
+        def signal_handler(sig, _frame):
             """Handle shutdown signals."""
             logger.info("Shutdown signal received", signal=sig)
             self.running = False

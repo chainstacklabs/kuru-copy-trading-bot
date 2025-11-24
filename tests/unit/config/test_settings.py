@@ -87,14 +87,65 @@ class TestSettingsConfiguration:
             )
 
     def test_settings_requires_at_least_one_source_wallet(self):
-        """Settings should require at least one source wallet."""
-        with pytest.raises(ValidationError):
+        """Settings should require at least one source wallet in normal mode."""
+        with pytest.raises(ValidationError) as exc_info:
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
                 kuru_api_url="https://api.kuru.io",
                 source_wallets=[],
+                market_addresses=["0x4444444444444444444444444444444444444444"],
+                dry_run=False,
+                dry_run_track_all_market_orders=False,
             )
+
+        assert "source wallet" in str(exc_info.value).lower()
+
+    def test_settings_allows_empty_source_wallets_in_dry_run_track_all_mode(self):
+        """Settings should allow empty source wallets when dry_run and track_all are enabled."""
+        settings = Settings(
+            wallet_private_key="0x" + "a" * 64,
+            monad_rpc_url="https://testnet.monad.xyz",
+            kuru_api_url="https://api.kuru.io",
+            source_wallets=[],
+            market_addresses=["0x4444444444444444444444444444444444444444"],
+            dry_run=True,
+            dry_run_track_all_market_orders=True,
+        )
+
+        assert settings.source_wallets == []
+        assert settings.dry_run is True
+        assert settings.dry_run_track_all_market_orders is True
+
+    def test_settings_requires_source_wallets_in_dry_run_mode_without_track_all(self):
+        """Settings should require source wallets in dry_run mode if track_all is disabled."""
+        with pytest.raises(ValidationError) as exc_info:
+            Settings(
+                wallet_private_key="0x" + "a" * 64,
+                monad_rpc_url="https://testnet.monad.xyz",
+                kuru_api_url="https://api.kuru.io",
+                source_wallets=[],
+                market_addresses=["0x4444444444444444444444444444444444444444"],
+                dry_run=True,
+                dry_run_track_all_market_orders=False,
+            )
+
+        assert "source wallet" in str(exc_info.value).lower()
+
+    def test_settings_requires_source_wallets_in_track_all_mode_without_dry_run(self):
+        """Settings should require source wallets if track_all is enabled but not dry_run."""
+        with pytest.raises(ValidationError) as exc_info:
+            Settings(
+                wallet_private_key="0x" + "a" * 64,
+                monad_rpc_url="https://testnet.monad.xyz",
+                kuru_api_url="https://api.kuru.io",
+                source_wallets=[],
+                market_addresses=["0x4444444444444444444444444444444444444444"],
+                dry_run=False,
+                dry_run_track_all_market_orders=True,
+            )
+
+        assert "source wallet" in str(exc_info.value).lower()
 
     def test_settings_copy_ratio_must_be_positive(self):
         """Copy ratio must be > 0."""

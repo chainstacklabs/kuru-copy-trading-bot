@@ -121,10 +121,11 @@ class Settings(BaseSettings):
     @field_validator("source_wallets")
     @classmethod
     def validate_source_wallets(cls, v: list[str]) -> list[str]:
-        """Validate source wallet addresses."""
-        if not v:
-            raise ValueError("At least one source wallet is required")
+        """Validate source wallet addresses.
 
+        Note: Empty list is allowed and will be validated in model_validator
+        based on dry_run_track_all_market_orders setting.
+        """
         for addr in v:
             if not addr.startswith("0x") or len(addr) != 42:
                 raise ValueError(f"Invalid Ethereum address format: {addr}")
@@ -216,6 +217,20 @@ class Settings(BaseSettings):
                 self.wallet_address = account.address
             except Exception as e:
                 raise ValueError(f"Failed to derive wallet address from private key: {e}") from e
+
+        # Validate source wallets requirement
+        # In dry-run mode with track_all_market_orders, source wallets are optional (used only for reference)
+        # Otherwise, at least one source wallet is required
+        if not self.source_wallets:
+            if self.dry_run and self.dry_run_track_all_market_orders:
+                # Allow empty source wallets in dry-run + track_all mode
+                pass
+            else:
+                raise ValueError(
+                    "At least one source wallet is required. "
+                    "To skip source wallets, enable both dry_run=True and "
+                    "dry_run_track_all_market_orders=True"
+                )
 
         # Validate risk management constraints
         if self.min_order_size >= self.max_position_size:
