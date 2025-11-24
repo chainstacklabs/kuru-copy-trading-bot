@@ -4,6 +4,16 @@
 
 Copy trading bot for Kuru Exchange on Monad blockchain. Monitors target wallets and mirrors their trades with configurable position sizing and risk management.
 
+## What Gets Copied
+
+| Event | Action |
+|-------|--------|
+| **OrderCreated** | Copies limit orders from source wallets (this is the copy trigger) |
+| **Trade** | Tracks fills on our orders for statistics; logs source activity (no copying) |
+| **OrdersCanceled** | Cancels our mirrored orders when source cancels theirs |
+
+> **Note**: Market orders are not copied. By the time we see the Trade event, the opportunity is gone and we can't match the execution price.
+
 ## Features
 
 - Real-time blockchain event monitoring via RPC WebSocket
@@ -13,7 +23,7 @@ Copy trading bot for Kuru Exchange on Monad blockchain. Monitors target wallets 
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/kuru-copy-trading-bot.git
+git clone https://github.com/chainstacklabs/kuru-copy-trading-bot
 cd kuru-copy-trading-bot
 uv sync
 ```

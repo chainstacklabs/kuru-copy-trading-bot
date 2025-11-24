@@ -218,6 +218,13 @@ class BlockchainEventListener:
     async def _handle_order_created(self, log_entry: dict[str, Any]) -> None:
         """Handle OrderCreated event.
 
+        OrderCreated ABI fields:
+        - orderId (uint40)
+        - owner (address)
+        - size (uint96) - 18 decimals
+        - price (uint32) - 6 decimals
+        - isBuy (bool)
+
         Args:
             log_entry: Raw log entry
         """
@@ -242,16 +249,22 @@ class BlockchainEventListener:
             print(f"      Side: {'BUY' if args['isBuy'] else 'SELL'}")
             print(f"      Price: {args['price'] / 1_000_000}")
             print(f"      Size: {args['size'] / 10**18}")
-            print(f"      Remaining Size: {args['remainingSize'] / 10**18}")
-            print(f"      Canceled: {args.get('isCanceled', False)}")
-            if args.get("cloid"):
-                print(f"      Client Order ID: {args['cloid']}")
 
         except Exception as e:
             print(f"   ⚠ Parse error: {e}")
 
     async def _handle_trade(self, log_entry: dict[str, Any]) -> None:
         """Handle Trade event.
+
+        Trade ABI fields:
+        - orderId (uint40)
+        - makerAddress (address)
+        - isBuy (bool)
+        - price (uint256) - 6 decimals
+        - updatedSize (uint96) - remaining size, 18 decimals
+        - takerAddress (address)
+        - txOrigin (address)
+        - filledSize (uint96) - 18 decimals
 
         Args:
             log_entry: Raw log entry
@@ -274,16 +287,21 @@ class BlockchainEventListener:
             print("\n   Decoded Event:")
             print(f"      Order ID: {args['orderId']}")
             print(f"      Maker: {args['makerAddress']}")
-            print(f"      Taker: {args.get('takerAddress', 'N/A')}")
+            print(f"      Taker: {args['takerAddress']}")
             print(f"      Side: {'BUY' if args['isBuy'] else 'SELL'}")
             print(f"      Price: {args['price'] / 1_000_000}")
             print(f"      Filled Size: {args['filledSize'] / 10**18}")
+            print(f"      Updated Size: {args['updatedSize'] / 10**18}")
 
         except Exception as e:
             print(f"   ⚠ Parse error: {e}")
 
     async def _handle_orders_canceled(self, log_entry: dict[str, Any]) -> None:
         """Handle OrdersCanceled event.
+
+        OrdersCanceled ABI fields:
+        - orderId (uint40[]) - array of canceled order IDs (note: singular name)
+        - owner (address) - wallet that canceled
 
         Args:
             log_entry: Raw log entry
@@ -303,12 +321,12 @@ class BlockchainEventListener:
             event = self.contract.events.OrdersCanceled().process_log(log_entry)
             args = event["args"]
 
+            order_ids = list(args["orderId"])
+
             print("\n   Decoded Event:")
-            print(f"      Maker: {args['maker']}")
-            print(f"      Order IDs: {args['orderIds']}")
-            print(f"      Count: {len(args['orderIds'])}")
-            if args.get("cloids"):
-                print(f"      Client Order IDs: {args['cloids']}")
+            print(f"      Owner: {args['owner']}")
+            print(f"      Order IDs: {order_ids}")
+            print(f"      Count: {len(order_ids)}")
 
         except Exception as e:
             print(f"   ⚠ Parse error: {e}")
