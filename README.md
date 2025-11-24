@@ -1,8 +1,8 @@
 # Kuru Copy Trading Bot
 
-> **⚠️ Work in Progress**: This is an educational project for Monad testnet. Not production-ready. Use at your own risk.
+> **⚠️ Work in Progress**: Educational project for Monad. Currently mirrors limit orders from specified Kuru markets only. After each signal, multiple RPC calls are made that could be optimized. Good base for enhancements.
 
-Copy trading bot for Kuru Exchange on Monad blockchain. Monitors target wallets and mirrors their trades with configurable position sizing and risk management.
+Copy trading bot for Kuru Exchange on Monad blockchain. Monitors target wallets and mirrors their limit orders. Interacts directly with blockchain contracts.
 
 ## What Gets Copied
 
@@ -12,13 +12,13 @@ Copy trading bot for Kuru Exchange on Monad blockchain. Monitors target wallets 
 | **Trade** | Tracks fills on our orders for statistics; logs source activity (no copying) |
 | **OrdersCanceled** | Cancels our mirrored orders when source cancels theirs |
 
-> **Note**: Market orders are not copied. By the time we see the Trade event, the opportunity is gone and we can't match the execution price.
+> **Note**: Market orders are not copied.
 
 ## Features
 
-- Real-time blockchain event monitoring via RPC WebSocket
-- Configurable position sizing with copy ratio
-- Risk management (balance checks, position limits, market filters)
+- Monitors blockchain events via RPC WebSocket
+- Position sizing with copy ratio
+- Basic risk management (balance checks, position limits, market filters)
 
 ## Installation
 
@@ -30,35 +30,7 @@ uv sync
 
 ## Configuration
 
-Copy `.env.example` to `.env` and configure:
-
-```bash
-# Blockchain
-MONAD_RPC_URL=https://testnet.monad.xyz
-WALLET_PRIVATE_KEY=0x...
-
-# Kuru Exchange
-KURU_API_URL=https://api.testnet.kuru.io
-
-# Source wallets to copy (comma-separated)
-SOURCE_WALLETS=0x1111...,0x2222...
-
-# Markets to monitor (comma-separated contract addresses)
-MARKET_ADDRESSES=0xd3af145f1aa1a471b5f0f62c52cf8fcdc9ab55d3
-
-# Position sizing
-COPY_RATIO=0.1                    # Copy 10% of source position size
-MAX_POSITION_SIZE=1000.0          # Max position size in USD
-MIN_ORDER_SIZE=10.0               # Min order size in USD
-
-# Risk management
-MIN_BALANCE_THRESHOLD=100.0       # Stop if balance falls below
-MAX_TOTAL_EXPOSURE=5000.0         # Max total exposure in USD
-
-# Optional: Market filters
-MARKET_WHITELIST=                 # Only these markets (empty = all)
-MARKET_BLACKLIST=                 # Never these markets
-```
+Copy `.env.example` to `.env` and configure environment variables (RPC endpoint, source wallets, etc.).
 
 ## Usage
 
@@ -107,29 +79,7 @@ Press `Ctrl+C` to stop. Final statistics will be displayed.
 └─────────────────┘
 ```
 
-## Project Structure
-
-```
-src/kuru_copytr_bot/
-├── main.py              # Entry point (async)
-├── bot.py               # Main orchestrator (event handling)
-├── models/              # Data models (Trade, Order, Market, etc.)
-├── core/                # Interfaces and exceptions
-├── trading/             # Trade copying and execution
-├── risk/                # Position sizing and validation
-├── connectors/
-│   ├── blockchain/      # Monad blockchain client + event subscriber
-│   └── platforms/       # Kuru Exchange REST API client
-├── utils/               # Logging and helpers
-└── config/              # Settings and constants
-
-tests/                   # Unit tests
-docs/                    # API documentation
-```
-
-## Kuru API Documentation
-
-The Kuru Exchange API has been reverse-engineered from the [Kuru SDK Python repository](https://github.com/Kuru-Labs/kuru-sdk-py). Full specification available in [docs/KURU_API_SPEC.md](docs/KURU_API_SPEC.md).
+>  **FYI**: Kuru Exchange API has been reverse-engineered from the [Kuru SDK repository](https://github.com/Kuru-Labs/kuru-sdk). Full specification available in [docs/KURU_API_SPEC.md](docs/KURU_API_SPEC.md).
 
 ## Development
 
