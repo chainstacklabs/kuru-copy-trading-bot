@@ -8,9 +8,7 @@ from typing import Any, ClassVar, Literal
 import requests
 from web3 import Web3
 
-from src.kuru_copytr_bot.config.constants import (
-    KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET,
-)
+from src.kuru_copytr_bot.config.constants import get_kuru_margin_account_address
 from src.kuru_copytr_bot.core.enums import OrderSide
 from src.kuru_copytr_bot.core.exceptions import (
     BlockchainConnectionError,
@@ -50,6 +48,7 @@ class KuruClient:
         blockchain: BlockchainConnector,
         api_url: str,
         contract_address: str,
+        network: str = "testnet",
         strict_api_errors: bool = False,
     ):
         """Initialize Kuru client.
@@ -58,6 +57,7 @@ class KuruClient:
             blockchain: Blockchain connector instance
             api_url: Kuru API base URL
             contract_address: Kuru contract address (OrderBook)
+            network: Network to use ('testnet' or 'mainnet')
             strict_api_errors: If True, raise exceptions on API errors. If False, return empty results and log warnings.
 
         Raises:
@@ -66,7 +66,8 @@ class KuruClient:
         self.blockchain = blockchain
         self.api_url = api_url.rstrip("/")
         self.contract_address = contract_address
-        self.margin_account_address = KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET
+        self.network = network
+        self.margin_account_address = get_kuru_margin_account_address(network)
         self.strict_api_errors = strict_api_errors
 
         # Validate contract address

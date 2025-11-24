@@ -64,6 +64,7 @@ class BotRunner:
                 0
             ],  # Will use first market for operations
             api_url=self.settings.kuru_api_url,
+            network=self.settings.network,
         )
 
         # Initialize blockchain event subscribers for each market

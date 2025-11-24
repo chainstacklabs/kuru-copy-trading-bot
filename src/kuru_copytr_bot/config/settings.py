@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     )
 
     # Blockchain Configuration
+    network: str = Field(
+        default="testnet",
+        description="Network to use: 'testnet' or 'mainnet'",
+    )
     monad_rpc_url: str = Field(..., description="Monad blockchain RPC URL")
     kuru_api_url: str = Field(..., description="Kuru Exchange API URL")
 
@@ -147,6 +151,15 @@ class Settings(BaseSettings):
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
         return v
+
+    @field_validator("network")
+    @classmethod
+    def validate_network(cls, v: str) -> str:
+        """Validate network selection."""
+        v_lower = v.lower()
+        if v_lower not in ["testnet", "mainnet"]:
+            raise ValueError("Network must be either 'testnet' or 'mainnet'")
+        return v_lower
 
     @field_validator("log_level")
     @classmethod
