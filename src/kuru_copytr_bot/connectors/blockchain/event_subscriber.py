@@ -219,6 +219,16 @@ class BlockchainEventSubscriber:
     async def _handle_order_created(self, log_entry: dict[str, Any]) -> None:
         """Handle OrderCreated event.
 
+        OrderCreated ABI fields:
+        - orderId (uint40)
+        - owner (address)
+        - size (uint96) - 18 decimal precision
+        - price (uint32) - 6 decimal precision
+        - isBuy (bool)
+
+        Note: remainingSize, isCanceled, cloid are NOT in the ABI.
+        For new orders, remaining_size = size and is_canceled = False.
+
         Args:
             log_entry: Raw log entry
         """
@@ -227,19 +237,22 @@ class BlockchainEventSubscriber:
             event = self.contract.events.OrderCreated().process_log(log_entry)
             args = event["args"]
 
+            # Size in 18 decimals (wei)
+            size_decimal = args["size"] / 10**18
+
             # Create OrderResponse from event args
             order_response = OrderResponse(
                 order_id=args["orderId"],
                 market_address=self.market_address,
                 owner=args["owner"],
-                price=str(args["price"] / 1_000_000),  # Convert from price precision
-                size=str(args["size"] / 10**18),  # Convert from wei
-                remaining_size=str(args["remainingSize"] / 10**18),
+                price=str(args["price"] / 1_000_000),  # Convert from 6 decimal precision
+                size=str(size_decimal),
+                remaining_size=str(size_decimal),  # New order: remaining = full size
                 is_buy=args["isBuy"],
-                is_canceled=args.get("isCanceled", False),
+                is_canceled=False,  # New order is not canceled
                 transaction_hash=log_entry["transactionHash"],
-                trigger_time=int(time.time()),  # Use current time if not in event
-                cloid=args.get("cloid"),
+                trigger_time=int(time.time()),  # Use current time (not in event)
+                cloid=None,  # Not available in blockchain event
             )
 
             logger.info(
@@ -261,6 +274,16 @@ class BlockchainEventSubscriber:
     async def _handle_trade(self, log_entry: dict[str, Any]) -> None:
         """Handle Trade event.
 
+        Trade ABI fields:
+        - orderId (uint40)
+        - makerAddress (address)
+        - isBuy (bool)
+        - price (uint256) - 6 decimal precision
+        - updatedSize (uint96) - remaining size after fill, 18 decimals
+        - takerAddress (address)
+        - txOrigin (address)
+        - filledSize (uint96) - size filled in this trade, 18 decimals
+
         Args:
             log_entry: Raw log entry
         """
@@ -274,13 +297,13 @@ class BlockchainEventSubscriber:
                 orderid=args["orderId"],
                 market_address=self.market_address,
                 makeraddress=args["makerAddress"],
-                takeraddress=args.get("takerAddress", ""),
+                takeraddress=args["takerAddress"],
                 isbuy=args["isBuy"],
-                price=str(args["price"] / 1_000_000),  # Convert from price precision
-                filledsize=str(args["filledSize"] / 10**18),  # Convert from wei
+                price=str(args["price"] / 1_000_000),  # Convert from 6 decimal precision
+                filledsize=str(args["filledSize"] / 10**18),  # Convert from 18 decimals
                 transactionhash=log_entry["transactionHash"],
-                triggertime=int(time.time()),  # Use current time if not in event
-                cloid=args.get("cloid"),
+                triggertime=int(time.time()),  # Use current time (not in event)
+                cloid=None,  # Not available in blockchain event
             )
 
             logger.info(
@@ -302,6 +325,12 @@ class BlockchainEventSubscriber:
     async def _handle_orders_canceled(self, log_entry: dict[str, Any]) -> None:
         """Handle OrdersCanceled event.
 
+        OrdersCanceled ABI fields:
+        - orderId (uint40[]) - array of canceled order IDs (note: singular name)
+        - owner (address) - wallet that canceled the orders
+
+        Note: cloids is NOT in the ABI.
+
         Args:
             log_entry: Raw log entry
         """
@@ -310,20 +339,20 @@ class BlockchainEventSubscriber:
             event = self.contract.events.OrdersCanceled().process_log(log_entry)
             args = event["args"]
 
-            order_ids = args["orderIds"]
-            maker_address = args["maker"]
-            cloids = args.get("cloids", [])
+            # ABI uses 'orderId' (singular) for the array, and 'owner' not 'maker'
+            order_ids = list(args["orderId"])  # Convert tuple to list
+            owner_address = args["owner"]
 
             logger.info(
                 "orders_canceled_event",
                 order_count=len(order_ids),
                 order_ids=order_ids,
-                maker_address=maker_address,
+                owner_address=owner_address,
             )
 
-            # Call callback
+            # Call callback with empty cloids (not available in blockchain event)
             if self.on_orders_canceled_callback:
-                await self.on_orders_canceled_callback(order_ids, cloids, maker_address, [])
+                await self.on_orders_canceled_callback(order_ids, [], owner_address, [])
 
         except Exception as e:
             logger.error("orders_canceled_parse_error", error=str(e), log=log_entry)

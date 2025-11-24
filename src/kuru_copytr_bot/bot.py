@@ -72,6 +72,14 @@ class CopyTradingBot:
     def _create_trade_callback(self, market_address: str):
         """Create a trade callback that captures the market address.
 
+        Trade events are used for FILL TRACKING only, not for copying.
+        Copying happens via OrderCreated events to avoid duplicates.
+
+        Trade event semantics:
+        - makerAddress = owner of resting limit order (passive)
+        - takerAddress = aggressor who hit the order (active)
+        - isBuy = maker's side (not taker's)
+
         Args:
             market_address: Market contract address
 
@@ -82,19 +90,28 @@ class CopyTradingBot:
         async def on_trade(trade_response: TradeResponse):
             """Handle Trade event from blockchain.
 
+            This handler:
+            1. Tracks fills on our own orders (for fill rate calculation)
+            2. Logs source wallet fills (informational only)
+
+            NOTE: We do NOT copy trades here. Copying happens via OrderCreated.
+            If we copied here too, we'd duplicate orders (source places limit order
+            → OrderCreated → we copy → order gets filled → Trade → we'd copy again).
+
             Args:
                 trade_response: Trade data from blockchain event
             """
             try:
                 maker_address = trade_response.makeraddress.lower()
+                taker_address = trade_response.takeraddress.lower()
 
+                # 1. Track fills on our own orders
                 if maker_address == self.bot_wallet_address:
                     logger.debug(
-                        "Own fill detected",
+                        "Own order filled",
                         order_id=trade_response.orderid,
                         filled_size=trade_response.filledsize,
                     )
-
                     try:
                         self.copier.order_tracker.on_fill(
                             order_id=str(trade_response.orderid),
@@ -114,41 +131,46 @@ class CopyTradingBot:
                         )
                     return
 
-                # Skip wallet filtering if tracking all market orders
-                if not self.track_all_market_orders and maker_address not in self.source_wallets:
-                    logger.debug(
-                        "Trade from non-monitored wallet, skipping",
-                        maker=trade_response.makeraddress,
-                        order_id=trade_response.orderid,
+                # 2. Log source wallet fills (informational - copying via OrderCreated)
+                if maker_address in self.source_wallets:
+                    self._trades_detected += 1
+                    trade = trade_response.to_trade(market=market_address)
+                    logger.info(
+                        "Source wallet order filled (passive)",
+                        trade_id=trade.id,
+                        market=trade.market,
+                        side=trade.side.value,
+                        size=str(trade.size),
+                        price=str(trade.price),
+                        tx_hash=trade.tx_hash,
                     )
+                    # NOTE: Not calling copier.process_trade() - would duplicate
+                    # orders already placed via OrderCreated handler
                     return
 
-                # Log when tracking all market orders
+                # 3. Log if source is taker (market order or aggressive limit)
+                if taker_address in self.source_wallets:
+                    self._trades_detected += 1
+                    logger.info(
+                        "Source wallet filled order (aggressive)",
+                        order_id=trade_response.orderid,
+                        taker=taker_address,
+                        filled_size=trade_response.filledsize,
+                        price=trade_response.price,
+                    )
+                    # NOTE: Not copying market orders - by the time we see the trade,
+                    # the opportunity is gone and we can't match the execution price.
+                    # Could be added as a feature if needed.
+                    return
+
+                # 4. Handle track_all_market_orders mode (debugging/monitoring)
                 if self.track_all_market_orders:
-                    wallet_type = "SOURCE" if maker_address in self.source_wallets else "OTHER"
                     logger.debug(
-                        f"[MARKET-WIDE TRACKING] Trade from {wallet_type} wallet",
+                        "[MARKET-WIDE TRACKING] Trade from other wallet",
                         maker=trade_response.makeraddress,
+                        taker=trade_response.takeraddress,
                         order_id=trade_response.orderid,
                     )
-
-                trade = trade_response.to_trade(market=market_address)
-
-                self._trades_detected += 1
-                logger.info(
-                    "Trade detected",
-                    trade_id=trade.id,
-                    market=trade.market,
-                    side=trade.side.value,
-                    size=str(trade.size),
-                    price=str(trade.price),
-                    tx_hash=trade.tx_hash,
-                )
-
-                try:
-                    self.copier.process_trade(trade)
-                except Exception as e:
-                    logger.debug("Copier raised exception (expected)", error=str(e))
 
             except Exception as e:
                 logger.error(
