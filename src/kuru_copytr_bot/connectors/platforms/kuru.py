@@ -241,6 +241,23 @@ class KuruClient:
         except Exception as e:
             raise BlockchainConnectionError(f"Failed to get margin balance: {e}") from e
 
+    def get_wallet_balance(self) -> Decimal:
+        """Get native token balance from wallet (not margin account).
+
+        This is used for limit orders which pull funds directly from the wallet
+        rather than from the margin account.
+
+        Returns:
+            Decimal: Balance in native token units (MON)
+
+        Raises:
+            BlockchainConnectionError: If balance query fails
+        """
+        try:
+            return self.blockchain.get_balance(self.blockchain.wallet_address)
+        except Exception as e:
+            raise BlockchainConnectionError(f"Failed to get wallet balance: {e}") from e
+
     def place_limit_order(
         self,
         market: str,
@@ -694,6 +711,18 @@ class KuruClient:
                 maker_fee_bps,
             ) = result
 
+            # Log raw values for debugging
+            logger.debug(
+                "Raw market parameters from contract",
+                market=market,
+                price_precision=price_precision,
+                size_precision=size_precision,
+                min_size_raw=min_size,
+                max_size_raw=max_size,
+                base_decimals=base_asset_decimals,
+                quote_decimals=quote_asset_decimals,
+            )
+
             # Convert to typed MarketParams model
             params = MarketParams(
                 price_precision=price_precision,
@@ -707,6 +736,14 @@ class KuruClient:
                 max_size=Decimal(max_size) / Decimal(size_precision),
                 taker_fee_bps=taker_fee_bps,
                 maker_fee_bps=maker_fee_bps,
+            )
+
+            logger.debug(
+                "Converted market parameters",
+                market=market,
+                min_size=str(params.min_size),
+                max_size=str(params.max_size),
+                tick_size=str(params.tick_size),
             )
 
             # Cache the result

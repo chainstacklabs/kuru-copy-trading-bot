@@ -2,14 +2,17 @@
 
 import logging
 import sys
+from datetime import datetime, timezone
 from typing import Any
 
 import structlog
 from structlog.types import EventDict, Processor
 
 
-def add_app_context(logger: logging.Logger, method_name: str, event_dict: EventDict) -> EventDict:
-    """Add application context to log entries.
+def add_short_timestamp(
+    logger: logging.Logger, method_name: str, event_dict: EventDict
+) -> EventDict:
+    """Add shortened timestamp (HH:MM:SS.ss) to log entries.
 
     Args:
         logger: Logger instance
@@ -17,9 +20,11 @@ def add_app_context(logger: logging.Logger, method_name: str, event_dict: EventD
         event_dict: Event dictionary
 
     Returns:
-        Updated event dictionary with app context
+        Updated event dictionary with short timestamp
     """
-    event_dict["app"] = "kuru-copy-trading-bot"
+    now = datetime.now(timezone.utc)
+    # Format as HH:MM:SS.ss (with 2 decimal places for subseconds)
+    event_dict["timestamp"] = now.strftime("%H:%M:%S") + f".{now.microsecond // 10000:02d}"
     return event_dict
 
 
@@ -45,8 +50,7 @@ def configure_logging(log_level: str = "INFO", json_logs: bool = False) -> None:
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
         structlog.stdlib.add_logger_name,
-        structlog.processors.TimeStamper(fmt="iso"),
-        add_app_context,
+        add_short_timestamp,
         structlog.stdlib.PositionalArgumentsFormatter(),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,

@@ -207,8 +207,8 @@ class CopyTradingBot:
 
                 # Skip wallet filtering if tracking all market orders
                 if not self.track_all_market_orders and owner_address not in self.source_wallets:
-                    logger.debug(
-                        "Order from non-monitored wallet, skipping",
+                    logger.info(
+                        "[SKIPPED] order_from_non_source_wallet",
                         owner=order_response.owner,
                         order_id=order_response.order_id,
                     )
@@ -293,8 +293,8 @@ class CopyTradingBot:
 
                 # Skip wallet filtering if tracking all market orders
                 if not self.track_all_market_orders and maker_lower not in self.source_wallets:
-                    logger.debug(
-                        "Orders canceled by non-monitored wallet, skipping",
+                    logger.info(
+                        "[SKIPPED] orders_canceled_from_non_source_wallet",
                         maker_address=maker_address,
                         order_count=len(order_ids),
                     )
