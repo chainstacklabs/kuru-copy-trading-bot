@@ -203,6 +203,9 @@ class MonadClient(BlockchainConnector):
         if not self._is_valid_address(to):
             raise ValueError(f"Invalid recipient address: {to}")
 
+        # Convert to checksum address (required by Web3.py for transactions)
+        to = Web3.to_checksum_address(to)
+
         @retry(
             stop=stop_after_attempt(MAX_RETRIES),
             wait=wait_exponential(multiplier=RETRY_BACKOFF_SECONDS, min=1, max=10),
