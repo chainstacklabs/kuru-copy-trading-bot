@@ -415,7 +415,7 @@ class BlockchainEventSubscriber:
         - orderId (uint40)
         - makerAddress (address)
         - isBuy (bool)
-        - price (uint256) - 6 decimal precision
+        - price (uint256) - uses SIZE precision (not price precision!)
         - updatedSize (uint96) - remaining size after fill, 18 decimals
         - takerAddress (address)
         - txOrigin (address)
@@ -430,13 +430,14 @@ class BlockchainEventSubscriber:
             args = event["args"]
 
             # Create TradeResponse from event args
+            # Note: Trade event price uses BOTH size_precision AND price_precision
             trade_response = TradeResponse(
                 orderid=args["orderId"],
                 market_address=self.market_address,
                 makeraddress=args["makerAddress"],
                 takeraddress=args["takerAddress"],
                 isbuy=args["isBuy"],
-                price=str(args["price"] / self.price_precision),
+                price=str(args["price"] / (self.size_precision * self.price_precision)),
                 filledsize=str(args["filledSize"] / self.size_precision),
                 transactionhash=log_entry["transactionHash"],
                 triggertime=int(time.time()),  # Use current time (not in event)
