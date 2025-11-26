@@ -1,6 +1,6 @@
 # Kuru Copy Trading Bot
 
-> **⚠️ Work in Progress**: Educational project for Monad. Currently mirrors limit orders from specified Kuru markets only. After each signal, multiple RPC calls are made that could be optimized. Good base for enhancements.
+> Educational project for Monad. Mirrors limit orders from specified Kuru markets only. After each signal, multiple RPC calls are made that could be optimized (meaning some delay between a signal and bot's transaction). Good base for enhancements.
 
 Copy trading bot for Kuru Exchange on Monad blockchain. Monitors target wallets and mirrors their limit orders. Interacts directly with blockchain contracts.
 
@@ -17,8 +17,8 @@ Copy trading bot for Kuru Exchange on Monad blockchain. Monitors target wallets 
 ## Features
 
 - Monitors blockchain events via RPC WebSocket
-- Position sizing with copy ratio
-- Basic risk management (balance checks, position limits, market filters)
+- Order sizing with copy ratio
+- Basic risk management (balance checks, order limits, market filters)
 
 ## Installation
 
@@ -78,8 +78,6 @@ Press `Ctrl+C` to stop. Final statistics will be displayed.
 │ TradeCopier     │  Executes mirror trade via Kuru Exchange
 └─────────────────┘
 ```
-
->  **FYI**: Kuru Exchange API has been reverse-engineered from the [Kuru SDK repository](https://github.com/Kuru-Labs/kuru-sdk). Full specification available in [docs/KURU_API_SPEC.md](docs/KURU_API_SPEC.md).
 
 ## Development
 
