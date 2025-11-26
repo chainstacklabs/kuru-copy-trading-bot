@@ -1,6 +1,6 @@
 # Kuru copy trading bot
 
-Copy trading bot for Kuru DEX on Monad blockchain. Monitors specified wallets and mirrors their limit orders via direct smart contract interaction.
+Copy trading bot for Kuru DEX on Monad blockchain. Monitors specified wallets and Kuru DEX markets and mirrors their limit orders via direct smart contract interaction.
 
 > Educational project with optimization opportunities. Multiple RPC calls per signal introduce latency between source order and bot execution.
 
