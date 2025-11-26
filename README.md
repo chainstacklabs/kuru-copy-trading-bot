@@ -1,4 +1,18 @@
-# Kuru copy trading bot
+<img width="1200" alt="Labs" src="https://user-images.githubusercontent.com/99700157/213291931-5a822628-5b8a-4768-980d-65f324985d32.png">
+
+<p>
+ <h3 align="center">Chainstack is the leading suite of services connecting developers with Web3 infrastructure</h3>
+</p>
+
+<p align="center">
+  • <a target="_blank" href="https://chainstack.com/">Homepage</a> •
+  <a target="_blank" href="https://chainstack.com/protocols/">Supported protocols</a> •
+  <a target="_blank" href="https://chainstack.com/blog/">Chainstack blog</a> •
+  <a target="_blank" href="https://docs.chainstack.com/quickstart/">Blockchain API reference</a> • <br> 
+  • <a target="_blank" href="https://console.chainstack.com/user/account/create">Start for free</a> •
+</p>
+
+## Kuru copy trading bot
 
 > Educational project with optimization opportunities. Multiple RPC calls per signal introduce latency between source order and bot execution.
 
