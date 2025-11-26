@@ -1,16 +1,14 @@
 # Kuru copy trading bot
 
-Copy trading bot for Kuru DEX on Monad blockchain. Monitors specified wallets and Kuru DEX markets and mirrors their limit orders via direct smart contract interaction.
-
 > Educational project with optimization opportunities. Multiple RPC calls per signal introduce latency between source order and bot execution.
+
+Copy trading bot for Kuru DEX on Monad blockchain. Monitors specified wallets and Kuru DEX markets and mirrors their **limit orders** via direct smart contract interaction (Kuru margin account, Kuru markets).
+
+Please feel free to submit your feedback and requests to issues.
 
 ## What gets copied
 
-| Event | Action |
-|-------|--------|
-| **OrderCreated** | Mirrors limit orders from source wallets |
-| **Trade** | Logs activity for statistics (not copied) |
-| **OrdersCanceled** | Cancels corresponding mirrored orders |
+The bot listens to `OrderCreated`, `Trade` and `OrdersCanceled` events and mirrors an action (places and cancels orders). `Trade` event is used to log activity for statistics.
 
 Market orders are not supported.
 
@@ -96,8 +94,6 @@ Orders are skipped if margin balance is insufficient. The bot continues monitori
 
 Three scripts in `scripts/` directory manage margin accounts:
 
-**check_margin_balance.py** - View margin balances
-
-**deposit_margin.py** - Transfer tokens from wallet to margin account
-
-**withdraw_margin.py** - Transfer tokens from margin account to wallet
+- **check_margin_balance.py** - view margin balances
+- **deposit_margin.py** - transfer tokens from wallet to margin account
+- **withdraw_margin.py** - transfer tokens from margin account to wallet
