@@ -73,11 +73,37 @@ class PositionSizeCalculator:
         # Step 1: Apply copy ratio
         target_size = source_size * self.copy_ratio
 
-        # Step 2: Apply maximum position size limit
-        if self.max_position_size is not None:
-            target_size = min(target_size, self.max_position_size)
+        # Step 2: Enforce minimum order size (in quote currency)
+        # Do this early so we know the actual order size before balance checks
+        if self.min_order_size is not None:
+            if price is not None:
+                target_value = target_size * price
+                if target_value < self.min_order_size:
+                    if self.enforce_minimum:
+                        # Calculate minimum size in base currency
+                        target_size = self.min_order_size / price
+                    else:
+                        return Decimal("0")
+            else:
+                # If no price provided, compare sizes directly (assume same currency)
+                if target_size < self.min_order_size:
+                    if self.enforce_minimum:
+                        target_size = self.min_order_size
+                    else:
+                        return Decimal("0")
 
-        # Step 3: Check available balance if price provided
+        # Step 3: Apply maximum order size limit (in quote currency)
+        if self.max_position_size is not None:
+            if price is not None:
+                target_value = target_size * price
+                if target_value > self.max_position_size:
+                    # Calculate maximum size in base currency
+                    target_size = self.max_position_size / price
+            else:
+                # If no price provided, compare sizes directly (assume same currency)
+                target_size = min(target_size, self.max_position_size)
+
+        # Step 4: Check available balance if price provided
         if price is not None and available_balance >= 0:
             # Calculate required capital
             if self.margin_requirement is not None:
@@ -100,17 +126,10 @@ class PositionSizeCalculator:
                     # Insufficient balance, return 0
                     return Decimal("0")
 
-        # Step 4: Round to tick size if specified
+        # Step 5: Round to tick size if specified
         if self.tick_size is not None:
             target_size = (target_size / self.tick_size).quantize(
                 Decimal("1"), rounding=ROUND_DOWN
             ) * self.tick_size
-
-        # Step 5: Enforce minimum order size
-        if self.min_order_size is not None and target_size < self.min_order_size:
-            if self.enforce_minimum:
-                target_size = self.min_order_size
-            else:
-                return Decimal("0")
 
         return target_size

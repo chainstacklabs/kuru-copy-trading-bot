@@ -111,8 +111,8 @@ class BotRunner:
             copy_ratio=self.settings.copy_ratio,
             max_position_size=self.settings.max_position_size,
             min_order_size=self.settings.min_order_size,
-            respect_balance=True,
-            enforce_minimum=False,  # Don't round up - let market validation handle minimums
+            respect_balance=False,  # Skip order if insufficient balance (don't reduce size)
+            enforce_minimum=True,  # Use minimum order size if calculated size is below minimum
         )
 
         # Initialize trade validator

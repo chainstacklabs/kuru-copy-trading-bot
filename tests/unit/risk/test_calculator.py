@@ -317,14 +317,15 @@ class TestPositionSizeCalculatorIntegration:
         """Calculator should apply ratio, max, min, balance, and rounding."""
         calc = PositionSizeCalculator(
             copy_ratio=Decimal("0.5"),
-            max_position_size=Decimal("20.0"),
-            min_order_size=Decimal("0.1"),
+            max_position_size=Decimal("2000.0"),  # $2000 USD max
+            min_order_size=Decimal("0.1"),  # $0.1 USD min
             tick_size=Decimal("0.5"),
             respect_balance=True,
         )
-        source_size = Decimal("50.0")  # 50 * 0.5 = 25
-        # But max is 20, so should be capped
-        # Rounded to tick size 0.5
+        source_size = Decimal("50.0")  # 50 * 0.5 = 25 tokens
+        # At price $100, that's $2500, which exceeds $2000 max
+        # So should be capped to $2000 / $100 = 20 tokens
+        # Rounded down to tick size 0.5 → 20.0 tokens
         target_size = calc.calculate(
             source_size=source_size,
             available_balance=Decimal("10000.0"),
@@ -336,12 +337,12 @@ class TestPositionSizeCalculatorIntegration:
         """Calculator should respect balance even with high max."""
         calc = PositionSizeCalculator(
             copy_ratio=Decimal("1.0"),
-            max_position_size=Decimal("100.0"),
+            max_position_size=Decimal("10000.0"),  # $10000 USD max (high, won't limit)
             respect_balance=True,
         )
-        source_size = Decimal("50.0")
+        source_size = Decimal("50.0")  # 50 tokens at $100 = $5000
         price = Decimal("100.0")
-        # Can only afford 10 units
+        # Available balance is $1000, so can only afford $1000 / $100 = 10 tokens
         target_size = calc.calculate(
             source_size=source_size,
             available_balance=Decimal("1000.0"),

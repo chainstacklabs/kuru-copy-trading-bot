@@ -400,7 +400,12 @@ LOG_LEVEL=DEBUG
         monkeypatch.setenv("MONAD_RPC_URL", "https://testnet.monad.xyz")
         monkeypatch.setenv("KURU_API_URL", "https://api.kuru.io")
         monkeypatch.setenv("SOURCE_WALLETS", "0x1234567890123456789012345678901234567890")
+        # Unset MAX_ORDER_SIZE if it exists (from .env file) to test backward compatibility
+        monkeypatch.delenv("MAX_ORDER_SIZE", raising=False)
+        monkeypatch.delenv("MAX_POSITION_SIZE", raising=False)
         monkeypatch.setenv("MAX_POSITION_SIZE_USD", "2000.0")
+        # Set MAX_TOTAL_EXPOSURE high enough to allow the test value
+        monkeypatch.setenv("MAX_TOTAL_EXPOSURE", "5000.0")
 
         settings = Settings()
 

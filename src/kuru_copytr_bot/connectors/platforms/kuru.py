@@ -114,24 +114,24 @@ class KuruClient:
 
         Args:
             price: Decimal price
-            price_precision: Price precision factor (default 1e6)
+            price_precision: Price precision multiplier (e.g., 10000000 for 1e7)
 
         Returns:
             int: Encoded price as uint32
         """
         return int(price * Decimal(price_precision))
 
-    def _encode_size(self, size: Decimal, decimals: int = 18) -> int:
+    def _encode_size(self, size: Decimal, size_precision: int = 10**18) -> int:
         """Encode size to uint96 format.
 
         Args:
             size: Decimal size
-            decimals: Token decimals (default 18)
+            size_precision: Size precision multiplier (e.g., 100000000000 for 1e11)
 
         Returns:
             int: Encoded size as uint96
         """
-        return int(size * Decimal(10**decimals))
+        return int(size * Decimal(size_precision))
 
     def deposit_margin(self, token: str, amount: Decimal) -> str:
         """Deposit tokens to Kuru margin account.
@@ -326,9 +326,9 @@ class KuruClient:
         if tick_normalization != "none":
             price = normalize_to_tick(price, params.tick_size, mode=tick_normalization)
 
-        # Encode price and size
-        encoded_price = self._encode_price(price)
-        encoded_size = self._encode_size(size)
+        # Encode price and size using market-specific precision
+        encoded_price = self._encode_price(price, price_precision=params.price_precision)
+        encoded_size = self._encode_size(size, size_precision=params.size_precision)
 
         # Choose correct function based on side
         if side == OrderSide.BUY:

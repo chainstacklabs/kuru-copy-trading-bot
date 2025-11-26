@@ -20,6 +20,7 @@ from src.kuru_copytr_bot.config.constants import (
 )
 from src.kuru_copytr_bot.core.exceptions import (
     BlockchainConnectionError,
+    InsufficientBalanceError,
     InsufficientGasError,
     TransactionFailedError,
 )
@@ -213,7 +214,7 @@ class MonadClient(BlockchainConnector):
         )
         def _send_with_retry(tx):
             signed_tx = self.account.sign_transaction(tx)
-            return self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            return self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
         try:
             # Get nonce
@@ -236,8 +237,31 @@ class MonadClient(BlockchainConnector):
                     estimated_gas = self.w3.eth.estimate_gas(tx)
                     tx["gas"] = estimated_gas
                 except Web3Exception as e:
-                    if "out of gas" in str(e).lower():
-                        raise InsufficientGasError(f"Gas estimation failed: {e}") from e
+                    error_msg = str(e).lower()
+                    # Check for common insufficient balance / contract rejection errors
+                    # Include known Kuru contract error codes
+                    if any(
+                        keyword in error_msg
+                        for keyword in [
+                            "out of gas",
+                            "insufficient",
+                            "balance",
+                            "funds",
+                            "0x0a5c4f1f",  # Kuru: insufficient balance
+                            "0xf4d678b8",  # Kuru: another balance/margin error
+                        ]
+                    ):
+                        raise InsufficientBalanceError(
+                            f"Insufficient balance or margin: {e}"
+                        ) from e
+
+                    # If it's any other contract custom error (hex code), treat as insufficient balance
+                    # Most contract rejections during gas estimation are due to balance/margin issues
+                    if "0x" in error_msg and len(error_msg) < 50:  # Likely a contract error code
+                        raise InsufficientBalanceError(
+                            f"Contract rejected order (likely insufficient balance): {e}"
+                        ) from e
+
                     raise InsufficientGasError(f"Failed to estimate gas: {e}") from e
             else:
                 tx["gas"] = gas
@@ -268,6 +292,9 @@ class MonadClient(BlockchainConnector):
 
         except (ConnectionError, TimeoutError) as e:
             raise BlockchainConnectionError(f"Failed to send transaction after retries: {e}") from e
+        except InsufficientBalanceError:
+            # Don't wrap balance errors - let them propagate up
+            raise
         except InsufficientGasError:
             # Don't wrap gas errors
             raise
@@ -296,18 +323,21 @@ class MonadClient(BlockchainConnector):
             # Convert to dict if needed
             return dict(receipt) if not isinstance(receipt, dict) else receipt
         except Exception as e:
+            # If transaction not found, return None so polling can continue
+            if "not found" in str(e).lower():
+                return None
             raise BlockchainConnectionError(f"Failed to get transaction receipt: {e}") from e
 
     def wait_for_transaction_receipt(
         self,
         tx_hash: str,
-        timeout: int = 120,
+        timeout: int = 10,
     ) -> dict[str, Any]:
         """Wait for transaction to be confirmed.
 
         Args:
             tx_hash: Transaction hash
-            timeout: Timeout in seconds
+            timeout: Timeout in seconds (default: 10)
 
         Returns:
             Dict[str, Any]: Transaction receipt

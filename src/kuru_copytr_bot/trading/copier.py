@@ -8,7 +8,9 @@ from src.kuru_copytr_bot.core.exceptions import (
     BlockchainConnectionError,
     InsufficientBalanceError,
     InvalidOrderError,
+    OrderExecutionError,
     OrderPlacementError,
+    TransactionFailedError,
 )
 from src.kuru_copytr_bot.models.order import Order
 from src.kuru_copytr_bot.models.trade import Trade
@@ -79,27 +81,64 @@ class TradeCopier:
         )
 
         try:
-            # Step 1: Get current margin balance
-            balance = self.kuru_client.get_margin_balance(None)
-            logger.debug("Retrieved margin balance", balance=str(balance))
+            # Step 1: Get market params to determine quote asset
+            market_params = self.kuru_client.get_market_params(trade.market)
 
-            # Step 2: Calculate position size
+            # Step 2: Get current margin balance for the quote asset
+            balance = self.kuru_client.get_margin_balance(
+                market_params.quote_asset, market_params.quote_asset_decimals
+            )
+            logger.debug(
+                "Retrieved margin balance",
+                balance=str(balance),
+                quote_asset=market_params.quote_asset,
+            )
+
+            # Step 3: Calculate position size
             calculated_size = self.calculator.calculate(
                 source_size=trade.size,
                 available_balance=balance,
                 price=trade.price,
             )
 
-            logger.debug(
-                "Calculated position size",
-                source_size=str(trade.size),
-                calculated_size=str(calculated_size),
-            )
-
-            # Skip if calculated size is zero
+            # Log calculation details
             if calculated_size == 0:
-                logger.info("Calculated size is zero, skipping trade", trade_id=trade.id)
+                # Calculate what the trade would have been
+                raw_calculated = trade.size * self.calculator.copy_ratio
+                raw_usd = raw_calculated * trade.price
+                min_required = (
+                    self.calculator.min_order_size
+                    if self.calculator.min_order_size
+                    else Decimal("0")
+                )
+
+                if balance < min_required:
+                    logger.info(
+                        "Insufficient balance for minimum order size, skipping trade",
+                        trade_id=trade.id,
+                        source_size=str(trade.size),
+                        price=str(trade.price),
+                        calculated_usd=f"{raw_usd:.2f}",
+                        min_required_usd=f"{min_required:.2f}",
+                        balance_usd=f"{balance:.2f}",
+                    )
+                else:
+                    logger.info(
+                        "Calculated size is zero, skipping trade",
+                        trade_id=trade.id,
+                        source_size=str(trade.size),
+                        price=str(trade.price),
+                        balance=str(balance),
+                    )
                 return None
+            else:
+                calculated_usd = calculated_size * trade.price
+                logger.debug(
+                    "Calculated position size",
+                    source_size=str(trade.size),
+                    calculated_size=str(calculated_size),
+                    calculated_usd=str(calculated_usd),
+                )
 
             # Step 3: Create mirror trade with calculated size
             mirror_trade = Trade(
@@ -243,27 +282,64 @@ class TradeCopier:
         )
 
         try:
-            # Step 1: Get current margin balance
-            balance = self.kuru_client.get_margin_balance(None)
-            logger.debug("Retrieved margin balance", balance=str(balance))
+            # Step 1: Get market params to determine quote asset
+            market_params = self.kuru_client.get_market_params(order.market)
 
-            # Step 2: Calculate position size
+            # Step 2: Get current margin balance for the quote asset
+            balance = self.kuru_client.get_margin_balance(
+                market_params.quote_asset, market_params.quote_asset_decimals
+            )
+            logger.debug(
+                "Retrieved margin balance",
+                balance=str(balance),
+                quote_asset=market_params.quote_asset,
+            )
+
+            # Step 3: Calculate position size
             calculated_size = self.calculator.calculate(
                 source_size=order.size,
                 available_balance=balance,
                 price=order.price,
             )
 
-            logger.debug(
-                "Calculated position size",
-                source_size=str(order.size),
-                calculated_size=str(calculated_size),
-            )
-
-            # Skip if calculated size is zero
+            # Log calculation details
             if calculated_size == 0:
-                logger.info("Calculated size is zero, skipping order", order_id=order.order_id)
+                # Calculate what the order would have been
+                raw_calculated = order.size * self.calculator.copy_ratio
+                raw_usd = raw_calculated * order.price
+                min_required = (
+                    self.calculator.min_order_size
+                    if self.calculator.min_order_size
+                    else Decimal("0")
+                )
+
+                if balance < min_required:
+                    logger.info(
+                        "Insufficient balance for minimum order size, skipping order",
+                        order_id=order.order_id,
+                        source_size=str(order.size),
+                        price=str(order.price),
+                        calculated_usd=f"{raw_usd:.2f}",
+                        min_required_usd=f"{min_required:.2f}",
+                        balance_usd=f"{balance:.2f}",
+                    )
+                else:
+                    logger.info(
+                        "Calculated size is zero, skipping order",
+                        order_id=order.order_id,
+                        source_size=str(order.size),
+                        price=str(order.price),
+                        balance=str(balance),
+                    )
                 return None
+            else:
+                calculated_usd = calculated_size * order.price
+                logger.debug(
+                    "Calculated position size",
+                    source_size=str(order.size),
+                    calculated_size=str(calculated_size),
+                    calculated_usd=str(calculated_usd),
+                )
 
             # Step 3: Create mirror order for validation
             # Create a temporary Order object with calculated size
@@ -311,7 +387,7 @@ class TradeCopier:
                 side=order.side,
                 size=calculated_size,
                 price=order.price,
-                post_only=True,  # Mirror orders should be post-only to match source
+                post_only=True,  # Post-only (maker-only) orders
             )
 
             self.order_tracker.register_order(order_id=order_id, size=calculated_size)
@@ -324,15 +400,44 @@ class TradeCopier:
             )
             return order_id
 
-        except InsufficientBalanceError as e:
-            self._failed_orders += 1
-            logger.error(
-                "Insufficient balance for order",
+        except InsufficientBalanceError:
+            self._rejected_orders += 1
+            logger.warning(
+                "Insufficient balance, skipping order",
                 order_id=order.order_id,
-                error=str(e),
+                market=order.market,
+                side=order.side.value,
+                size=str(calculated_size),
+                price=str(order.price),
+            )
+            return None
+        except TransactionFailedError as e:
+            # Transaction failures like nonce conflicts, gas issues - expected in high-speed trading
+            self._failed_orders += 1
+            error_msg = str(e)
+            # Extract just the relevant message
+            if "An existing transaction had higher priority" in error_msg:
+                logger.warning("Nonce conflict, skipping order", order_id=order.order_id)
+            elif "replacement transaction underpriced" in error_msg:
+                logger.warning("Gas price too low, skipping order", order_id=order.order_id)
+            else:
+                logger.warning(
+                    "Transaction failed, skipping order",
+                    order_id=order.order_id,
+                    reason=error_msg[:100],
+                )
+            return None
+        except (OrderExecutionError, OrderPlacementError) as e:
+            # Order execution issues - expected failures
+            self._failed_orders += 1
+            logger.warning(
+                "Order execution failed, skipping",
+                order_id=order.order_id,
+                reason=str(e)[:100],
             )
             return None
         except InvalidOrderError as e:
+            # Invalid parameters - should not happen, log as error
             self._failed_orders += 1
             logger.error(
                 "Invalid order parameters",
@@ -340,15 +445,8 @@ class TradeCopier:
                 error=str(e),
             )
             return None
-        except OrderPlacementError as e:
-            self._failed_orders += 1
-            logger.error(
-                "Order placement failed",
-                order_id=order.order_id,
-                error=str(e),
-            )
-            return None
         except Exception as e:
+            # Truly unexpected errors - log with full traceback
             self._failed_orders += 1
             logger.error(
                 "Unexpected error processing order",
@@ -432,7 +530,13 @@ class TradeCopier:
             )
 
             try:
-                balance = self.kuru_client.get_margin_balance(None)
+                # Get market params to determine quote asset
+                market_params = self.kuru_client.get_market_params(trade.market)
+
+                # Get margin balance for the quote asset
+                balance = self.kuru_client.get_margin_balance(
+                    market_params.quote_asset, market_params.quote_asset_decimals
+                )
 
                 calculated_size = self.calculator.calculate(
                     source_size=trade.size,
@@ -441,7 +545,28 @@ class TradeCopier:
                 )
 
                 if calculated_size == 0:
-                    logger.info("Calculated size is zero, skipping retry", trade_id=trade.id)
+                    raw_calculated = trade.size * self.calculator.copy_ratio
+                    raw_usd = raw_calculated * trade.price
+                    min_required = (
+                        self.calculator.min_order_size
+                        if self.calculator.min_order_size
+                        else Decimal("0")
+                    )
+
+                    if balance < min_required:
+                        logger.info(
+                            "Insufficient balance for minimum order size, skipping retry",
+                            trade_id=trade.id,
+                            calculated_usd=f"{raw_usd:.2f}",
+                            min_required_usd=f"{min_required:.2f}",
+                            balance_usd=f"{balance:.2f}",
+                        )
+                    else:
+                        logger.info(
+                            "Calculated size is zero, skipping retry",
+                            trade_id=trade.id,
+                            balance=str(balance),
+                        )
                     continue
 
                 validation_result = self.validator.validate(

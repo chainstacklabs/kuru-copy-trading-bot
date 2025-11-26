@@ -82,12 +82,14 @@ class TradeValidator:
                 reason=f"Order size {trade.size} below minimum {self.min_order_size}",
             )
 
-        # Check 4: Maximum position size (interpret as max single order size for spot)
-        if self.max_position_size is not None and trade.size > self.max_position_size:
-            return ValidationResult(
-                is_valid=False,
-                reason=f"Order size {trade.size} exceeds maximum {self.max_position_size}",
-            )
+        # Check 4: Maximum position size in USD (interpret as max single order size for spot)
+        if self.max_position_size is not None:
+            trade_notional = trade.size * trade.price
+            if trade_notional > self.max_position_size:
+                return ValidationResult(
+                    is_valid=False,
+                    reason=f"Order size ${trade_notional:.2f} exceeds maximum ${self.max_position_size}",
+                )
 
         # Check 5: Maximum exposure (interpret as max notional value per order for spot)
         if self.max_exposure_usd is not None:
@@ -149,12 +151,14 @@ class TradeValidator:
                 reason=f"Order size {order.size} below minimum {self.min_order_size}",
             )
 
-        # Check 4: Maximum position size (interpret as max single order size for spot)
-        if self.max_position_size is not None and order.size > self.max_position_size:
-            return ValidationResult(
-                is_valid=False,
-                reason=f"Order size {order.size} exceeds maximum {self.max_position_size}",
-            )
+        # Check 4: Maximum position size in USD (interpret as max single order size for spot)
+        if self.max_position_size is not None:
+            order_notional = order.size * order.price
+            if order_notional > self.max_position_size:
+                return ValidationResult(
+                    is_valid=False,
+                    reason=f"Order size ${order_notional:.2f} exceeds maximum ${self.max_position_size}",
+                )
 
         # Check 5: Maximum exposure (interpret as max notional value per order for spot)
         if self.max_exposure_usd is not None:

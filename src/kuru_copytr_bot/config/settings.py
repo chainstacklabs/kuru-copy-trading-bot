@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from dotenv import load_dotenv
 from eth_account import Account
-from pydantic import Field, field_validator, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load environment variables from .env file
@@ -52,9 +52,12 @@ class Settings(BaseSettings):
     # Risk Management
     max_position_size: Decimal = Field(
         default=Decimal("1000.0"),
-        alias="max_position_size_usd",  # Backward compatibility
+        # Accept MAX_ORDER_SIZE, MAX_POSITION_SIZE, or MAX_POSITION_SIZE_USD for backward compatibility
+        validation_alias=AliasChoices(
+            "max_order_size", "max_position_size", "max_position_size_usd"
+        ),
         gt=0,
-        description="Maximum position size per market (in quote currency, e.g., USDC)",
+        description="Maximum order size in quote currency (e.g., USDC) - caps each individual order",
     )
     min_order_size: Decimal = Field(
         default=Decimal("10.0"), gt=0, description="Minimum order size (in quote currency)"
@@ -235,14 +238,14 @@ class Settings(BaseSettings):
         # Validate risk management constraints
         if self.min_order_size >= self.max_position_size:
             raise ValueError(
-                f"min_order_size ({self.min_order_size}) must be less than "
-                f"max_position_size ({self.max_position_size})"
+                f"MIN_ORDER_SIZE ({self.min_order_size}) must be less than "
+                f"MAX_ORDER_SIZE ({self.max_position_size})"
             )
 
         if self.max_position_size > self.max_total_exposure:
             raise ValueError(
-                f"max_position_size ({self.max_position_size}) cannot exceed "
-                f"max_total_exposure ({self.max_total_exposure})"
+                f"MAX_ORDER_SIZE ({self.max_position_size}) cannot exceed "
+                f"MAX_TOTAL_EXPOSURE ({self.max_total_exposure})"
             )
 
         return self
