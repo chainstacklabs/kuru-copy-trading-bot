@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 from typing import TYPE_CHECKING, Any
 
 from web3 import Web3
 from websockets import connect
+from websockets.exceptions import ConnectionClosedError
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
@@ -36,6 +38,10 @@ class BlockchainEventSubscriber:
         rpc_ws_url: str,
         market_address: str,
         orderbook_abi: list[dict[str, Any]],
+        size_precision: int,
+        price_precision: int,
+        max_reconnect_attempts: int = 5,
+        reconnect_delay: float = 1.0,
     ):
         """Initialize event subscriber.
 
@@ -43,15 +49,24 @@ class BlockchainEventSubscriber:
             rpc_ws_url: WebSocket RPC URL (e.g., wss://monad-testnet.drpc.org)
             market_address: OrderBook contract address to monitor
             orderbook_abi: OrderBook contract ABI for event parsing
+            size_precision: Size precision multiplier from market params (e.g., 10^11)
+            price_precision: Price precision multiplier from market params (e.g., 10^7)
+            max_reconnect_attempts: Maximum number of reconnection attempts (0 = infinite)
+            reconnect_delay: Initial delay between reconnection attempts in seconds
         """
         self.rpc_ws_url = rpc_ws_url
         self.market_address = market_address.lower()
         self.orderbook_abi = orderbook_abi
+        self.size_precision = size_precision
+        self.price_precision = price_precision
+        self.max_reconnect_attempts = max_reconnect_attempts
+        self.reconnect_delay = reconnect_delay
 
         # WebSocket connection
         self.ws: ClientConnection | None = None
         self.subscription_id: str | None = None
         self.running = False
+        self._reconnect_attempts = 0
 
         # Web3 instance for event parsing (no provider needed)
         self.w3 = Web3()
@@ -155,16 +170,137 @@ class BlockchainEventSubscriber:
             except Exception as e:
                 logger.warning("blockchain_unsubscribe_error", error=str(e))
 
+    async def _reconnect(self) -> bool:
+        """Attempt to reconnect with exponential backoff.
+
+        Returns:
+            True if reconnection successful, False otherwise
+        """
+        while self.running:
+            self._reconnect_attempts += 1
+
+            # Check if we've exceeded max attempts (0 = infinite)
+            if (
+                self.max_reconnect_attempts > 0
+                and self._reconnect_attempts > self.max_reconnect_attempts
+            ):
+                logger.error(
+                    "max_reconnect_attempts_reached",
+                    attempts=self._reconnect_attempts,
+                    market=self.market_address,
+                )
+                return False
+
+            # Calculate backoff delay (exponential with max 60s)
+            delay = min(self.reconnect_delay * (2 ** (self._reconnect_attempts - 1)), 60)
+            logger.info(
+                "attempting_reconnection",
+                attempt=self._reconnect_attempts,
+                delay_seconds=delay,
+                market=self.market_address,
+            )
+
+            await asyncio.sleep(delay)
+
+            try:
+                # Close existing connection if any
+                if self.ws:
+                    with contextlib.suppress(Exception):
+                        await self.ws.close()
+                    self.ws = None
+                    self.subscription_id = None
+
+                # Reconnect
+                self.ws = await connect(self.rpc_ws_url)
+
+                # Re-subscribe
+                subscribe_request = {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "eth_subscribe",
+                    "params": [
+                        "logs",
+                        {
+                            "address": self.market_address,
+                        },
+                    ],
+                }
+
+                await self.ws.send(json.dumps(subscribe_request))
+                response = await self.ws.recv()
+                response_data = json.loads(response)
+
+                if "result" in response_data:
+                    self.subscription_id = response_data["result"]
+                    logger.info(
+                        "websocket_resubscribed",
+                        subscription_id=self.subscription_id,
+                        market=self.market_address,
+                    )
+                    return True
+                else:
+                    error = response_data.get("error", "Unknown error")
+                    logger.error(
+                        "resubscription_failed",
+                        error=error,
+                        market=self.market_address,
+                    )
+                    continue
+
+            except Exception as e:
+                logger.warning(
+                    "reconnection_attempt_failed",
+                    attempt=self._reconnect_attempts,
+                    error=str(e),
+                    market=self.market_address,
+                )
+                continue
+
+        return False
+
     async def _listen_loop(self) -> None:
-        """Listen for incoming log events."""
-        try:
-            while self.running and self.ws:
+        """Listen for incoming log events with automatic reconnection."""
+        while self.running:
+            try:
+                if not self.ws:
+                    break
+
                 raw_message = await self.ws.recv()
                 message = raw_message if isinstance(raw_message, str) else raw_message.decode()
                 await self._process_message(message)
-        except Exception as e:
-            if self.running:
-                logger.error("blockchain_listen_error", error=str(e), exc_info=True)
+
+                # Reset reconnect attempts on successful message
+                self._reconnect_attempts = 0
+
+            except ConnectionClosedError as e:
+                if self.running:
+                    logger.warning(
+                        "websocket_connection_closed",
+                        error=str(e),
+                        market=self.market_address,
+                        reconnect_attempts=self._reconnect_attempts,
+                    )
+                    # Attempt to reconnect
+                    if await self._reconnect():
+                        logger.info(
+                            "websocket_reconnected_successfully",
+                            market=self.market_address,
+                        )
+                    else:
+                        logger.error(
+                            "websocket_reconnection_failed",
+                            market=self.market_address,
+                            max_attempts=self.max_reconnect_attempts,
+                        )
+                        break
+            except Exception as e:
+                if self.running:
+                    logger.error(
+                        "blockchain_listen_error",
+                        error=str(e),
+                        market=self.market_address,
+                        exc_info=True,
+                    )
 
     async def _process_message(self, message: str) -> None:
         """Process incoming log message.
@@ -237,15 +373,16 @@ class BlockchainEventSubscriber:
             event = self.contract.events.OrderCreated().process_log(log_entry)
             args = event["args"]
 
-            # Size in 18 decimals (wei)
-            size_decimal = args["size"] / 10**18
+            # Convert size and price using market-specific precisions
+            size_decimal = args["size"] / self.size_precision
+            price_decimal = args["price"] / self.price_precision
 
             # Create OrderResponse from event args
             order_response = OrderResponse(
                 order_id=args["orderId"],
                 market_address=self.market_address,
                 owner=args["owner"],
-                price=str(args["price"] / 1_000_000),  # Convert from 6 decimal precision
+                price=str(price_decimal),
                 size=str(size_decimal),
                 remaining_size=str(size_decimal),  # New order: remaining = full size
                 is_buy=args["isBuy"],
@@ -278,7 +415,7 @@ class BlockchainEventSubscriber:
         - orderId (uint40)
         - makerAddress (address)
         - isBuy (bool)
-        - price (uint256) - 6 decimal precision
+        - price (uint256) - uses SIZE precision (not price precision!)
         - updatedSize (uint96) - remaining size after fill, 18 decimals
         - takerAddress (address)
         - txOrigin (address)
@@ -293,14 +430,15 @@ class BlockchainEventSubscriber:
             args = event["args"]
 
             # Create TradeResponse from event args
+            # Note: Trade event price uses BOTH size_precision AND price_precision
             trade_response = TradeResponse(
                 orderid=args["orderId"],
                 market_address=self.market_address,
                 makeraddress=args["makerAddress"],
                 takeraddress=args["takerAddress"],
                 isbuy=args["isBuy"],
-                price=str(args["price"] / 1_000_000),  # Convert from 6 decimal precision
-                filledsize=str(args["filledSize"] / 10**18),  # Convert from 18 decimals
+                price=str(args["price"] / (self.size_precision * self.price_precision)),
+                filledsize=str(args["filledSize"] / self.size_precision),
                 transactionhash=log_entry["transactionHash"],
                 triggertime=int(time.time()),  # Use current time (not in event)
                 cloid=None,  # Not available in blockchain event

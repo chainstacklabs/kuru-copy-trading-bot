@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from dotenv import load_dotenv
 from eth_account import Account
-from pydantic import Field, field_validator, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load environment variables from .env file
@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     )
 
     # Blockchain Configuration
+    network: str = Field(
+        default="testnet",
+        description="Network to use: 'testnet' or 'mainnet'",
+    )
     monad_rpc_url: str = Field(..., description="Monad blockchain RPC URL")
     kuru_api_url: str = Field(..., description="Kuru Exchange API URL")
 
@@ -48,9 +52,12 @@ class Settings(BaseSettings):
     # Risk Management
     max_position_size: Decimal = Field(
         default=Decimal("1000.0"),
-        alias="max_position_size_usd",  # Backward compatibility
+        # Accept MAX_ORDER_SIZE, MAX_POSITION_SIZE, or MAX_POSITION_SIZE_USD for backward compatibility
+        validation_alias=AliasChoices(
+            "max_order_size", "max_position_size", "max_position_size_usd"
+        ),
         gt=0,
-        description="Maximum position size per market (in quote currency, e.g., USDC)",
+        description="Maximum order size in quote currency (e.g., USDC) - caps each individual order",
     )
     min_order_size: Decimal = Field(
         default=Decimal("10.0"), gt=0, description="Minimum order size (in quote currency)"
@@ -117,10 +124,11 @@ class Settings(BaseSettings):
     @field_validator("source_wallets")
     @classmethod
     def validate_source_wallets(cls, v: list[str]) -> list[str]:
-        """Validate source wallet addresses."""
-        if not v:
-            raise ValueError("At least one source wallet is required")
+        """Validate source wallet addresses.
 
+        Note: Empty list is allowed and will be validated in model_validator
+        based on dry_run_track_all_market_orders setting.
+        """
         for addr in v:
             if not addr.startswith("0x") or len(addr) != 42:
                 raise ValueError(f"Invalid Ethereum address format: {addr}")
@@ -147,6 +155,15 @@ class Settings(BaseSettings):
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
         return v
+
+    @field_validator("network")
+    @classmethod
+    def validate_network(cls, v: str) -> str:
+        """Validate network selection."""
+        v_lower = v.lower()
+        if v_lower not in ["testnet", "mainnet"]:
+            raise ValueError("Network must be either 'testnet' or 'mainnet'")
+        return v_lower
 
     @field_validator("log_level")
     @classmethod
@@ -204,17 +221,31 @@ class Settings(BaseSettings):
             except Exception as e:
                 raise ValueError(f"Failed to derive wallet address from private key: {e}") from e
 
+        # Validate source wallets requirement
+        # In dry-run mode with track_all_market_orders, source wallets are optional (used only for reference)
+        # Otherwise, at least one source wallet is required
+        if not self.source_wallets:
+            if self.dry_run and self.dry_run_track_all_market_orders:
+                # Allow empty source wallets in dry-run + track_all mode
+                pass
+            else:
+                raise ValueError(
+                    "At least one source wallet is required. "
+                    "To skip source wallets, enable both dry_run=True and "
+                    "dry_run_track_all_market_orders=True"
+                )
+
         # Validate risk management constraints
         if self.min_order_size >= self.max_position_size:
             raise ValueError(
-                f"min_order_size ({self.min_order_size}) must be less than "
-                f"max_position_size ({self.max_position_size})"
+                f"MIN_ORDER_SIZE ({self.min_order_size}) must be less than "
+                f"MAX_ORDER_SIZE ({self.max_position_size})"
             )
 
         if self.max_position_size > self.max_total_exposure:
             raise ValueError(
-                f"max_position_size ({self.max_position_size}) cannot exceed "
-                f"max_total_exposure ({self.max_total_exposure})"
+                f"MAX_ORDER_SIZE ({self.max_position_size}) cannot exceed "
+                f"MAX_TOTAL_EXPOSURE ({self.max_total_exposure})"
             )
 
         return self

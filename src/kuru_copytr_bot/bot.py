@@ -44,6 +44,10 @@ class CopyTradingBot:
         if not event_subscribers:
             raise ValueError("event_subscribers is required")
 
+        # Validate source wallets requirement
+        if not self.source_wallets and not track_all_market_orders:
+            raise ValueError("source_wallets is required when track_all_market_orders is False")
+
         self.bot_wallet_address = self.copier.kuru_client.blockchain.wallet_address.lower()
 
         # Running state
@@ -182,11 +186,11 @@ class CopyTradingBot:
 
         return on_trade
 
-    def _create_order_created_callback(self, market_address: str):
+    def _create_order_created_callback(self, _market_address: str):
         """Create an order created callback that captures the market address.
 
         Args:
-            market_address: Market contract address
+            _market_address: Market contract address
 
         Returns:
             Async callback function for OrderCreated events
@@ -203,8 +207,8 @@ class CopyTradingBot:
 
                 # Skip wallet filtering if tracking all market orders
                 if not self.track_all_market_orders and owner_address not in self.source_wallets:
-                    logger.debug(
-                        "Order from non-monitored wallet, skipping",
+                    logger.info(
+                        "[SKIPPED] order_from_non_source_wallet",
                         owner=order_response.owner,
                         order_id=order_response.order_id,
                     )
@@ -274,7 +278,7 @@ class CopyTradingBot:
             order_ids: list[int],
             cloids: list[str],
             maker_address: str,
-            canceled_orders_data: list[dict],
+            _canceled_orders_data: list[dict],
         ):
             """Handle OrdersCanceled event from blockchain.
 
@@ -282,15 +286,15 @@ class CopyTradingBot:
                 order_ids: List of canceled order IDs
                 cloids: List of client order IDs
                 maker_address: Maker wallet address
-                canceled_orders_data: Additional cancellation data
+                _canceled_orders_data: Additional cancellation data
             """
             try:
                 maker_lower = maker_address.lower()
 
                 # Skip wallet filtering if tracking all market orders
                 if not self.track_all_market_orders and maker_lower not in self.source_wallets:
-                    logger.debug(
-                        "Orders canceled by non-monitored wallet, skipping",
+                    logger.info(
+                        "[SKIPPED] orders_canceled_from_non_source_wallet",
                         maker_address=maker_address,
                         order_count=len(order_ids),
                     )

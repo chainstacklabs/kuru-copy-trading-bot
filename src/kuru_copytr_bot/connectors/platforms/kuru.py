@@ -8,9 +8,7 @@ from typing import Any, ClassVar, Literal
 import requests
 from web3 import Web3
 
-from src.kuru_copytr_bot.config.constants import (
-    KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET,
-)
+from src.kuru_copytr_bot.config.constants import get_kuru_margin_account_address
 from src.kuru_copytr_bot.core.enums import OrderSide
 from src.kuru_copytr_bot.core.exceptions import (
     BlockchainConnectionError,
@@ -50,6 +48,7 @@ class KuruClient:
         blockchain: BlockchainConnector,
         api_url: str,
         contract_address: str,
+        network: str = "testnet",
         strict_api_errors: bool = False,
     ):
         """Initialize Kuru client.
@@ -58,6 +57,7 @@ class KuruClient:
             blockchain: Blockchain connector instance
             api_url: Kuru API base URL
             contract_address: Kuru contract address (OrderBook)
+            network: Network to use ('testnet' or 'mainnet')
             strict_api_errors: If True, raise exceptions on API errors. If False, return empty results and log warnings.
 
         Raises:
@@ -66,7 +66,8 @@ class KuruClient:
         self.blockchain = blockchain
         self.api_url = api_url.rstrip("/")
         self.contract_address = contract_address
-        self.margin_account_address = KURU_MARGIN_ACCOUNT_ADDRESS_TESTNET
+        self.network = network
+        self.margin_account_address = get_kuru_margin_account_address(network)
         self.strict_api_errors = strict_api_errors
 
         # Validate contract address
@@ -113,24 +114,24 @@ class KuruClient:
 
         Args:
             price: Decimal price
-            price_precision: Price precision factor (default 1e6)
+            price_precision: Price precision multiplier (e.g., 10000000 for 1e7)
 
         Returns:
             int: Encoded price as uint32
         """
         return int(price * Decimal(price_precision))
 
-    def _encode_size(self, size: Decimal, decimals: int = 18) -> int:
+    def _encode_size(self, size: Decimal, size_precision: int = 10**18) -> int:
         """Encode size to uint96 format.
 
         Args:
             size: Decimal size
-            decimals: Token decimals (default 18)
+            size_precision: Size precision multiplier (e.g., 100000000000 for 1e11)
 
         Returns:
             int: Encoded size as uint96
         """
-        return int(size * Decimal(10**decimals))
+        return int(size * Decimal(size_precision))
 
     def deposit_margin(self, token: str, amount: Decimal) -> str:
         """Deposit tokens to Kuru margin account.
@@ -240,6 +241,23 @@ class KuruClient:
         except Exception as e:
             raise BlockchainConnectionError(f"Failed to get margin balance: {e}") from e
 
+    def get_wallet_balance(self) -> Decimal:
+        """Get native token balance from wallet (not margin account).
+
+        This is used for limit orders which pull funds directly from the wallet
+        rather than from the margin account.
+
+        Returns:
+            Decimal: Balance in native token units (MON)
+
+        Raises:
+            BlockchainConnectionError: If balance query fails
+        """
+        try:
+            return self.blockchain.get_balance(self.blockchain.wallet_address)
+        except Exception as e:
+            raise BlockchainConnectionError(f"Failed to get wallet balance: {e}") from e
+
     def place_limit_order(
         self,
         market: str,
@@ -308,9 +326,9 @@ class KuruClient:
         if tick_normalization != "none":
             price = normalize_to_tick(price, params.tick_size, mode=tick_normalization)
 
-        # Encode price and size
-        encoded_price = self._encode_price(price)
-        encoded_size = self._encode_size(size)
+        # Encode price and size using market-specific precision
+        encoded_price = self._encode_price(price, price_precision=params.price_precision)
+        encoded_size = self._encode_size(size, size_precision=params.size_precision)
 
         # Choose correct function based on side
         if side == OrderSide.BUY:
@@ -693,6 +711,18 @@ class KuruClient:
                 maker_fee_bps,
             ) = result
 
+            # Log raw values for debugging
+            logger.debug(
+                "Raw market parameters from contract",
+                market=market,
+                price_precision=price_precision,
+                size_precision=size_precision,
+                min_size_raw=min_size,
+                max_size_raw=max_size,
+                base_decimals=base_asset_decimals,
+                quote_decimals=quote_asset_decimals,
+            )
+
             # Convert to typed MarketParams model
             params = MarketParams(
                 price_precision=price_precision,
@@ -706,6 +736,14 @@ class KuruClient:
                 max_size=Decimal(max_size) / Decimal(size_precision),
                 taker_fee_bps=taker_fee_bps,
                 maker_fee_bps=maker_fee_bps,
+            )
+
+            logger.debug(
+                "Converted market parameters",
+                market=market,
+                min_size=str(params.min_size),
+                max_size=str(params.max_size),
+                tick_size=str(params.tick_size),
             )
 
             # Cache the result

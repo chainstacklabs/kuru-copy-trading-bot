@@ -10,8 +10,15 @@ Event types on this contract:
 - OrderCreated: When a new limit order is placed
 - OrdersCanceled: When orders are canceled
 
+Configuration:
+- Uses MONAD_RPC_URL environment variable (or provide --rpc-ws-url)
+- Uses MARKET_ADDRESS environment variable (or provide --market)
+
 Usage:
+    # Use environment variables from .env
     python examples/listeners/parse_recent_events.py
+
+    # Override with command line arguments
     python examples/listeners/parse_recent_events.py --blocks 5000
     python examples/listeners/parse_recent_events.py --limit 5
     python examples/listeners/parse_recent_events.py --raw-only  # Show only raw hex data
@@ -20,14 +27,15 @@ Usage:
 import argparse
 import asyncio
 import json
+import os
 from pathlib import Path
 
 from web3 import Web3
 from websockets import connect
 
-# Configuration
-DEFAULT_MARKET_ADDRESS = "0xd3af145f1aa1a471b5f0f62c52cf8fcdc9ab55d3"
-DEFAULT_RPC_WS_URL = "wss://monad-testnet.drpc.org"
+DEFAULT_MARKET_ADDRESS = "0x122C0D8683Cab344163fB73E28E741754257e3Fa"
+DEFAULT_RPC_URL = os.getenv("MONAD_RPC_URL")
+DEFAULT_RPC_WS_URL = DEFAULT_RPC_URL.replace("https://", "wss://")
 DEFAULT_ABI_PATH = "src/kuru_copytr_bot/config/abis/OrderBook.json"
 
 

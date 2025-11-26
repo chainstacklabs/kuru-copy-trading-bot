@@ -1,5 +1,6 @@
 """Monad blockchain connector using Web3.py."""
 
+import threading
 import time
 from decimal import Decimal
 from typing import Any, ClassVar
@@ -20,6 +21,7 @@ from src.kuru_copytr_bot.config.constants import (
 )
 from src.kuru_copytr_bot.core.exceptions import (
     BlockchainConnectionError,
+    InsufficientBalanceError,
     InsufficientGasError,
     TransactionFailedError,
 )
@@ -81,6 +83,10 @@ class MonadClient(BlockchainConnector):
             self.wallet_address = self.account.address
         except Exception as e:
             raise ValueError(f"Invalid private key: {e}") from e
+
+        # Lock for serializing nonce fetching and transaction submission
+        # Prevents race conditions when multiple transactions are submitted rapidly
+        self._nonce_lock = threading.Lock()
 
         # Counter for dry run transaction hashes
         self._dry_run_tx_counter = 0
@@ -203,6 +209,9 @@ class MonadClient(BlockchainConnector):
         if not self._is_valid_address(to):
             raise ValueError(f"Invalid recipient address: {to}")
 
+        # Convert to checksum address (required by Web3.py for transactions)
+        to = Web3.to_checksum_address(to)
+
         @retry(
             stop=stop_after_attempt(MAX_RETRIES),
             wait=wait_exponential(multiplier=RETRY_BACKOFF_SECONDS, min=1, max=10),
@@ -210,53 +219,81 @@ class MonadClient(BlockchainConnector):
         )
         def _send_with_retry(tx):
             signed_tx = self.account.sign_transaction(tx)
-            return self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            return self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
 
         try:
-            # Get nonce
-            nonce = self.w3.eth.get_transaction_count(self.wallet_address, "pending")
+            # Use lock to serialize nonce fetching and transaction submission
+            # This prevents race conditions when multiple transactions are submitted rapidly
+            with self._nonce_lock:
+                # Get nonce (using 'pending' to include pending transactions)
+                nonce = self.w3.eth.get_transaction_count(self.wallet_address, "pending")
 
-            # Build transaction
-            tx = {
-                "from": self.wallet_address,
-                "to": to,
-                "value": value,
-                "data": data,
-                "nonce": nonce,
-                "chainId": self.w3.eth.chain_id,
-                "gasPrice": self.w3.eth.gas_price,
-            }
+                # Build transaction
+                tx = {
+                    "from": self.wallet_address,
+                    "to": to,
+                    "value": value,
+                    "data": data,
+                    "nonce": nonce,
+                    "chainId": self.w3.eth.chain_id,
+                    "gasPrice": self.w3.eth.gas_price,
+                }
 
-            # Estimate gas if not provided
-            if gas is None:
-                try:
-                    estimated_gas = self.w3.eth.estimate_gas(tx)
-                    tx["gas"] = estimated_gas
-                except Web3Exception as e:
-                    if "out of gas" in str(e).lower():
-                        raise InsufficientGasError(f"Gas estimation failed: {e}") from e
-                    raise InsufficientGasError(f"Failed to estimate gas: {e}") from e
-            else:
-                tx["gas"] = gas
+                # Estimate gas if not provided
+                if gas is None:
+                    try:
+                        estimated_gas = self.w3.eth.estimate_gas(tx)
+                        tx["gas"] = estimated_gas
+                    except Web3Exception as e:
+                        error_msg = str(e).lower()
+                        # Check for common insufficient balance / contract rejection errors
+                        # Include known Kuru contract error codes
+                        if any(
+                            keyword in error_msg
+                            for keyword in [
+                                "out of gas",
+                                "insufficient",
+                                "balance",
+                                "funds",
+                                "0x0a5c4f1f",  # Kuru: insufficient balance
+                                "0xf4d678b8",  # Kuru: another balance/margin error
+                            ]
+                        ):
+                            raise InsufficientBalanceError(
+                                f"Insufficient balance or margin: {e}"
+                            ) from e
 
-            # DRY RUN MODE: Log transaction instead of sending it
-            if self.dry_run:
-                self._dry_run_tx_counter += 1
-                fake_tx_hash = f"0xdryrun{self._dry_run_tx_counter:056x}"
-                logger.info(
-                    "[DRY RUN] Transaction simulated (not sent to blockchain)",
-                    to=to,
-                    value=value,
-                    data=data[:66] + "..." if len(data) > 66 else data,
-                    gas=tx["gas"],
-                    fake_tx_hash=fake_tx_hash,
-                )
-                return fake_tx_hash
+                        # If it's any other contract custom error (hex code), treat as insufficient balance
+                        # Most contract rejections during gas estimation are due to balance/margin issues
+                        if (
+                            "0x" in error_msg and len(error_msg) < 50
+                        ):  # Likely a contract error code
+                            raise InsufficientBalanceError(
+                                f"Contract rejected order (likely insufficient balance): {e}"
+                            ) from e
 
-            # Send transaction with retry
-            tx_hash = _send_with_retry(tx)
+                        raise InsufficientGasError(f"Failed to estimate gas: {e}") from e
+                else:
+                    tx["gas"] = gas
 
-            # Return hex string
+                # DRY RUN MODE: Log transaction instead of sending it
+                if self.dry_run:
+                    self._dry_run_tx_counter += 1
+                    fake_tx_hash = f"0xdryrun{self._dry_run_tx_counter:056x}"
+                    logger.info(
+                        "[DRY RUN] Transaction simulated (not sent to blockchain)",
+                        to=to,
+                        value=value,
+                        data=data[:66] + "..." if len(data) > 66 else data,
+                        gas=tx["gas"],
+                        fake_tx_hash=fake_tx_hash,
+                    )
+                    return fake_tx_hash
+
+                # Send transaction with retry (inside lock to ensure nonce is used immediately)
+                tx_hash = _send_with_retry(tx)
+
+            # Return hex string (outside lock since we already sent the transaction)
             if isinstance(tx_hash, bytes):
                 # Convert bytes to hex string
                 result = tx_hash.hex() if not tx_hash.startswith(b"0x") else tx_hash.decode("utf-8")
@@ -265,6 +302,9 @@ class MonadClient(BlockchainConnector):
 
         except (ConnectionError, TimeoutError) as e:
             raise BlockchainConnectionError(f"Failed to send transaction after retries: {e}") from e
+        except InsufficientBalanceError:
+            # Don't wrap balance errors - let them propagate up
+            raise
         except InsufficientGasError:
             # Don't wrap gas errors
             raise
@@ -293,18 +333,21 @@ class MonadClient(BlockchainConnector):
             # Convert to dict if needed
             return dict(receipt) if not isinstance(receipt, dict) else receipt
         except Exception as e:
+            # If transaction not found, return None so polling can continue
+            if "not found" in str(e).lower():
+                return None
             raise BlockchainConnectionError(f"Failed to get transaction receipt: {e}") from e
 
     def wait_for_transaction_receipt(
         self,
         tx_hash: str,
-        timeout: int = 120,
+        timeout: int = 10,
     ) -> dict[str, Any]:
         """Wait for transaction to be confirmed.
 
         Args:
             tx_hash: Transaction hash
-            timeout: Timeout in seconds
+            timeout: Timeout in seconds (default: 10)
 
         Returns:
             Dict[str, Any]: Transaction receipt

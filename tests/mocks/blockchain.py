@@ -132,8 +132,7 @@ class MockBlockchainClient:
         addresses: list[str],
         from_block: int,
     ) -> list[dict[str, Any]]:
-        """Get latest transactions for addresses."""
-        # Return empty list by default
+        """Get latest transactions for addresses (legacy - bot uses events)."""
         return []
 
     def wait_for_transaction_receipt(

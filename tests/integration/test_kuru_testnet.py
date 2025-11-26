@@ -149,30 +149,6 @@ class TestKuruTestnetOrders:
         assert receipt["status"] == 1
 
     @pytest.mark.skip(reason="Requires testnet funds - run manually when needed")
-    def test_deposit_margin_on_testnet(self, kuru_client, blockchain, settings):
-        """Should deposit margin to Kuru on real testnet."""
-        # Check balance first
-        usdc_balance = blockchain.get_token_balance(
-            settings.wallet_address,
-            "0xUSDCTestnetAddress00000000000000000000000",
-        )
-
-        if usdc_balance < Decimal("1.0"):
-            pytest.skip("Insufficient USDC balance for deposit test")
-
-        # Deposit a small amount
-        tx_hash = kuru_client.deposit_margin(
-            token="0xUSDCTestnetAddress00000000000000000000000",
-            amount=Decimal("1.0"),
-        )
-
-        assert tx_hash.startswith("0x")
-
-        # Wait for deposit to confirm
-        receipt = blockchain.wait_for_transaction_receipt(tx_hash, timeout=60)
-        assert receipt["status"] == 1
-
-    @pytest.mark.skip(reason="Requires testnet funds - run manually when needed")
     def test_batch_cancel_orders_on_testnet(self, kuru_client, blockchain):
         """Should batch cancel multiple orders on testnet."""
         # Place multiple orders

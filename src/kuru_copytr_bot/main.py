@@ -64,6 +64,7 @@ class BotRunner:
                 0
             ],  # Will use first market for operations
             api_url=self.settings.kuru_api_url,
+            network=self.settings.network,
         )
 
         # Initialize blockchain event subscribers for each market
@@ -80,10 +81,21 @@ class BotRunner:
 
         event_subscribers = []
         for market_address in self.settings.market_addresses:
+            # Get market parameters to obtain correct precisions
+            market_params = kuru_client.get_market_params(market_address)
+            logger.debug(
+                "Fetched market parameters for event subscriber",
+                market=market_address,
+                size_precision=market_params.size_precision,
+                price_precision=market_params.price_precision,
+            )
+
             subscriber = BlockchainEventSubscriber(
                 rpc_ws_url=rpc_ws_url,
                 market_address=market_address,
                 orderbook_abi=kuru_client.orderbook_abi,
+                size_precision=market_params.size_precision,
+                price_precision=market_params.price_precision,
             )
             event_subscribers.append((market_address, subscriber))
             logger.debug("Created blockchain event subscriber", market=market_address)
@@ -99,7 +111,8 @@ class BotRunner:
             copy_ratio=self.settings.copy_ratio,
             max_position_size=self.settings.max_position_size,
             min_order_size=self.settings.min_order_size,
-            respect_balance=True,
+            respect_balance=False,  # Skip order if insufficient balance (don't reduce size)
+            enforce_minimum=True,  # Use minimum order size if calculated size is below minimum
         )
 
         # Initialize trade validator
@@ -156,9 +169,12 @@ class BotRunner:
 
         if self.settings.dry_run_track_all_market_orders:
             click.echo("*** MARKET-WIDE TRACKING ENABLED - Monitoring ALL orders on market ***")
-            click.echo(f"Reference wallets ({len(self.settings.source_wallets)}):")
-            for wallet in self.settings.source_wallets:
-                click.echo(f"  - {wallet}")
+            if self.settings.source_wallets:
+                click.echo(f"Reference wallets ({len(self.settings.source_wallets)}):")
+                for wallet in self.settings.source_wallets:
+                    click.echo(f"  - {wallet}")
+            else:
+                click.echo("No reference wallets configured (tracking all market activity)")
         else:
             click.echo(f"Watching {len(self.settings.source_wallets)} source wallets:")
             for wallet in self.settings.source_wallets:
@@ -175,7 +191,7 @@ class BotRunner:
         stats_task = asyncio.create_task(self._display_stats_periodically())
 
         # Set up signal handlers for graceful shutdown
-        def signal_handler(sig, frame):
+        def signal_handler(sig, _frame):
             """Handle shutdown signals."""
             logger.info("Shutdown signal received", signal=sig)
             self.running = False
@@ -203,10 +219,10 @@ class BotRunner:
                 if self.bot and self.running:
                     stats = self.bot.get_statistics()
                     click.echo(
-                        f"\rStats: {stats['trades_detected']} trades | "
-                        f"{stats['successful_trades']} successful | "
-                        f"{stats['failed_trades']} failed | "
-                        f"{stats['rejected_trades']} rejected",
+                        f"\n[Bot Stats] Orders: {stats['successful_orders']} placed | "
+                        f"{stats['failed_orders']} failed | "
+                        f"{stats['rejected_orders']} rejected | "
+                        f"{stats['open_orders']} open\n\n",
                         nl=False,
                     )
         except asyncio.CancelledError:
@@ -215,12 +231,21 @@ class BotRunner:
     def _display_final_stats(self) -> None:
         """Display final statistics."""
         if self.bot:
-            click.echo("\n\n=== Final Statistics ===")
+            click.echo("\n\n=== Final Bot Statistics ===")
             stats = self.bot.get_statistics()
-            click.echo(f"Trades detected: {stats['trades_detected']}")
-            click.echo(f"Successful trades: {stats['successful_trades']}")
-            click.echo(f"Failed trades: {stats['failed_trades']}")
-            click.echo(f"Rejected trades: {stats['rejected_trades']}")
+            click.echo("\nBot Wallet Activity:")
+            click.echo(f"  Orders placed: {stats['successful_orders']}")
+            click.echo(f"  Orders failed: {stats['failed_orders']}")
+            click.echo(f"  Orders rejected: {stats['rejected_orders']}")
+            click.echo(f"  Orders canceled: {stats['orders_canceled']}")
+            click.echo(f"  Open orders: {stats['open_orders']}")
+            if stats["successful_orders"] > 0:
+                click.echo(f"  Fill rate: {stats['fill_rate']:.1%}")
+
+            click.echo("\nSource Wallet Activity (monitoring):")
+            click.echo(f"  Orders detected: {stats['orders_detected']}")
+            click.echo(f"  Cancellations detected: {stats['orders_canceled_detected']}")
+
             click.echo("\nBot stopped.")
 
     def run(self) -> None:

@@ -124,7 +124,8 @@ class TestTradeValidatorOrderSizeLimits:
 
     def test_validator_accepts_order_within_limit(self, sample_buy_trade):
         """Validator should accept order within size limit."""
-        validator = TradeValidator(max_position_size=Decimal("10.0"))
+        # sample_buy_trade: size=1.0 at price=$2000 = $2000 notional
+        validator = TradeValidator(max_position_size=Decimal("5000.0"))  # $5000 max in USD
         result = validator.validate(
             trade=sample_buy_trade,  # size=1.0
             current_balance=Decimal("10000.0"),
@@ -340,9 +341,10 @@ class TestTradeValidatorMultipleRules:
 
     def test_validator_checks_all_rules(self, sample_buy_trade):
         """Validator should check all configured rules."""
+        # sample_buy_trade: size=1.0 at price=$2000 = $2000 notional
         validator = TradeValidator(
             min_balance=Decimal("100.0"),
-            max_position_size=Decimal("10.0"),
+            max_position_size=Decimal("5000.0"),  # $5000 max in USD
             min_order_size=Decimal("0.01"),
             market_whitelist=["ETH-USDC"],
             max_exposure_usd=Decimal("100000.0"),
