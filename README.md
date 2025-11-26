@@ -84,10 +84,6 @@ uv run pre-commit install
 - Monad RPC access (WebSocket endpoint)
 - Private key with MON for gas
 
-## License
-
-MIT
-
 ## Margin account management
 
 ### Understanding margin accounts
