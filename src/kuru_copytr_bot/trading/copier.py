@@ -219,10 +219,11 @@ class TradeCopier:
             self.order_tracker.register_order(order_id=order_id, size=calculated_size)
 
             self._successful_trades += 1
-            logger.info(
-                "Successfully executed mirror trade",
+            logger.debug(
+                "Trade order placed and tracked",
                 trade_id=trade.id,
                 order_id=order_id,
+                size=str(calculated_size),
             )
             return order_id
 
@@ -443,10 +444,11 @@ class TradeCopier:
             self.order_tracker.register_order(order_id=order_id, size=calculated_size)
 
             self._successful_orders += 1
-            logger.info(
-                "Successfully executed mirror order",
+            logger.debug(
+                "Order placed and tracked",
                 source_order_id=order.order_id,
                 order_id=order_id,
+                size=str(calculated_size),
             )
             return order_id
 
@@ -532,6 +534,11 @@ class TradeCopier:
             tx_hash = self.kuru_client.cancel_orders(order_ids, market_address)
 
             self._orders_canceled += len(order_ids)
+
+            # Remove canceled orders from tracker
+            for order_id in order_ids:
+                self.order_tracker.remove_order(order_id)
+
             logger.info(
                 "Successfully canceled orders",
                 order_count=len(order_ids),

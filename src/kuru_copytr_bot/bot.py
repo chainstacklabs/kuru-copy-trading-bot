@@ -309,7 +309,7 @@ class CopyTradingBot:
                         order_count=len(order_ids),
                     )
 
-                self._orders_canceled_detected += 1
+                self._orders_canceled_detected += len(order_ids)
                 logger.info(
                     "Orders canceled detected",
                     order_count=len(order_ids),
