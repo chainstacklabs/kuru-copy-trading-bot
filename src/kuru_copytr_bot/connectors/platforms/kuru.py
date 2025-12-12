@@ -505,11 +505,32 @@ class KuruClient:
         # Use provided market address or fall back to default
         target_market = market_address if market_address else self.contract_address
 
+        # DRY RUN MODE: If all order IDs are dry run transaction hashes, skip cancellation
+        if all(order_id.startswith("0xdryrun") for order_id in order_ids):
+            fake_tx_hash = (
+                "0xdryrun_cancel_"
+                + "_".join(order_id.replace("0xdryrun", "") for order_id in order_ids)[:50]
+            )
+            logger.info(
+                "[DRY RUN] Order cancellation simulated (not sent to blockchain)",
+                order_ids=order_ids,
+                fake_tx_hash=fake_tx_hash,
+            )
+            return fake_tx_hash
+
         # Convert order IDs to uint40 format
         # Order IDs can be: numeric strings, hex strings, or "order_" prefixed strings
         order_ids_uint40 = []
         for order_id in order_ids:
             try:
+                # Skip dry run order IDs in mixed scenarios
+                if order_id.startswith("0xdryrun"):
+                    logger.warning(
+                        "Skipping dry run order ID in mixed cancellation",
+                        order_id=order_id,
+                    )
+                    continue
+
                 # Strip "order_" prefix if present
                 if order_id.startswith("order_"):
                     order_id = order_id[6:]  # Remove "order_" prefix
@@ -519,6 +540,11 @@ class KuruClient:
                 order_ids_uint40.append(order_id_int)
             except ValueError as e:
                 raise ValueError(f"Invalid order ID format: {order_id}") from e
+
+        # If all order IDs were dry run IDs, return early
+        if not order_ids_uint40:
+            logger.info("[DRY RUN] All order IDs were dry run IDs, skipping cancellation")
+            return "0xdryrun_cancel_skipped"
 
         # Encode batch cancel transaction
         cancel_data = self.orderbook_contract.functions.batchCancelOrders(
