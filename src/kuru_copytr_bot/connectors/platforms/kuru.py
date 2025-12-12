@@ -5,7 +5,6 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
-import requests
 from web3 import Web3
 
 from src.kuru_copytr_bot.config.constants import get_kuru_margin_account_address
@@ -46,7 +45,6 @@ class KuruClient:
     def __init__(
         self,
         blockchain: BlockchainConnector,
-        api_url: str,
         contract_address: str,
         network: str = "testnet",
         strict_api_errors: bool = False,
@@ -55,7 +53,6 @@ class KuruClient:
 
         Args:
             blockchain: Blockchain connector instance
-            api_url: Kuru API base URL
             contract_address: Kuru contract address (OrderBook)
             network: Network to use ('testnet' or 'mainnet')
             strict_api_errors: If True, raise exceptions on API errors. If False, return empty results and log warnings.
@@ -64,7 +61,6 @@ class KuruClient:
             ValueError: If contract address is invalid
         """
         self.blockchain = blockchain
-        self.api_url = api_url.rstrip("/")
         self.contract_address = contract_address
         self.network = network
         self.margin_account_address = get_kuru_margin_account_address(network)
@@ -897,221 +893,6 @@ class KuruClient:
         fee = cost * taker_fee
 
         return cost + fee
-
-    def get_user_orders(
-        self, user_address: str, limit: int = 100, offset: int = 0
-    ) -> list[dict[str, Any]]:
-        """Get all orders for a user from API.
-
-        Args:
-            user_address: User wallet address
-            limit: Maximum number of orders to return (default: 100)
-            offset: Number of orders to skip (default: 0)
-
-        Returns:
-            List of orders for the user (empty list if none found)
-
-        Raises:
-            requests.exceptions.RequestException: If strict_api_errors=True and API call fails
-        """
-        try:
-            response = requests.get(
-                f"{self.api_url}/orders/user/{user_address}",
-                params={"limit": limit, "offset": offset},
-            )
-            if response.status_code == 404:
-                return []
-
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Failed to fetch user orders: {e}")
-            if self.strict_api_errors:
-                raise
-            return []
-
-    def get_order(self, order_id: str) -> dict[str, Any] | None:
-        """Get a single order by ID from API.
-
-        Args:
-            order_id: Order ID
-
-        Returns:
-            Dict with order data or None if not found
-        """
-        try:
-            response = requests.get(f"{self.api_url}/orders/{order_id}")
-            if response.status_code == 404:
-                return None
-
-            response.raise_for_status()
-            data = response.json()
-
-            # Convert numeric fields to Decimal
-            return {
-                "order_id": data.get("order_id"),
-                "status": data.get("status"),
-                "filled_size": Decimal(str(data.get("filled_size", "0"))),
-                "remaining_size": Decimal(str(data.get("remaining_size", "0"))),
-            }
-        except requests.exceptions.RequestException:
-            return None
-
-    def get_market_orders(self, market_address: str, order_ids: list[int]) -> list[dict[str, Any]]:
-        """Get multiple orders by ID from a specific market.
-
-        Args:
-            market_address: Market contract address
-            order_ids: List of order IDs to fetch
-
-        Returns:
-            List of orders (empty list if none found)
-
-        Raises:
-            requests.exceptions.RequestException: If strict_api_errors=True and API call fails
-        """
-        try:
-            # Convert order_ids list to comma-separated string
-            order_ids_str = ",".join(str(order_id) for order_id in order_ids)
-
-            response = requests.get(
-                f"{self.api_url}/orders/market/{market_address}",
-                params={"order_ids": order_ids_str},
-            )
-            if response.status_code == 404:
-                return []
-
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Failed to fetch market orders: {e}")
-            if self.strict_api_errors:
-                raise
-            return []
-
-    def get_orders_by_cloid(
-        self, market_address: str, user_address: str, client_order_ids: list[str]
-    ) -> list[dict[str, Any]]:
-        """Get orders by client order IDs (CLOIDs).
-
-        Args:
-            market_address: Market contract address
-            user_address: User wallet address
-            client_order_ids: List of client order IDs to look up
-
-        Returns:
-            List of matching orders (empty list if none found)
-        """
-        try:
-            response = requests.post(
-                f"{self.api_url}/orders/client",
-                json={
-                    "clientOrderIds": client_order_ids,
-                    "marketAddress": market_address,
-                    "userAddress": user_address,
-                },
-            )
-            if response.status_code == 404:
-                return []
-
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Failed to fetch orders by CLOID: {e}")
-            if self.strict_api_errors:
-                raise
-            return []
-
-    def get_active_orders(
-        self, user_address: str, limit: int = 100, offset: int = 0
-    ) -> list[dict[str, Any]]:
-        """Get only active orders (OPEN, PARTIALLY_FILLED) for a user from API.
-
-        Args:
-            user_address: User wallet address
-            limit: Maximum number of orders to return (default: 100)
-            offset: Number of orders to skip (default: 0)
-
-        Returns:
-            List of active orders for the user (empty list if none found)
-
-        Raises:
-            requests.exceptions.RequestException: If strict_api_errors=True and API call fails
-        """
-        try:
-            response = requests.get(
-                f"{self.api_url}/{user_address}/user/orders/active",
-                params={"limit": limit, "offset": offset},
-            )
-            if response.status_code == 404:
-                return []
-
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Failed to fetch active orders: {e}")
-            if self.strict_api_errors:
-                raise
-            return []
-
-    def get_user_trades(
-        self,
-        market_address: str,
-        user_address: str,
-        start_timestamp: int | None = None,
-        end_timestamp: int | None = None,
-    ) -> list[dict[str, Any]]:
-        """Get historical trades for a user on a specific market.
-
-        Args:
-            market_address: Market contract address
-            user_address: User wallet address
-            start_timestamp: Optional Unix timestamp to filter trades from
-            end_timestamp: Optional Unix timestamp to filter trades until
-
-        Returns:
-            List of trades for the user (empty list if none found)
-
-        Raises:
-            requests.exceptions.RequestException: If strict_api_errors=True and API call fails
-        """
-        try:
-            params = {}
-            if start_timestamp is not None:
-                params["start_timestamp"] = start_timestamp
-            if end_timestamp is not None:
-                params["end_timestamp"] = end_timestamp
-
-            response = requests.get(
-                f"{self.api_url}/{market_address}/trades/user/{user_address}", params=params
-            )
-            if response.status_code == 404:
-                return []
-
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Failed to fetch user trades: {e}")
-            if self.strict_api_errors:
-                raise
-            return []
-
-    def get_open_orders(self, market: str | None = None) -> list[dict[str, Any]]:
-        """Get all open orders.
-
-        Args:
-            market: Optional market filter
-
-        Returns:
-            List of open orders
-        """
-        try:
-            params = {"market": market} if market else {}
-            response = requests.get(f"{self.api_url}/orders", params=params)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException:
-            return []
 
     def get_orderbook(self, market: str) -> dict[str, Any]:
         """Get current orderbook for a market from contract.

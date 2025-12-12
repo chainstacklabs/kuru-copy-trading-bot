@@ -75,12 +75,14 @@ class TradeValidator:
                     reason=f"Insufficient balance for trade: {current_balance} < {trade_cost}",
                 )
 
-        # Check 3: Minimum order size
-        if self.min_order_size is not None and trade.size < self.min_order_size:
-            return ValidationResult(
-                is_valid=False,
-                reason=f"Order size {trade.size} below minimum {self.min_order_size}",
-            )
+        # Check 3: Minimum order size (in USD)
+        if self.min_order_size is not None:
+            trade_notional = trade.size * trade.price
+            if trade_notional < self.min_order_size:
+                return ValidationResult(
+                    is_valid=False,
+                    reason=f"Order size ${trade_notional:.2f} below minimum ${self.min_order_size}",
+                )
 
         # Check 4: Maximum position size in USD (interpret as max single order size for spot)
         if self.max_position_size is not None:
@@ -144,12 +146,14 @@ class TradeValidator:
                     reason=f"Insufficient balance for order: {current_balance} < {order_cost}",
                 )
 
-        # Check 3: Minimum order size
-        if self.min_order_size is not None and order.size < self.min_order_size:
-            return ValidationResult(
-                is_valid=False,
-                reason=f"Order size {order.size} below minimum {self.min_order_size}",
-            )
+        # Check 3: Minimum order size (in USD)
+        if self.min_order_size is not None:
+            order_notional = order.size * order.price
+            if order_notional < self.min_order_size:
+                return ValidationResult(
+                    is_valid=False,
+                    reason=f"Order size ${order_notional:.2f} below minimum ${self.min_order_size}",
+                )
 
         # Check 4: Maximum position size in USD (interpret as max single order size for spot)
         if self.max_position_size is not None:

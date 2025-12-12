@@ -16,7 +16,6 @@ class TestSettingsConfiguration:
         """Settings should load from environment variables."""
         monkeypatch.setenv("WALLET_PRIVATE_KEY", "0x" + "a" * 64)
         monkeypatch.setenv("MONAD_RPC_URL", "https://testnet.monad.xyz")
-        monkeypatch.setenv("KURU_API_URL", "https://api.kuru.io")
         monkeypatch.setenv("SOURCE_WALLETS", "0x1234567890123456789012345678901234567890")
         monkeypatch.setenv("MARKET_ADDRESSES", "0x4444444444444444444444444444444444444444")
 
@@ -24,7 +23,6 @@ class TestSettingsConfiguration:
 
         assert settings.wallet_private_key == "0x" + "a" * 64
         assert settings.monad_rpc_url == "https://testnet.monad.xyz"
-        assert settings.kuru_api_url == "https://api.kuru.io"
         assert "0x1234567890123456789012345678901234567890" in settings.source_wallets
         assert "0x4444444444444444444444444444444444444444" in settings.market_addresses
 
@@ -34,7 +32,6 @@ class TestSettingsConfiguration:
             Settings(
                 wallet_private_key=None,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=["0x1234567890123456789012345678901234567890"],
             )
 
@@ -49,7 +46,6 @@ class TestSettingsConfiguration:
             Settings(
                 wallet_private_key="invalid_key",
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=["0x1234567890123456789012345678901234567890"],
             )
 
@@ -58,7 +54,6 @@ class TestSettingsConfiguration:
         settings = Settings(
             wallet_private_key="0x" + "a" * 64,
             monad_rpc_url="https://testnet.monad.xyz",
-            kuru_api_url="https://api.kuru.io",
             source_wallets=["0x1234567890123456789012345678901234567890"],
         )
 
@@ -72,7 +67,6 @@ class TestSettingsConfiguration:
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=["invalid_address"],
             )
 
@@ -82,7 +76,6 @@ class TestSettingsConfiguration:
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets="not_a_list",
             )
 
@@ -92,7 +85,6 @@ class TestSettingsConfiguration:
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=[],
                 market_addresses=["0x4444444444444444444444444444444444444444"],
                 dry_run=False,
@@ -106,7 +98,6 @@ class TestSettingsConfiguration:
         settings = Settings(
             wallet_private_key="0x" + "a" * 64,
             monad_rpc_url="https://testnet.monad.xyz",
-            kuru_api_url="https://api.kuru.io",
             source_wallets=[],
             market_addresses=["0x4444444444444444444444444444444444444444"],
             dry_run=True,
@@ -123,7 +114,6 @@ class TestSettingsConfiguration:
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=[],
                 market_addresses=["0x4444444444444444444444444444444444444444"],
                 dry_run=True,
@@ -138,7 +128,6 @@ class TestSettingsConfiguration:
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=[],
                 market_addresses=["0x4444444444444444444444444444444444444444"],
                 dry_run=False,
@@ -153,7 +142,6 @@ class TestSettingsConfiguration:
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=["0x1234567890123456789012345678901234567890"],
                 copy_ratio=Decimal("-0.5"),
             )
@@ -164,7 +152,6 @@ class TestSettingsConfiguration:
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=["0x1234567890123456789012345678901234567890"],
                 copy_ratio=Decimal("0"),
             )
@@ -175,7 +162,6 @@ class TestSettingsConfiguration:
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=["0x1234567890123456789012345678901234567890"],
                 max_position_size=Decimal("-1000"),
             )
@@ -185,7 +171,6 @@ class TestSettingsConfiguration:
         settings = Settings(
             wallet_private_key="0x" + "a" * 64,
             monad_rpc_url="https://testnet.monad.xyz",
-            kuru_api_url="https://api.kuru.io",
             source_wallets=["0x1234567890123456789012345678901234567890"],
         )
 
@@ -196,7 +181,6 @@ class TestSettingsConfiguration:
         settings = Settings(
             wallet_private_key="0x" + "a" * 64,
             monad_rpc_url="https://testnet.monad.xyz",
-            kuru_api_url="https://api.kuru.io",
             source_wallets=["0x1234567890123456789012345678901234567890"],
         )
 
@@ -207,7 +191,6 @@ class TestSettingsConfiguration:
         settings = Settings(
             wallet_private_key="0x" + "a" * 64,
             monad_rpc_url="https://testnet.monad.xyz",
-            kuru_api_url="https://api.kuru.io",
             source_wallets=["0x1234567890123456789012345678901234567890"],
         )
 
@@ -219,7 +202,6 @@ class TestSettingsConfiguration:
             settings = Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=["0x1234567890123456789012345678901234567890"],
                 log_level=level,
             )
@@ -231,17 +213,6 @@ class TestSettingsConfiguration:
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="not_a_url",
-                kuru_api_url="https://api.kuru.io",
-                source_wallets=["0x1234567890123456789012345678901234567890"],
-            )
-
-    def test_settings_validates_api_url_format(self):
-        """Settings should validate API URL format."""
-        with pytest.raises(ValidationError):
-            Settings(
-                wallet_private_key="0x" + "a" * 64,
-                monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="not_a_url",
                 source_wallets=["0x1234567890123456789012345678901234567890"],
             )
 
@@ -249,7 +220,6 @@ class TestSettingsConfiguration:
         """Settings should parse comma-separated source wallets from env."""
         monkeypatch.setenv("WALLET_PRIVATE_KEY", "0x" + "a" * 64)
         monkeypatch.setenv("MONAD_RPC_URL", "https://testnet.monad.xyz")
-        monkeypatch.setenv("KURU_API_URL", "https://api.kuru.io")
         monkeypatch.setenv(
             "SOURCE_WALLETS",
             "0x1234567890123456789012345678901234567890,0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
@@ -266,7 +236,6 @@ class TestSettingsConfiguration:
         settings = Settings(
             wallet_private_key="0x" + "a" * 64,
             monad_rpc_url="https://testnet.monad.xyz",
-            kuru_api_url="https://api.kuru.io",
             source_wallets=["0x1234567890123456789012345678901234567890"],
             max_position_size=Decimal("1000"),
             max_total_exposure=Decimal("5000"),
@@ -281,7 +250,6 @@ class TestSettingsConfiguration:
         settings = Settings(
             wallet_private_key="0x" + "a" * 64,
             monad_rpc_url="https://testnet.monad.xyz",
-            kuru_api_url="https://api.kuru.io",
             source_wallets=["0x1234567890123456789012345678901234567890"],
             market_whitelist=["ETH-USDC", "BTC-USDC"],
         )
@@ -293,7 +261,6 @@ class TestSettingsConfiguration:
         settings = Settings(
             wallet_private_key="0x" + "a" * 64,
             monad_rpc_url="https://testnet.monad.xyz",
-            kuru_api_url="https://api.kuru.io",
             source_wallets=["0x1234567890123456789012345678901234567890"],
             market_blacklist=["SCAM-USDC"],
         )
@@ -307,7 +274,6 @@ class TestSettingsConfiguration:
             f"""
 WALLET_PRIVATE_KEY=0x{"a" * 64}
 MONAD_RPC_URL=https://testnet.monad.xyz
-KURU_API_URL=https://api.kuru.io
 SOURCE_WALLETS=0x1234567890123456789012345678901234567890
 COPY_RATIO=0.75
 DRY_RUN=true
@@ -327,7 +293,6 @@ LOG_LEVEL=DEBUG
         settings = Settings(
             wallet_private_key="0x" + "a" * 64,
             monad_rpc_url="https://testnet.monad.xyz",
-            kuru_api_url="https://api.kuru.io",
             source_wallets=["0x1234567890123456789012345678901234567890"],
         )
 
@@ -343,7 +308,6 @@ LOG_LEVEL=DEBUG
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=["0x1234567890123456789012345678901234567890"],
                 min_order_size=Decimal("1000"),
                 max_position_size=Decimal("500"),
@@ -355,7 +319,6 @@ LOG_LEVEL=DEBUG
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=["0x1234567890123456789012345678901234567890"],
                 max_position_size=Decimal("10000"),
                 max_total_exposure=Decimal("5000"),
@@ -367,7 +330,6 @@ LOG_LEVEL=DEBUG
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=["0x1234567890123456789012345678901234567890"],
                 poll_interval_seconds=0,
             )
@@ -378,7 +340,6 @@ LOG_LEVEL=DEBUG
             Settings(
                 wallet_private_key="0x" + "a" * 64,
                 monad_rpc_url="https://testnet.monad.xyz",
-                kuru_api_url="https://api.kuru.io",
                 source_wallets=["0x1234567890123456789012345678901234567890"],
                 poll_interval_seconds=3601,
             )
@@ -387,7 +348,6 @@ LOG_LEVEL=DEBUG
         """Settings should accept PRIVATE_KEY environment variable (backward compatibility)."""
         monkeypatch.setenv("PRIVATE_KEY", "0x" + "a" * 64)
         monkeypatch.setenv("MONAD_RPC_URL", "https://testnet.monad.xyz")
-        monkeypatch.setenv("KURU_API_URL", "https://api.kuru.io")
         monkeypatch.setenv("SOURCE_WALLETS", "0x1234567890123456789012345678901234567890")
 
         settings = Settings()
@@ -398,7 +358,6 @@ LOG_LEVEL=DEBUG
         """Settings should accept MAX_POSITION_SIZE_USD environment variable (backward compatibility)."""
         monkeypatch.setenv("WALLET_PRIVATE_KEY", "0x" + "a" * 64)
         monkeypatch.setenv("MONAD_RPC_URL", "https://testnet.monad.xyz")
-        monkeypatch.setenv("KURU_API_URL", "https://api.kuru.io")
         monkeypatch.setenv("SOURCE_WALLETS", "0x1234567890123456789012345678901234567890")
         # Unset MAX_ORDER_SIZE if it exists (from .env file) to test backward compatibility
         monkeypatch.delenv("MAX_ORDER_SIZE", raising=False)
@@ -416,7 +375,6 @@ LOG_LEVEL=DEBUG
         settings = Settings(
             wallet_private_key="0x" + "a" * 64,
             monad_rpc_url="https://testnet.monad.xyz",
-            kuru_api_url="https://api.kuru.io",
             source_wallets=["0x1234567890123456789012345678901234567890"],
             min_balance_threshold=Decimal("0"),
         )

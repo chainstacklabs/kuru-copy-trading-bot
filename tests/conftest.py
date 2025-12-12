@@ -116,7 +116,6 @@ def test_settings() -> dict[str, Any]:
         "private_key": "0xtest_private_key_1234567890abcdef1234567890abcdef1234567890abcd",
         "wallet_address": "0x1234567890123456789012345678901234567890",
         "monad_rpc_url": "http://mock-monad-rpc",
-        "kuru_api_url": "http://mock-kuru-api",
         "source_wallets": ["0x1234567890123456789012345678901234567890"],
         "copy_ratio": Decimal("1.0"),
         "max_position_size_usd": Decimal("10000.0"),

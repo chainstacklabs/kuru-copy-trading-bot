@@ -126,7 +126,14 @@ class PositionSizeCalculator:
                     # Insufficient balance, return 0
                     return Decimal("0")
 
-        # Step 5: Round to tick size if specified
+        # Step 5: Final minimum check after balance adjustment
+        # If we scaled down below minimum (due to balance), return 0 instead
+        if self.min_order_size is not None and price is not None:
+            final_value = target_size * price
+            if final_value < self.min_order_size:
+                return Decimal("0")
+
+        # Step 6: Round to tick size if specified
         if self.tick_size is not None:
             target_size = (target_size / self.tick_size).quantize(
                 Decimal("1"), rounding=ROUND_DOWN

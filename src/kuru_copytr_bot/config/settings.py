@@ -38,7 +38,6 @@ class Settings(BaseSettings):
         description="Network to use: 'testnet' or 'mainnet'",
     )
     monad_rpc_url: str = Field(..., description="Monad blockchain RPC URL")
-    kuru_api_url: str = Field(..., description="Kuru Exchange API URL")
 
     # Trading Configuration
     source_wallets: str | list[str] = Field(
@@ -148,7 +147,7 @@ class Settings(BaseSettings):
 
         return v
 
-    @field_validator("monad_rpc_url", "kuru_api_url")
+    @field_validator("monad_rpc_url")
     @classmethod
     def validate_http_url(cls, v: str) -> str:
         """Validate HTTP/HTTPS URL format."""

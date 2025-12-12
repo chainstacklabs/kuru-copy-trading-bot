@@ -48,7 +48,6 @@ class TestKuruTestnetConnection:
 
         return KuruClient(
             blockchain=blockchain,
-            api_url=settings.kuru_api_url,
             contract_address=KURU_CONTRACT_ADDRESS_TESTNET,
         )
 
@@ -106,7 +105,6 @@ class TestKuruTestnetOrders:
 
         return KuruClient(
             blockchain=blockchain,
-            api_url=settings.kuru_api_url,
             contract_address=KURU_CONTRACT_ADDRESS_TESTNET,
         )
 
@@ -200,7 +198,6 @@ class TestKuruTestnetDataQueries:
 
         return KuruClient(
             blockchain=blockchain,
-            api_url=settings.kuru_api_url,
             contract_address=KURU_CONTRACT_ADDRESS_TESTNET,
         )
 
@@ -263,7 +260,6 @@ class TestKuruTestnetErrorHandling:
 
         return KuruClient(
             blockchain=blockchain,
-            api_url=settings.kuru_api_url,
             contract_address=KURU_CONTRACT_ADDRESS_TESTNET,
         )
 

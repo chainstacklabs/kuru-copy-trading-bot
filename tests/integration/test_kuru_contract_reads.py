@@ -51,7 +51,6 @@ class TestKuruContractReads:
         try:
             return KuruClient(
                 blockchain=blockchain,
-                api_url=settings.kuru_api_url,
                 contract_address=KURU_CONTRACT_ADDRESS_TESTNET,
             )
         except Exception as e:

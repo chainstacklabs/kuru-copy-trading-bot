@@ -10,11 +10,9 @@ class MockKuruClient:
     def __init__(
         self,
         blockchain: Any,
-        api_url: str = "http://mock-kuru-api",
     ) -> None:
         """Initialize mock Kuru client."""
         self.blockchain = blockchain
-        self.api_url = api_url
 
         # Track calls for testing
         self.deposits: list[dict[str, Any]] = []

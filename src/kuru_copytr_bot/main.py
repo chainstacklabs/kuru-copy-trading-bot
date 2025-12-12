@@ -63,7 +63,6 @@ class BotRunner:
             contract_address=self.settings.market_addresses[
                 0
             ],  # Will use first market for operations
-            api_url=self.settings.kuru_api_url,
             network=self.settings.network,
         )
 
@@ -111,7 +110,7 @@ class BotRunner:
             copy_ratio=self.settings.copy_ratio,
             max_position_size=self.settings.max_position_size,
             min_order_size=self.settings.min_order_size,
-            respect_balance=False,  # Skip order if insufficient balance (don't reduce size)
+            respect_balance=True,  # Scale down order to fit available balance
             enforce_minimum=True,  # Use minimum order size if calculated size is below minimum
         )
 
@@ -123,6 +122,7 @@ class BotRunner:
         )
         validator = TradeValidator(
             min_balance=self.settings.min_balance_threshold,
+            min_order_size=self.settings.min_order_size,  # Enforce minimum in validator too
             max_position_size=self.settings.max_position_size,
             max_exposure_usd=self.settings.max_total_exposure,
             market_whitelist=self.settings.market_whitelist,

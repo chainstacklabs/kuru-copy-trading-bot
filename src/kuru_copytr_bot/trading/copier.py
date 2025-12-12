@@ -103,9 +103,18 @@ class TradeCopier:
 
             # Log calculation details
             if calculated_size == 0:
-                # Calculate what the trade would have been
+                # Calculate what the trade would have been at each step
                 raw_calculated = trade.size * self.calculator.copy_ratio
                 raw_usd = raw_calculated * trade.price
+
+                # Check if it would have been capped by max_position_size
+                capped_usd = raw_usd
+                if (
+                    self.calculator.max_position_size
+                    and raw_usd > self.calculator.max_position_size
+                ):
+                    capped_usd = self.calculator.max_position_size
+
                 min_required = (
                     self.calculator.min_order_size
                     if self.calculator.min_order_size
@@ -123,13 +132,29 @@ class TradeCopier:
                         balance_usd=f"{balance:.2f}",
                     )
                 else:
-                    logger.info(
-                        "Calculated size is zero, skipping trade",
-                        trade_id=trade.id,
-                        source_size=str(trade.size),
-                        price=str(trade.price),
-                        balance=str(balance),
-                    )
+                    # Show capping in the message
+                    if capped_usd < raw_usd:
+                        logger.info(
+                            "Order capped to max size, but still exceeds balance, skipping trade",
+                            trade_id=trade.id,
+                            source_size=str(trade.size),
+                            price=str(trade.price),
+                            raw_calculated_usd=f"{raw_usd:.2f}",
+                            capped_to_max_usd=f"{capped_usd:.2f}",
+                            balance_usd=f"{balance:.2f}",
+                            copy_ratio=f"{float(self.calculator.copy_ratio * 100):.1f}%",
+                        )
+                    else:
+                        logger.info(
+                            "Insufficient balance for calculated order size, skipping trade",
+                            trade_id=trade.id,
+                            source_size=str(trade.size),
+                            price=str(trade.price),
+                            calculated_usd=f"{raw_usd:.2f}",
+                            required_usd=f"{raw_usd:.2f}",
+                            balance_usd=f"{balance:.2f}",
+                            copy_ratio=f"{float(self.calculator.copy_ratio * 100):.1f}%",
+                        )
                 return None
             else:
                 calculated_usd = calculated_size * trade.price
@@ -304,9 +329,18 @@ class TradeCopier:
 
             # Log calculation details
             if calculated_size == 0:
-                # Calculate what the order would have been
+                # Calculate what the order would have been at each step
                 raw_calculated = order.size * self.calculator.copy_ratio
                 raw_usd = raw_calculated * order.price
+
+                # Check if it would have been capped by max_position_size
+                capped_usd = raw_usd
+                if (
+                    self.calculator.max_position_size
+                    and raw_usd > self.calculator.max_position_size
+                ):
+                    capped_usd = self.calculator.max_position_size
+
                 min_required = (
                     self.calculator.min_order_size
                     if self.calculator.min_order_size
@@ -324,13 +358,29 @@ class TradeCopier:
                         balance_usd=f"{balance:.2f}",
                     )
                 else:
-                    logger.info(
-                        "Calculated size is zero, skipping order",
-                        order_id=order.order_id,
-                        source_size=str(order.size),
-                        price=str(order.price),
-                        balance=str(balance),
-                    )
+                    # Show capping in the message
+                    if capped_usd < raw_usd:
+                        logger.info(
+                            "Order capped to max size, but still exceeds balance, skipping order",
+                            order_id=order.order_id,
+                            source_size=str(order.size),
+                            price=str(order.price),
+                            raw_calculated_usd=f"{raw_usd:.2f}",
+                            capped_to_max_usd=f"{capped_usd:.2f}",
+                            balance_usd=f"{balance:.2f}",
+                            copy_ratio=f"{float(self.calculator.copy_ratio * 100):.1f}%",
+                        )
+                    else:
+                        logger.info(
+                            "Insufficient balance for calculated order size, skipping order",
+                            order_id=order.order_id,
+                            source_size=str(order.size),
+                            price=str(order.price),
+                            calculated_usd=f"{raw_usd:.2f}",
+                            required_usd=f"{raw_usd:.2f}",
+                            balance_usd=f"{balance:.2f}",
+                            copy_ratio=f"{float(self.calculator.copy_ratio * 100):.1f}%",
+                        )
                 return None
             else:
                 calculated_usd = calculated_size * order.price
@@ -547,6 +597,15 @@ class TradeCopier:
                 if calculated_size == 0:
                     raw_calculated = trade.size * self.calculator.copy_ratio
                     raw_usd = raw_calculated * trade.price
+
+                    # Check if it would have been capped by max_position_size
+                    capped_usd = raw_usd
+                    if (
+                        self.calculator.max_position_size
+                        and raw_usd > self.calculator.max_position_size
+                    ):
+                        capped_usd = self.calculator.max_position_size
+
                     min_required = (
                         self.calculator.min_order_size
                         if self.calculator.min_order_size
@@ -562,11 +621,25 @@ class TradeCopier:
                             balance_usd=f"{balance:.2f}",
                         )
                     else:
-                        logger.info(
-                            "Calculated size is zero, skipping retry",
-                            trade_id=trade.id,
-                            balance=str(balance),
-                        )
+                        # Show capping in the message
+                        if capped_usd < raw_usd:
+                            logger.info(
+                                "Order capped to max size, but still exceeds balance, skipping retry",
+                                trade_id=trade.id,
+                                raw_calculated_usd=f"{raw_usd:.2f}",
+                                capped_to_max_usd=f"{capped_usd:.2f}",
+                                balance_usd=f"{balance:.2f}",
+                                copy_ratio=f"{float(self.calculator.copy_ratio * 100):.1f}%",
+                            )
+                        else:
+                            logger.info(
+                                "Insufficient balance for calculated order size, skipping retry",
+                                trade_id=trade.id,
+                                calculated_usd=f"{raw_usd:.2f}",
+                                required_usd=f"{raw_usd:.2f}",
+                                balance_usd=f"{balance:.2f}",
+                                copy_ratio=f"{float(self.calculator.copy_ratio * 100):.1f}%",
+                            )
                     continue
 
                 validation_result = self.validator.validate(
