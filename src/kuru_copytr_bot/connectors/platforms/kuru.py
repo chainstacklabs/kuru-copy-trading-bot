@@ -686,7 +686,7 @@ class KuruClient:
             #          quoteAsset, quoteAssetDecimals, tickSize, minSize, maxSize,
             #          takerFeeBps, makerFeeBps)
             result = self.blockchain.call_contract_function(
-                contract_address=self.contract_address,
+                contract_address=market,  # Use the market parameter, not self.contract_address
                 function_name="getMarketParams",
                 abi=self.orderbook_abi,
                 args=[],
@@ -776,7 +776,7 @@ class KuruClient:
             # Returns: (vaultAddress, baseBalance, vaultAskOrderSize, quoteBalance,
             #          vaultBidOrderSize, vaultAskPrice, vaultBidPrice, spread)
             result = self.blockchain.call_contract_function(
-                contract_address=self.contract_address,
+                contract_address=market,  # Use the market parameter, not self.contract_address
                 function_name="getVaultParams",
                 abi=self.orderbook_abi,
                 args=[],
@@ -914,7 +914,7 @@ class KuruClient:
             # Call contract bestBidAsk() function to get top of book
             # Returns: (bestBid uint256, bestAsk uint256)
             result = self.blockchain.call_contract_function(
-                contract_address=self.contract_address,
+                contract_address=market,  # Use the market parameter, not self.contract_address
                 function_name="bestBidAsk",
                 abi=self.orderbook_abi,
                 args=[],
@@ -972,7 +972,7 @@ class KuruClient:
         try:
             # Call contract bestBidAsk() function
             result = self.blockchain.call_contract_function(
-                contract_address=self.contract_address,
+                contract_address=market,  # Use the market parameter, not self.contract_address
                 function_name="bestBidAsk",
                 abi=self.orderbook_abi,
                 args=[],
